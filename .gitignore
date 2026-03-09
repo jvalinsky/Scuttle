@@ -55,8 +55,14 @@ xcuserdata/
 
 # Project specific
 tmp-room/
+tmp-secretstream/
+tmp-repo-room/
+ssb-room-data/
 TestClient
 test_hello
 scuttlebutt.icns
 AppIcon.icns
 scripts/
+go.mod
+go.sum
+*.go
