@@ -1,0 +1,650 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00EE11A38AA65AB2658832BF /* SSBSecretHandshake.m in Sources */ = {isa = PBXBuildFile; fileRef = 0255A98ECFDE1B94FD72FDC8 /* SSBSecretHandshake.m */; };
+		1F1FC8D5C7E11D53568CB43E /* SSBConnectionFSMTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 7903E33DB09B529B3231AC07 /* SSBConnectionFSMTests.m */; };
+		2D27C4B1478B3BEE80FD5ACE /* tweetnacl.c in Sources */ = {isa = PBXBuildFile; fileRef = 75516176EABD43E300304542 /* tweetnacl.c */; };
+		2D6FBF5BD89783F1B4CAAEAA /* SSBNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; };
+		39E8170656DD2630FC0DF719 /* SSBSecretHandshake.h in Headers */ = {isa = PBXBuildFile; fileRef = 99F91286CB3ED206B79A3E77 /* SSBSecretHandshake.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		3C5FE070E76B93931852DC0D /* SSBConnectionFSM.h in Headers */ = {isa = PBXBuildFile; fileRef = 3D0A5DD1CF76AFF24492A78E /* SSBConnectionFSM.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		4E0D770E3150E72B84939F1A /* SSBFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 9B42ABD39574F1380A7D4E02 /* SSBFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		585777B3264C53A370D9B1A9 /* SSBMuxRPC.m in Sources */ = {isa = PBXBuildFile; fileRef = 798B55FEB82324DA55E84BE8 /* SSBMuxRPC.m */; };
+		75C64BD1D71E250DB10E3F79 /* SSBBoxStream.h in Headers */ = {isa = PBXBuildFile; fileRef = 29B7AD9AB28A5B0C4A35BA2E /* SSBBoxStream.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		884F44BF881CE3A4D3DC4DF7 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 410B0BC80AF863D21E803C0F /* AppIcon.icns */; };
+		8AF74B0C6F85ABD1BAAFBB44 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */; };
+		957A819F27BDA12D6A818E7B /* SSBNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; };
+		96B02CDE1D300F6A5623E45D /* SSBBoxStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */; };
+		9EA9951A01E1E1F883481100 /* SSBMuxRPC.h in Headers */ = {isa = PBXBuildFile; fileRef = B73C35617F300D1233DB2B83 /* SSBMuxRPC.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		A6A93BFDD12197C8C9CE2A40 /* SSBNetwork.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A953F4A5E9AAC735E3C5297E /* SSBNetwork.h in Headers */ = {isa = PBXBuildFile; fileRef = 31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		AC2D8D590BA4C02C2BFC96B5 /* SSBRoomClient.m in Sources */ = {isa = PBXBuildFile; fileRef = 037E18283780BBEE7AC97C12 /* SSBRoomClient.m */; };
+		B4B1781611491EA710139777 /* tweetnacl.h in Headers */ = {isa = PBXBuildFile; fileRef = ADF41D2BA8155CDF54C259CB /* tweetnacl.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		B8E2C63792A054D04318C035 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C9F05C00F76929DB237EAFC5 /* Assets.xcassets */; };
+		BD7F78D9CC7E86F23EE6532F /* SSBFramer.m in Sources */ = {isa = PBXBuildFile; fileRef = B48BB954DFAE878A0075EF4A /* SSBFramer.m */; };
+		C111B6D99CDCCCFD9546C012 /* SSBConnectionFSM.m in Sources */ = {isa = PBXBuildFile; fileRef = ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */; };
+		CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */ = {isa = PBXBuildFile; fileRef = 6AD82430655F17B68BA5E2AB /* randombytes.c */; };
+		DC4E9D2F01B23F9B6992C1B7 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 1FED1D5E48F454E382FCABAA /* main.m */; };
+		E3B51FD2F5CD35960B8ABB96 /* SSBFramerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 51CC92772DB3FD3C04DDA282 /* SSBFramerTests.m */; };
+		EE2CD1F5E183608A063F70D6 /* SSBNetwork.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1C903BEDC19F4311F34E501B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 84FE5265FAD8C72B56E7EF33 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1CF40B086A59D56593B18B96;
+			remoteInfo = SSBNetwork;
+		};
+		E1962CFE58CCD5FCCBEDD940 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 84FE5265FAD8C72B56E7EF33 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1CF40B086A59D56593B18B96;
+			remoteInfo = SSBNetwork;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		53760165C7B27B5720D00C41 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				A6A93BFDD12197C8C9CE2A40 /* SSBNetwork.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B8159EB20C043B4DBA94BD0A /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				EE2CD1F5E183608A063F70D6 /* SSBNetwork.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0255A98ECFDE1B94FD72FDC8 /* SSBSecretHandshake.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBSecretHandshake.m; sourceTree = "<group>"; };
+		037E18283780BBEE7AC97C12 /* SSBRoomClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRoomClient.m; sourceTree = "<group>"; };
+		1FED1D5E48F454E382FCABAA /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		23C9D99F878A9B6C7F9ECDB3 /* SSBNetworkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SSBNetworkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		29B7AD9AB28A5B0C4A35BA2E /* SSBBoxStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBoxStream.h; sourceTree = "<group>"; };
+		31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBNetwork.h; sourceTree = "<group>"; };
+		3D0A5DD1CF76AFF24492A78E /* SSBConnectionFSM.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBConnectionFSM.h; sourceTree = "<group>"; };
+		410B0BC80AF863D21E803C0F /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		517830A10C275CAC17E13876 /* ScuttleRoomApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScuttleRoomApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		51CC92772DB3FD3C04DDA282 /* SSBFramerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFramerTests.m; sourceTree = "<group>"; };
+		61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SSBNetwork.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		6AD82430655F17B68BA5E2AB /* randombytes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = randombytes.c; sourceTree = "<group>"; };
+		7466A4084D3543D750F94190 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		75516176EABD43E300304542 /* tweetnacl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tweetnacl.c; sourceTree = "<group>"; };
+		7903E33DB09B529B3231AC07 /* SSBConnectionFSMTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBConnectionFSMTests.m; sourceTree = "<group>"; };
+		798B55FEB82324DA55E84BE8 /* SSBMuxRPC.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPC.m; sourceTree = "<group>"; };
+		84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBRoomClient.h; sourceTree = "<group>"; };
+		99F91286CB3ED206B79A3E77 /* SSBSecretHandshake.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecretHandshake.h; sourceTree = "<group>"; };
+		9B42ABD39574F1380A7D4E02 /* SSBFramer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFramer.h; sourceTree = "<group>"; };
+		9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBoxStream.m; sourceTree = "<group>"; };
+		9C7E04C046ADB179D05C58EF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		ADF41D2BA8155CDF54C259CB /* tweetnacl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tweetnacl.h; sourceTree = "<group>"; };
+		B48BB954DFAE878A0075EF4A /* SSBFramer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFramer.m; sourceTree = "<group>"; };
+		B73C35617F300D1233DB2B83 /* SSBMuxRPC.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMuxRPC.h; sourceTree = "<group>"; };
+		B9413A93F0266D34DC142DBD /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		C9F05C00F76929DB237EAFC5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBConnectionFSM.m; sourceTree = "<group>"; };
+		F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AF77685584DC06C833A5E5C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				957A819F27BDA12D6A818E7B /* SSBNetwork.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EEA8C48F679A0076D534E540 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D6FBF5BD89783F1B4CAAEAA /* SSBNetwork.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1E869DD3875047A521B5ACAE = {
+			isa = PBXGroup;
+			children = (
+				61919F188E68FE94722E294A /* App */,
+				77EE1D76DFF0A4FD1AF6147B /* Sources */,
+				B3447AD46347CC4634612FC2 /* Tests */,
+				5EAE10210859E5F79833534B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5EAE10210859E5F79833534B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				517830A10C275CAC17E13876 /* ScuttleRoomApp.app */,
+				61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */,
+				23C9D99F878A9B6C7F9ECDB3 /* SSBNetworkTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		61919F188E68FE94722E294A /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B9413A93F0266D34DC142DBD /* AppDelegate.h */,
+				F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */,
+				410B0BC80AF863D21E803C0F /* AppIcon.icns */,
+				C9F05C00F76929DB237EAFC5 /* Assets.xcassets */,
+				7466A4084D3543D750F94190 /* Info.plist */,
+				1FED1D5E48F454E382FCABAA /* main.m */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		77EE1D76DFF0A4FD1AF6147B /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				9C7E04C046ADB179D05C58EF /* Info.plist */,
+				6AD82430655F17B68BA5E2AB /* randombytes.c */,
+				29B7AD9AB28A5B0C4A35BA2E /* SSBBoxStream.h */,
+				9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */,
+				3D0A5DD1CF76AFF24492A78E /* SSBConnectionFSM.h */,
+				ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */,
+				9B42ABD39574F1380A7D4E02 /* SSBFramer.h */,
+				B48BB954DFAE878A0075EF4A /* SSBFramer.m */,
+				B73C35617F300D1233DB2B83 /* SSBMuxRPC.h */,
+				798B55FEB82324DA55E84BE8 /* SSBMuxRPC.m */,
+				31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */,
+				84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */,
+				037E18283780BBEE7AC97C12 /* SSBRoomClient.m */,
+				99F91286CB3ED206B79A3E77 /* SSBSecretHandshake.h */,
+				0255A98ECFDE1B94FD72FDC8 /* SSBSecretHandshake.m */,
+				75516176EABD43E300304542 /* tweetnacl.c */,
+				ADF41D2BA8155CDF54C259CB /* tweetnacl.h */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		B3447AD46347CC4634612FC2 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				7903E33DB09B529B3231AC07 /* SSBConnectionFSMTests.m */,
+				51CC92772DB3FD3C04DDA282 /* SSBFramerTests.m */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		6AF47B4C41E45D2E7E087A3D /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				75C64BD1D71E250DB10E3F79 /* SSBBoxStream.h in Headers */,
+				3C5FE070E76B93931852DC0D /* SSBConnectionFSM.h in Headers */,
+				4E0D770E3150E72B84939F1A /* SSBFramer.h in Headers */,
+				9EA9951A01E1E1F883481100 /* SSBMuxRPC.h in Headers */,
+				A953F4A5E9AAC735E3C5297E /* SSBNetwork.h in Headers */,
+				CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */,
+				39E8170656DD2630FC0DF719 /* SSBSecretHandshake.h in Headers */,
+				B4B1781611491EA710139777 /* tweetnacl.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		1CF40B086A59D56593B18B96 /* SSBNetwork */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51637031B1D89FA1A3A991BB /* Build configuration list for PBXNativeTarget "SSBNetwork" */;
+			buildPhases = (
+				6AF47B4C41E45D2E7E087A3D /* Headers */,
+				31A0C6012D7FFC87C95017F4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SSBNetwork;
+			packageProductDependencies = (
+			);
+			productName = SSBNetwork;
+			productReference = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		BD1C876785A2AB5CDF9C0ECE /* ScuttleRoomApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9D1B42DD7C1ABAE8A81989C3 /* Build configuration list for PBXNativeTarget "ScuttleRoomApp" */;
+			buildPhases = (
+				3FEE36493C7FC86B55722C15 /* Sources */,
+				33D5B41AB1A26EE9F6A4369D /* Resources */,
+				EEA8C48F679A0076D534E540 /* Frameworks */,
+				B8159EB20C043B4DBA94BD0A /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				44B81020441BBEB30313B667 /* PBXTargetDependency */,
+			);
+			name = ScuttleRoomApp;
+			packageProductDependencies = (
+			);
+			productName = ScuttleRoomApp;
+			productReference = 517830A10C275CAC17E13876 /* ScuttleRoomApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F40CC25CD7DF93600779B8A3 /* SSBNetworkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F3A7D34F7D8C42D113B5ACB7 /* Build configuration list for PBXNativeTarget "SSBNetworkTests" */;
+			buildPhases = (
+				9B788DAA14525FF4AF9416C1 /* Sources */,
+				AF77685584DC06C833A5E5C0 /* Frameworks */,
+				53760165C7B27B5720D00C41 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CFCD6FB92398163BA8E9FC84 /* PBXTargetDependency */,
+			);
+			name = SSBNetworkTests;
+			packageProductDependencies = (
+			);
+			productName = SSBNetworkTests;
+			productReference = 23C9D99F878A9B6C7F9ECDB3 /* SSBNetworkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		84FE5265FAD8C72B56E7EF33 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = EA1DDE41EE89321D5E949963 /* Build configuration list for PBXProject "SSBNetwork" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1E869DD3875047A521B5ACAE;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1CF40B086A59D56593B18B96 /* SSBNetwork */,
+				F40CC25CD7DF93600779B8A3 /* SSBNetworkTests */,
+				BD1C876785A2AB5CDF9C0ECE /* ScuttleRoomApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		33D5B41AB1A26EE9F6A4369D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				884F44BF881CE3A4D3DC4DF7 /* AppIcon.icns in Resources */,
+				B8E2C63792A054D04318C035 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		31A0C6012D7FFC87C95017F4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				96B02CDE1D300F6A5623E45D /* SSBBoxStream.m in Sources */,
+				C111B6D99CDCCCFD9546C012 /* SSBConnectionFSM.m in Sources */,
+				BD7F78D9CC7E86F23EE6532F /* SSBFramer.m in Sources */,
+				585777B3264C53A370D9B1A9 /* SSBMuxRPC.m in Sources */,
+				AC2D8D590BA4C02C2BFC96B5 /* SSBRoomClient.m in Sources */,
+				00EE11A38AA65AB2658832BF /* SSBSecretHandshake.m in Sources */,
+				CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */,
+				2D27C4B1478B3BEE80FD5ACE /* tweetnacl.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3FEE36493C7FC86B55722C15 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8AF74B0C6F85ABD1BAAFBB44 /* AppDelegate.m in Sources */,
+				DC4E9D2F01B23F9B6992C1B7 /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9B788DAA14525FF4AF9416C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1F1FC8D5C7E11D53568CB43E /* SSBConnectionFSMTests.m in Sources */,
+				E3B51FD2F5CD35960B8ABB96 /* SSBFramerTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		44B81020441BBEB30313B667 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1CF40B086A59D56593B18B96 /* SSBNetwork */;
+			targetProxy = 1C903BEDC19F4311F34E501B /* PBXContainerItemProxy */;
+		};
+		CFCD6FB92398163BA8E9FC84 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1CF40B086A59D56593B18B96 /* SSBNetwork */;
+			targetProxy = E1962CFE58CCD5FCCBEDD940 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0A9A7DA570B8BA809D8E63C9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		286BA9885493FDF6D830E61A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.ScuttleRoomApp;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		72FC988A6EB4EE4D984E14AC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.ScuttleRoomApp;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		7319FCB924C606F02C905B47 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = Sources/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetwork;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		753E14ECE7EAE7EE243EAF9F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetworkTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		761AAD9DFFF6DE55E8D31C7F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8C2C7EC593AC21EC49A3D505 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetworkTests;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		97D7AA486748D8E8DB08B511 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = Sources/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetwork;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		51637031B1D89FA1A3A991BB /* Build configuration list for PBXNativeTarget "SSBNetwork" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7319FCB924C606F02C905B47 /* Debug */,
+				97D7AA486748D8E8DB08B511 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9D1B42DD7C1ABAE8A81989C3 /* Build configuration list for PBXNativeTarget "ScuttleRoomApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72FC988A6EB4EE4D984E14AC /* Debug */,
+				286BA9885493FDF6D830E61A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EA1DDE41EE89321D5E949963 /* Build configuration list for PBXProject "SSBNetwork" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A9A7DA570B8BA809D8E63C9 /* Debug */,
+				761AAD9DFFF6DE55E8D31C7F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F3A7D34F7D8C42D113B5ACB7 /* Build configuration list for PBXNativeTarget "SSBNetworkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8C2C7EC593AC21EC49A3D505 /* Debug */,
+				753E14ECE7EAE7EE243EAF9F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 84FE5265FAD8C72B56E7EF33 /* Project object */;
+}

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  ssb-room:
+    build:
+      context: ./tmp-room
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8008:8008" # MuxRPC / SHS
+      - "3000:3000" # HTTP Dashboard
+    volumes:
+      - ./ssb-room-data:/data
+    restart: unless-stopped
+    command: [ "-repo", "/data", "-lishttp", ":3000", "-lismux", ":8008", "-mode", "open" ]
+    environment:
+      - GO_SSB_ROOM_DOMAIN=localhost
