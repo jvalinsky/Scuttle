@@ -534,29 +534,48 @@ static os_log_t server_log;
 
 - (NSString *)renderHTMLForInvalidInvite:(NSString *)code
                                   error:(nullable NSString *)errorMessage {
-    NSString *errorText = errorMessage ?: @"This invite code is invalid or has expired.";
+    return [NSString stringWithFormat:@"<html><body><h1>Invalid Invite</h1><p>The code %@ is invalid or expired.</p><p>%@</p></body></html>",
+            code, errorMessage ?: @""];
+}
+
+#pragma mark - Alias Resolution (SIP 7)
+
+- (NSString *)renderHTMLForAlias:(NSString *)alias
+              multiserverAddress:(NSString *)msAddr
+                          userId:(NSString *)userId
+                       signature:(NSString *)signature
+                          roomId:(NSString *)roomId {
+    NSString *ssbUri = [NSString stringWithFormat:@"ssb:experimental?action=consume-alias&alias=%@&userId=%@&signature=%@&roomId=%@&multiserverAddress=%@",
+                        [alias stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]],
+                        [userId stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]],
+                        [signature stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]],
+                        [roomId stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]],
+                        [msAddr stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]];
     
-    return [NSString stringWithFormat:@"<!DOCTYPE html>\n"
-            "<html lang=\"en\">\n"
-            "<head>\n"
-            "    <meta charset=\"UTF-8\">\n"
-            "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
-            "    <title>Invalid Invite - Scuttlebutt</title>\n"
-            "    <style>\n"
-            "        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; "
-            "               max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }\n"
-            "        .container { background: #f5f5f5; border-radius: 12px; padding: 30px; }\n"
-            "        h1 { color: #d32f2f; }\n"
-            "        .error { color: #666; margin-top: 20px; }\n"
-            "    </style>\n"
-            "</head>\n"
-            "<body>\n"
-            "    <div class=\"container\">\n"
-            "        <h1>Invalid Invite</h1>\n"
-            "        <p class=\"error\">%@</p>\n"
-            "    </div>\n"
-            "</body>\n"
-            "</html>", errorText];
+    return [NSString stringWithFormat:
+            @"<html><head>"
+            "<meta name=\"ssb-address\" content=\"%@\">"
+            "</head><body>"
+            "<h1>SSB Alias: %@</h1>"
+            "<p>To consume this alias, open this page in an SSB-compatible client.</p>"
+            "<p><a href=\"%@\">Open in SSB Client</a></p>"
+            "</body></html>",
+            ssbUri, alias, ssbUri];
+}
+
+- (NSDictionary<NSString *, id> *)jsonForAlias:(NSString *)alias
+                            multiserverAddress:(NSString *)msAddr
+                                        userId:(NSString *)userId
+                                     signature:(NSString *)signature
+                                        roomId:(NSString *)roomId {
+    return @{
+        @"action": @"consume-alias",
+        @"alias": alias,
+        @"userId": userId,
+        @"signature": signature,
+        @"roomId": roomId,
+        @"multiserverAddress": msAddr
+    };
 }
 
 @end

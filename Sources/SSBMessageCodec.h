@@ -23,6 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// @return The message key string, e.g. "%BASE64.sha256".
 + (nullable NSString *)computeMessageKey:(NSDictionary<NSString *, id> *)signedValue;
 
+#pragma mark - Content Warning (SIP 10)
+
+/// Returns YES if the message has no content warning and should be shown by default.
++ (BOOL)shouldShowContentForMessage:(NSDictionary<NSString *, id> *)messageValue;
+
+/// Returns the content warning string for a message, or nil if none.
++ (nullable NSString *)contentWarningForMessage:(NSDictionary<NSString *, id> *)messageValue;
+
 /// Verifies the signature of a signed message value.
 /// @param signedValue The complete signed message value (including signature).
 /// @return YES if the signature is valid, NO otherwise.

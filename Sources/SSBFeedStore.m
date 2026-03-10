@@ -1,4 +1,6 @@
 #import "SSBFeedStore.h"
+#import "SSBQueryEngine.h"
+#import "SSBTangle.h"
 #import <sqlite3.h>
 #import <os/log.h>
 
@@ -16,6 +18,20 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
     sqlite3 *_db;
 }
 @property (nonatomic, strong) dispatch_queue_t dbQueue;
+
+- (BOOL)_appendMessageToTable:(const char *)tableName message:(SSBMessage *)message error:(NSError **)error;
+- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key;
+- (void)_drainQuarantineForKey:(NSString *)satisfiedKey author:(NSString *)author;
+- (SSBMessage *)_getQuarantinedMessageByKey:(NSString *)key;
+- (SSBMessage *)_getQuarantinedMessageForAuthor:(NSString *)author sequence:(NSInteger)sequence;
+- (void)_removeMessageFromQuarantine:(SSBMessage *)message;
+- (SSBMessage *)_messageFromStatement:(sqlite3_stmt *)stmt;
+- (nullable SSBFeedState *)_feedStateForAuthor:(NSString *)author;
+- (BOOL)_hasMessageWithKey:(NSString *)key;
+- (void)_updateQuarantineDependenciesForMessage:(SSBMessage *)message missingDeps:(NSArray<NSString *> *)missingDeps;
+- (NSArray<NSString *> *)_getMissingDependenciesForMessage:(SSBMessage *)message;
+- (void)_tryReleaseQuarantinedMessageWithKey:(NSString *)msgKey;
+
 @end
 
 @implementation SSBFeedStore
@@ -52,8 +68,36 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
 
         os_log_info(ssb_feedstore_log, "Opened feed store at %{public}@", dbPath);
         [self createSchema];
+        [self migrateSchema];
     }
     return self;
+}
+
+- (void)migrateSchema {
+    // Check if is_private column exists
+    const char *checkSQL = "PRAGMA table_info(messages)";
+    sqlite3_stmt *stmt = NULL;
+    BOOL hasIsPrivate = NO;
+    if (sqlite3_prepare_v2(_db, checkSQL, -1, &stmt, NULL) == SQLITE_OK) {
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const char *name = (const char *)sqlite3_column_text(stmt, 1);
+            if (name && strcmp(name, "is_private") == 0) {
+                hasIsPrivate = YES;
+                break;
+            }
+        }
+        sqlite3_finalize(stmt);
+    }
+    
+    if (!hasIsPrivate) {
+        os_log_info(ssb_feedstore_log, "Migrating database: adding is_private column");
+        const char *alterSQL = "ALTER TABLE messages ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0";
+        char *errMsg = NULL;
+        if (sqlite3_exec(_db, alterSQL, NULL, NULL, &errMsg) != SQLITE_OK) {
+            os_log_error(ssb_feedstore_log, "Migration failed: %s", errMsg);
+            sqlite3_free(errMsg);
+        }
+    }
 }
 
 - (void)dealloc {
@@ -72,6 +116,7 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         "    previous_key TEXT,"
         "    claimed_timestamp INTEGER NOT NULL,"
         "    received_at INTEGER NOT NULL,"
+        "    is_private INTEGER NOT NULL DEFAULT 0,"
         "    content_type TEXT,"
         "    value_json BLOB NOT NULL,"
         "    content_json TEXT,"
@@ -86,6 +131,24 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         "    target_author TEXT PRIMARY KEY,"
         "    following INTEGER NOT NULL,"
         "    sequence INTEGER NOT NULL"
+        ");"
+        "CREATE TABLE IF NOT EXISTS quarantine ("
+        "    author TEXT NOT NULL,"
+        "    sequence INTEGER NOT NULL,"
+        "    key TEXT NOT NULL UNIQUE,"
+        "    previous_key TEXT,"
+        "    claimed_timestamp INTEGER NOT NULL,"
+        "    received_at INTEGER NOT NULL,"
+        "    is_private INTEGER NOT NULL DEFAULT 0,"
+        "    content_type TEXT,"
+        "    value_json BLOB NOT NULL,"
+        "    content_json TEXT,"
+        "    PRIMARY KEY (author, sequence)"
+        ");"
+        "CREATE TABLE IF NOT EXISTS quarantine_dependencies ("
+        "    message_key TEXT NOT NULL,"
+        "    dependency_key TEXT NOT NULL,"
+        "    FOREIGN KEY(message_key) REFERENCES quarantine(key) ON DELETE CASCADE"
         ");"
         "CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(content_type);"
         "CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(claimed_timestamp);";
@@ -105,123 +168,278 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
     __block NSError *blockError = nil;
 
     dispatch_sync(self.dbQueue, ^{
-        // Look up current feed state
         SSBFeedState *state = [self _feedStateForAuthor:message.author];
-
         NSInteger expectedSeq = state ? (state.maxSequence + 1) : 1;
-        if (message.sequence != expectedSeq) {
-            blockError = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:1
-                userInfo:@{NSLocalizedDescriptionKey:
-                    [NSString stringWithFormat:@"Sequence mismatch: expected %ld, got %ld",
-                        (long)expectedSeq, (long)message.sequence]}];
+
+        if (message.sequence < expectedSeq) {
+            blockError = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:6
+                userInfo:@{NSLocalizedDescriptionKey: @"Message already exists or is from the past"}];
             return;
         }
 
-        // Validate previous key chain
-        if (message.sequence == 1) {
-            if (message.previousKey != nil) {
-                blockError = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:2
-                    userInfo:@{NSLocalizedDescriptionKey: @"First message must have nil previousKey"}];
-                return;
+        BOOL isOutOfOrder = (message.sequence > expectedSeq);
+        NSArray<NSString *> *missingDeps = [self _getMissingDependenciesForMessage:message];
+        BOOL hasMissingDeps = (missingDeps.count > 0);
+
+        if (isOutOfOrder || hasMissingDeps) {
+            // Quarantine it
+            success = [self _appendMessageToTable:"quarantine" message:message error:&blockError];
+            if (success) {
+                [self _updateQuarantineDependenciesForMessage:message missingDeps:missingDeps];
+                os_log_info(ssb_feedstore_log, "Quarantined message %{public}@ (seq %ld, author %{public}@). Missing %lu deps.",
+                             message.key, (long)message.sequence, message.author, (unsigned long)missingDeps.count);
             }
         } else {
-            if (![message.previousKey isEqualToString:state.maxKey]) {
-                blockError = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:3
-                    userInfo:@{NSLocalizedDescriptionKey:
-                        [NSString stringWithFormat:@"Previous key mismatch: expected %@, got %@",
-                            state.maxKey, message.previousKey]}];
-                return;
+            // Appending to main messages
+            success = [self _appendMessageToTable:"messages" message:message error:&blockError];
+            if (success) {
+                [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key];
+                [self _drainQuarantineForKey:message.key author:message.author];
             }
         }
-
-        // Extract content_type from content dict
-        NSString *contentType = message.contentType;
-        if (!contentType && message.content[@"type"]) {
-            contentType = message.content[@"type"];
-        }
-
-        // Serialize content dict to JSON for storage
-        NSData *contentJSON = nil;
-        if (message.content) {
-            contentJSON = [NSJSONSerialization dataWithJSONObject:message.content options:0 error:nil];
-        }
-
-        int64_t receivedAt = message.receivedAt;
-        if (receivedAt == 0) {
-            receivedAt = (int64_t)([[NSDate date] timeIntervalSince1970] * 1000.0);
-        }
-
-        // INSERT message
-        const char *insertSQL =
-            "INSERT INTO messages (author, sequence, key, previous_key, claimed_timestamp, "
-            "received_at, content_type, value_json, content_json) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
-        sqlite3_stmt *stmt = NULL;
-        int rc = sqlite3_prepare_v2(_db, insertSQL, -1, &stmt, NULL);
-        if (rc != SQLITE_OK) {
-            blockError = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:4
-                userInfo:@{NSLocalizedDescriptionKey:
-                    [NSString stringWithFormat:@"Prepare failed: %s", sqlite3_errmsg(_db)]}];
-            return;
-        }
-
-        sqlite3_bind_text(stmt, 1, message.author.UTF8String, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 2, message.sequence);
-        sqlite3_bind_text(stmt, 3, message.key.UTF8String, -1, SQLITE_TRANSIENT);
-        if (message.previousKey) {
-            sqlite3_bind_text(stmt, 4, message.previousKey.UTF8String, -1, SQLITE_TRANSIENT);
-        } else {
-            sqlite3_bind_null(stmt, 4);
-        }
-        sqlite3_bind_int64(stmt, 5, message.claimedTimestamp);
-        sqlite3_bind_int64(stmt, 6, receivedAt);
-        if (contentType) {
-            sqlite3_bind_text(stmt, 7, contentType.UTF8String, -1, SQLITE_TRANSIENT);
-        } else {
-            sqlite3_bind_null(stmt, 7);
-        }
-        sqlite3_bind_blob(stmt, 8, message.valueJSON.bytes, (int)message.valueJSON.length, SQLITE_TRANSIENT);
-        if (contentJSON) {
-            sqlite3_bind_text(stmt, 9, (const char *)contentJSON.bytes, (int)contentJSON.length, SQLITE_TRANSIENT);
-        } else {
-            sqlite3_bind_null(stmt, 9);
-        }
-
-        rc = sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-
-        if (rc != SQLITE_DONE) {
-            blockError = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:5
-                userInfo:@{NSLocalizedDescriptionKey:
-                    [NSString stringWithFormat:@"Insert failed: %s", sqlite3_errmsg(_db)]}];
-            return;
-        }
-
-        // Upsert feed_state
-        const char *upsertSQL =
-            "INSERT INTO feed_state (author, max_sequence, max_key) VALUES (?, ?, ?) "
-            "ON CONFLICT(author) DO UPDATE SET max_sequence = excluded.max_sequence, max_key = excluded.max_key";
-
-        stmt = NULL;
-        rc = sqlite3_prepare_v2(_db, upsertSQL, -1, &stmt, NULL);
-        if (rc == SQLITE_OK) {
-            sqlite3_bind_text(stmt, 1, message.author.UTF8String, -1, SQLITE_TRANSIENT);
-            sqlite3_bind_int64(stmt, 2, message.sequence);
-            sqlite3_bind_text(stmt, 3, message.key.UTF8String, -1, SQLITE_TRANSIENT);
-            sqlite3_step(stmt);
-            sqlite3_finalize(stmt);
-        }
-
-        os_log_info(ssb_feedstore_log, "Stored message %{public}@ seq %ld for %{public}@",
-                     message.key, (long)message.sequence, message.author);
-        success = YES;
     });
 
     if (blockError && error) {
         *error = blockError;
     }
     return success;
+}
+
+- (BOOL)_appendMessageToTable:(const char *)tableName message:(SSBMessage *)message error:(NSError **)error {
+    NSString *contentType = message.contentType;
+    if (!contentType && message.content[@"type"]) {
+        contentType = message.content[@"type"];
+    }
+
+    NSData *contentJSON = nil;
+    if (message.content) {
+        contentJSON = [NSJSONSerialization dataWithJSONObject:message.content options:0 error:nil];
+    }
+
+    int64_t receivedAt = message.receivedAt;
+    if (receivedAt == 0) {
+        receivedAt = (int64_t)([[NSDate date] timeIntervalSince1970] * 1000.0);
+    }
+
+    BOOL isPrivate = message.isPrivate;
+    if (!isPrivate && [message.content isKindOfClass:[NSString class]]) {
+        NSString *contentStr = (NSString *)message.content;
+        if ([contentStr hasSuffix:@".box"] || [contentStr hasSuffix:@".box2"]) {
+            isPrivate = YES;
+        }
+    }
+
+    char insertSQL[512];
+    snprintf(insertSQL, sizeof(insertSQL), 
+             "INSERT INTO %s (author, sequence, key, previous_key, claimed_timestamp, "
+             "received_at, is_private, content_type, value_json, content_json) "
+             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", tableName);
+
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(_db, insertSQL, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        if (error) *error = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:4
+            userInfo:@{NSLocalizedDescriptionKey:
+                [NSString stringWithFormat:@"Prepare failed: %s", sqlite3_errmsg(_db)]}];
+        return NO;
+    }
+
+    sqlite3_bind_text(stmt, 1, message.author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 2, message.sequence);
+    sqlite3_bind_text(stmt, 3, message.key.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+    if (message.previousKey) {
+        sqlite3_bind_text(stmt, 4, message.previousKey.UTF8String, -1, SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, 4);
+    }
+    sqlite3_bind_int64(stmt, 5, message.claimedTimestamp);
+    sqlite3_bind_int64(stmt, 6, receivedAt);
+    sqlite3_bind_int(stmt, 7, isPrivate ? 1 : 0);
+    if (contentType) {
+        sqlite3_bind_text(stmt, 8, contentType.UTF8String, -1, SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, 8);
+    }
+    sqlite3_bind_blob(stmt, 9, message.valueJSON.bytes ?: "", (int)message.valueJSON.length, SQLITE_TRANSIENT);
+    if (contentJSON) {
+        sqlite3_bind_text(stmt, 10, (const char *)contentJSON.bytes, (int)contentJSON.length, SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, 10);
+    }
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        if (error) *error = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:5
+            userInfo:@{NSLocalizedDescriptionKey:
+                [NSString stringWithFormat:@"Insert failed: %s", sqlite3_errmsg(_db)]}];
+        return NO;
+    }
+
+    return YES;
+}
+
+- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key {
+    const char *upsertSQL =
+        "INSERT INTO feed_state (author, max_sequence, max_key) VALUES (?, ?, ?) "
+        "ON CONFLICT(author) DO UPDATE SET max_sequence = excluded.max_sequence, max_key = excluded.max_key";
+
+    sqlite3_stmt *stmt = NULL;
+    int rc = sqlite3_prepare_v2(_db, upsertSQL, -1, &stmt, NULL);
+    if (rc == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 2, sequence);
+        sqlite3_bind_text(stmt, 3, key.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+}
+
+- (NSArray<NSString *> *)_getMissingDependenciesForMessage:(SSBMessage *)message {
+    NSMutableArray<NSString *> *missing = [NSMutableArray array];
+    if (message.previousKey && ![self _hasMessageWithKey:message.previousKey]) {
+        [missing addObject:message.previousKey];
+    }
+    NSDictionary *content = message.content;
+    NSDictionary *tangles = content[@"tangles"];
+    if ([tangles isKindOfClass:[NSDictionary class]]) {
+        for (NSString *tangleName in tangles) {
+            SSBTangleData *tangleData = [SSBTangle parseTangleData:tangleName fromContent:content];
+            if (tangleData && tangleData.previous) {
+                for (NSString *prevKey in tangleData.previous) {
+                    if (![self _hasMessageWithKey:prevKey]) {
+                        [missing addObject:prevKey];
+                    }
+                }
+            }
+        }
+    }
+    return [missing copy];
+}
+
+- (BOOL)_hasMessageWithKey:(NSString *)key {
+    const char *sql = "SELECT 1 FROM messages WHERE key = ?";
+    sqlite3_stmt *stmt = NULL;
+    BOOL exists = NO;
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, key.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            exists = YES;
+        }
+        sqlite3_finalize(stmt);
+    }
+    return exists;
+}
+
+- (void)_updateQuarantineDependenciesForMessage:(SSBMessage *)message missingDeps:(NSArray<NSString *> *)missingDeps {
+    const char *delSQL = "DELETE FROM quarantine_dependencies WHERE message_key = ?";
+    sqlite3_stmt *delStmt = NULL;
+    if (sqlite3_prepare_v2(_db, delSQL, -1, &delStmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(delStmt, 1, message.key.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        sqlite3_step(delStmt);
+        sqlite3_finalize(delStmt);
+    }
+    const char *insSQL = "INSERT INTO quarantine_dependencies (message_key, dependency_key) VALUES (?, ?)";
+    sqlite3_stmt *insStmt = NULL;
+    if (sqlite3_prepare_v2(_db, insSQL, -1, &insStmt, NULL) == SQLITE_OK) {
+        for (NSString *dep in missingDeps) {
+            sqlite3_bind_text(insStmt, 1, message.key.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(insStmt, 2, dep.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_step(insStmt);
+            sqlite3_reset(insStmt);
+        }
+        sqlite3_finalize(insStmt);
+    }
+}
+
+- (void)_drainQuarantineForKey:(NSString *)satisfiedKey author:(NSString *)author {
+    NSMutableArray<NSString *> *blockedByThisKey = [NSMutableArray array];
+    const char *findSQL = "SELECT message_key FROM quarantine_dependencies WHERE dependency_key = ?";
+    sqlite3_stmt *findStmt = NULL;
+    if (sqlite3_prepare_v2(_db, findSQL, -1, &findStmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(findStmt, 1, satisfiedKey.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        while (sqlite3_step(findStmt) == SQLITE_ROW) {
+            const char *keyStr = (const char *)sqlite3_column_text(findStmt, 0);
+            if (keyStr) [blockedByThisKey addObject:[NSString stringWithUTF8String:keyStr]];
+        }
+        sqlite3_finalize(findStmt);
+    }
+    const char *delDepSQL = "DELETE FROM quarantine_dependencies WHERE dependency_key = ?";
+    sqlite3_stmt *delDepStmt = NULL;
+    if (sqlite3_prepare_v2(_db, delDepSQL, -1, &delDepStmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(delDepStmt, 1, satisfiedKey.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        sqlite3_step(delDepStmt);
+        sqlite3_finalize(delDepStmt);
+    }
+    NSMutableSet<NSString *> *candidates = [NSMutableSet setWithArray:blockedByThisKey];
+    SSBFeedState *state = [self _feedStateForAuthor:author];
+    NSInteger nextSeq = state.maxSequence + 1;
+    SSBMessage *nextSeqMsg = [self _getQuarantinedMessageForAuthor:author sequence:nextSeq];
+    if (nextSeqMsg) [candidates addObject:nextSeqMsg.key];
+    for (NSString *msgKey in candidates) {
+        [self _tryReleaseQuarantinedMessageWithKey:msgKey];
+    }
+}
+
+- (void)_tryReleaseQuarantinedMessageWithKey:(NSString *)msgKey {
+    const char *checkSQL = "SELECT 1 FROM quarantine_dependencies WHERE message_key = ? LIMIT 1";
+    sqlite3_stmt *checkStmt = NULL;
+    BOOL hasDeps = NO;
+    if (sqlite3_prepare_v2(_db, checkSQL, -1, &checkStmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(checkStmt, 1, msgKey.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(checkStmt) == SQLITE_ROW) hasDeps = YES;
+        sqlite3_finalize(checkStmt);
+    }
+    if (hasDeps) return;
+    SSBMessage *message = [self _getQuarantinedMessageByKey:msgKey];
+    if (!message) return;
+    SSBFeedState *state = [self _feedStateForAuthor:message.author];
+    NSInteger expectedSeq = state ? (state.maxSequence + 1) : 1;
+    if (message.sequence != expectedSeq) return;
+    if (message.sequence > 1 && ![message.previousKey isEqualToString:state.maxKey]) return;
+    NSError *error = nil;
+    if ([self _appendMessageToTable:"messages" message:message error:&error]) {
+        [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key];
+        [self _removeMessageFromQuarantine:message];
+        [self _drainQuarantineForKey:message.key author:message.author];
+    }
+}
+
+- (SSBMessage *)_getQuarantinedMessageByKey:(NSString *)key {
+    const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM quarantine WHERE key = ?";
+    sqlite3_stmt *stmt = NULL;
+    SSBMessage *msg = nil;
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, key.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(stmt) == SQLITE_ROW) msg = [self _messageFromStatement:stmt];
+        sqlite3_finalize(stmt);
+    }
+    return msg;
+}
+
+- (SSBMessage *)_getQuarantinedMessageForAuthor:(NSString *)author sequence:(NSInteger)sequence {
+    const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM quarantine WHERE author = ? AND sequence = ?";
+    sqlite3_stmt *stmt = NULL;
+    SSBMessage *msg = nil;
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 2, sequence);
+        if (sqlite3_step(stmt) == SQLITE_ROW) msg = [self _messageFromStatement:stmt];
+        sqlite3_finalize(stmt);
+    }
+    return msg;
+}
+
+- (void)_removeMessageFromQuarantine:(SSBMessage *)message {
+    const char *sql = "DELETE FROM quarantine WHERE author = ? AND sequence = ?";
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, message.author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 2, message.sequence);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
 }
 
 #pragma mark - Feed State
@@ -234,22 +452,19 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
     return result;
 }
 
-/// Internal feed state lookup (must be called on dbQueue).
 - (nullable SSBFeedState *)_feedStateForAuthor:(NSString *)author {
     const char *sql = "SELECT author, max_sequence, max_key FROM feed_state WHERE author = ?";
     sqlite3_stmt *stmt = NULL;
-    int rc = sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) return nil;
-
-    sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
-
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return nil;
+    sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
     SSBFeedState *state = nil;
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         state = [[SSBFeedState alloc] init];
-        state.author = [[NSString alloc] initWithUTF8String:(const char *)sqlite3_column_text(stmt, 0)];
+        const char *authorStr = (const char *)sqlite3_column_text(stmt, 0);
+        if (authorStr) state.author = [NSString stringWithUTF8String:authorStr];
         state.maxSequence = (NSInteger)sqlite3_column_int64(stmt, 1);
         const char *maxKey = (const char *)sqlite3_column_text(stmt, 2);
-        state.maxKey = maxKey ? [[NSString alloc] initWithUTF8String:maxKey] : nil;
+        if (maxKey) state.maxKey = [NSString stringWithUTF8String:maxKey];
     }
     sqlite3_finalize(stmt);
     return state;
@@ -257,217 +472,184 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
 
 #pragma mark - Queries
 
-- (NSArray<SSBMessage *> *)messagesForAuthor:(NSString *)author
-                                fromSequence:(NSInteger)startSeq
-                                       limit:(NSInteger)limit {
+- (NSArray<SSBMessage *> *)messagesForAuthor:(NSString *)author fromSequence:(NSInteger)startSeq limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
-
     dispatch_sync(self.dbQueue, ^{
-        const char *sql =
-            "SELECT key, author, sequence, previous_key, claimed_timestamp, received_at, "
-            "content_type, value_json, content_json "
-            "FROM messages WHERE author = ? AND sequence >= ? ORDER BY sequence ASC LIMIT ?";
-
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE author = ? AND sequence >= ? ORDER BY sequence ASC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
-        sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
         sqlite3_bind_int64(stmt, 2, startSeq);
         sqlite3_bind_int64(stmt, 3, limit);
-
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            [results addObject:[self _messageFromStatement:stmt]];
-        }
+        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
         sqlite3_finalize(stmt);
     });
+    return results;
+}
 
+- (NSArray<SSBMessage *> *)recentMessagesWithLimit:(NSInteger)limit {
+    __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages ORDER BY claimed_timestamp DESC LIMIT ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
+        sqlite3_bind_int64(stmt, 1, limit);
+        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
+        sqlite3_finalize(stmt);
+    });
     return results;
 }
 
 - (NSArray<SSBMessage *> *)timelineWithLimit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
-
     dispatch_sync(self.dbQueue, ^{
-        const char *sql =
-            "SELECT key, author, sequence, previous_key, claimed_timestamp, received_at, "
-            "content_type, value_json, content_json "
-            "FROM messages WHERE author IN "
-            "(SELECT target_author FROM contacts WHERE following = 1) "
-            "ORDER BY claimed_timestamp DESC LIMIT ?";
-
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE author IN (SELECT target_author FROM contacts WHERE following = 1) ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
         sqlite3_bind_int64(stmt, 1, limit);
-
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            [results addObject:[self _messageFromStatement:stmt]];
-        }
+        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
         sqlite3_finalize(stmt);
     });
-
     return results;
 }
 
 - (NSArray<SSBMessage *> *)feedForAuthor:(NSString *)author limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
-
     dispatch_sync(self.dbQueue, ^{
-        const char *sql =
-            "SELECT key, author, sequence, previous_key, claimed_timestamp, received_at, "
-            "content_type, value_json, content_json "
-            "FROM messages WHERE author = ? ORDER BY sequence DESC LIMIT ?";
-
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE author = ? ORDER BY sequence DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
-        sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
         sqlite3_bind_int64(stmt, 2, limit);
-
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            [results addObject:[self _messageFromStatement:stmt]];
-        }
+        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
         sqlite3_finalize(stmt);
     });
-
     return results;
 }
 
 - (NSArray<SSBMessage *> *)messagesOfType:(NSString *)contentType limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
-
     dispatch_sync(self.dbQueue, ^{
-        const char *sql =
-            "SELECT key, author, sequence, previous_key, claimed_timestamp, received_at, "
-            "content_type, value_json, content_json "
-            "FROM messages WHERE content_type = ? ORDER BY claimed_timestamp DESC LIMIT ?";
-
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE content_type = ? ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
-        sqlite3_bind_text(stmt, 1, contentType.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 1, contentType.UTF8String ?: "", -1, SQLITE_TRANSIENT);
         sqlite3_bind_int64(stmt, 2, limit);
-
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            [results addObject:[self _messageFromStatement:stmt]];
-        }
+        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
         sqlite3_finalize(stmt);
     });
-
     return results;
 }
 
-#pragma mark - Follow Graph
+- (NSArray<SSBMessage *> *)querySubset:(NSDictionary<NSString *, id> *)query options:(NSDictionary<NSString *, id> *)options {
+    NSDictionary *ql = [SSBQueryEngine sqlFragmentForQuery:query];
+    if (!ql[@"sql"]) return @[];
+    NSInteger pageSize = [options[@"pageSize"] integerValue] ?: 100;
+    BOOL descending = options[@"descending"] ? [options[@"descending"] boolValue] : YES;
+    NSInteger startFrom = [options[@"startFrom"] integerValue];
+    NSString *order = descending ? @"DESC" : @"ASC";
+    NSString *seqOp = descending ? @"<" : @">";
+    NSMutableString *fullSQL = [NSMutableString stringWithFormat:@"SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE %@", ql[@"sql"]];
+    NSMutableArray *allParams = [NSMutableArray arrayWithArray:ql[@"params"]];
+    if (startFrom > 0) { [fullSQL appendFormat:@" AND sequence %@ ?", seqOp]; [allParams addObject:@(startFrom)]; }
+    [fullSQL appendFormat:@" ORDER BY sequence %@ LIMIT ?", order];
+    [allParams addObject:@(pageSize)];
+    __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, fullSQL.UTF8String, -1, &stmt, NULL) == SQLITE_OK) {
+            for (int i = 0; i < allParams.count; i++) {
+                id p = allParams[i];
+                if ([p isKindOfClass:[NSString class]]) sqlite3_bind_text(stmt, i + 1, [p UTF8String], -1, SQLITE_TRANSIENT);
+                else if ([p isKindOfClass:[NSNumber class]]) sqlite3_bind_int64(stmt, i + 1, [p longLongValue]);
+            }
+            while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
+            sqlite3_finalize(stmt);
+        }
+    });
+    return results;
+}
+
+- (SSBMessage *)_messageFromStatement:(sqlite3_stmt *)stmt {
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    const char *author = (const char *)sqlite3_column_text(stmt, 0);
+    if (author) msg.author = [NSString stringWithUTF8String:author];
+    msg.sequence = (NSInteger)sqlite3_column_int64(stmt, 1);
+    const char *key = (const char *)sqlite3_column_text(stmt, 2);
+    if (key) msg.key = [NSString stringWithUTF8String:key];
+    const char *prev = (const char *)sqlite3_column_text(stmt, 3);
+    if (prev) msg.previousKey = [NSString stringWithUTF8String:prev];
+    msg.claimedTimestamp = sqlite3_column_int64(stmt, 4);
+    msg.receivedAt = sqlite3_column_int64(stmt, 5);
+    msg.isPrivate = sqlite3_column_int(stmt, 6) != 0;
+    const char *type = (const char *)sqlite3_column_text(stmt, 7);
+    if (type) msg.contentType = [NSString stringWithUTF8String:type];
+    const void *valBytes = sqlite3_column_blob(stmt, 8);
+    int valLen = sqlite3_column_bytes(stmt, 8);
+    if (valBytes) msg.valueJSON = [NSData dataWithBytes:valBytes length:valLen];
+    const char *contentJSON = (const char *)sqlite3_column_text(stmt, 9);
+    if (contentJSON) {
+        NSData *data = [NSData dataWithBytes:contentJSON length:strlen(contentJSON)];
+        msg.content = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    }
+    return msg;
+}
 
 - (void)setFollowing:(BOOL)following forAuthor:(NSString *)author atSequence:(NSInteger)seq {
     dispatch_sync(self.dbQueue, ^{
-        const char *sql =
-            "INSERT INTO contacts (target_author, following, sequence) VALUES (?, ?, ?) "
-            "ON CONFLICT(target_author) DO UPDATE SET following = excluded.following, sequence = excluded.sequence";
-
+        const char *sql = "INSERT INTO contacts (target_author, following, sequence) VALUES (?, ?, ?) ON CONFLICT(target_author) DO UPDATE SET following = excluded.following, sequence = excluded.sequence";
         sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) {
-            os_log_error(ssb_feedstore_log, "Failed to prepare setFollowing: %{public}s", sqlite3_errmsg(_db));
-            return;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 2, following ? 1 : 0);
+            sqlite3_bind_int64(stmt, 3, seq);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
         }
-
-        sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 2, following ? 1 : 0);
-        sqlite3_bind_int64(stmt, 3, seq);
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-
-        os_log_info(ssb_feedstore_log, "%{public}@ %{public}@ at seq %ld",
-                     following ? @"Following" : @"Unfollowing", author, (long)seq);
     });
 }
 
 - (BOOL)isFollowing:(NSString *)author {
-    __block BOOL result = NO;
-
+    __block BOOL following = NO;
     dispatch_sync(self.dbQueue, ^{
         const char *sql = "SELECT following FROM contacts WHERE target_author = ?";
         sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
-        sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
-
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            result = sqlite3_column_int64(stmt, 0) == 1;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(stmt) == SQLITE_ROW) following = sqlite3_column_int(stmt, 0) != 0;
+            sqlite3_finalize(stmt);
         }
-        sqlite3_finalize(stmt);
     });
-
-    return result;
+    return following;
 }
 
 - (NSArray<NSString *> *)followedAuthors {
-    __block NSMutableArray<NSString *> *results = [NSMutableArray array];
-
+    __block NSMutableArray *authors = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
         const char *sql = "SELECT target_author FROM contacts WHERE following = 1";
         sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const char *author = (const char *)sqlite3_column_text(stmt, 0);
-            if (author) {
-                [results addObject:[[NSString alloc] initWithUTF8String:author]];
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *authorStr = (const char *)sqlite3_column_text(stmt, 0);
+                if (authorStr) [authors addObject:[NSString stringWithUTF8String:authorStr]];
             }
+            sqlite3_finalize(stmt);
         }
-        sqlite3_finalize(stmt);
     });
-
-    return results;
+    return authors;
 }
 
 - (NSInteger)totalMessageCount {
     __block NSInteger count = 0;
-
     dispatch_sync(self.dbQueue, ^{
         const char *sql = "SELECT COUNT(*) FROM messages";
         sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
-
-        if (sqlite3_step(stmt) == SQLITE_ROW) {
-            count = (NSInteger)sqlite3_column_int64(stmt, 0);
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            if (sqlite3_step(stmt) == SQLITE_ROW) count = (NSInteger)sqlite3_column_int64(stmt, 0);
+            sqlite3_finalize(stmt);
         }
-        sqlite3_finalize(stmt);
     });
-
     return count;
-}
-
-#pragma mark - Internal
-
-/// Parses a message from the current row of a prepared statement.
-- (SSBMessage *)_messageFromStatement:(sqlite3_stmt *)stmt {
-    SSBMessage *msg = [[SSBMessage alloc] init];
-
-    msg.key = [[NSString alloc] initWithUTF8String:(const char *)sqlite3_column_text(stmt, 0)];
-    msg.author = [[NSString alloc] initWithUTF8String:(const char *)sqlite3_column_text(stmt, 1)];
-    msg.sequence = (NSInteger)sqlite3_column_int64(stmt, 2);
-
-    const char *prevKey = (const char *)sqlite3_column_text(stmt, 3);
-    msg.previousKey = prevKey ? [[NSString alloc] initWithUTF8String:prevKey] : nil;
-
-    msg.claimedTimestamp = sqlite3_column_int64(stmt, 4);
-    msg.receivedAt = sqlite3_column_int64(stmt, 5);
-
-    const char *contentType = (const char *)sqlite3_column_text(stmt, 6);
-    msg.contentType = contentType ? [[NSString alloc] initWithUTF8String:contentType] : nil;
-
-    const void *blob = sqlite3_column_blob(stmt, 7);
-    int blobLen = sqlite3_column_bytes(stmt, 7);
-    msg.valueJSON = blob ? [NSData dataWithBytes:blob length:blobLen] : [NSData data];
-
-    const char *contentJSON = (const char *)sqlite3_column_text(stmt, 8);
-    if (contentJSON) {
-        NSData *jsonData = [[NSData alloc] initWithBytes:contentJSON length:strlen(contentJSON)];
-        msg.content = [NSJSONSerialization JSONObjectWithData:jsonData options:0 error:nil];
-    }
-
-    return msg;
 }
 
 @end

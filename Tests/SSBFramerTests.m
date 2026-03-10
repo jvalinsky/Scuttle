@@ -1,5 +1,5 @@
 #import <XCTest/XCTest.h>
-#import <SSBNetwork/SSBFramer.h>
+#import <SSBNetwork/SSBMuxRPCFramer.h>
 
 @interface SSBFramerTests : XCTestCase
 @end
@@ -8,7 +8,7 @@
 
 - (void)testFramerDefinitionCreation {
     // Just verify it doesn't crash and returns a valid definition pointer
-    nw_protocol_definition_t definition = [SSBFramer createFramerDefinition];
+    nw_protocol_definition_t definition = [SSBMuxRPCFramer createDefinition];
     XCTAssertNotNil(definition);
 }
 

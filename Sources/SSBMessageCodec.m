@@ -31,6 +31,7 @@ static os_log_t codecLog(void) {
 #pragma mark - JSON Encoding Helpers
 
 + (NSString *)jsonStringLiteral:(NSString *)str {
+    if (!str) return @"null";
     NSMutableString *result = [NSMutableString stringWithString:@"\""];
     NSUInteger len = str.length;
     for (NSUInteger i = 0; i < len; i++) {
@@ -240,14 +241,30 @@ static os_log_t codecLog(void) {
 #pragma mark - Key Computation
 
 + (nullable NSString *)computeMessageKey:(NSDictionary *)signedValue {
-    NSData *signedBytes = [self encodeLegacyValue:signedValue includeSignature:YES];
-    if (!signedBytes) return nil;
+    NSData *bytes = [self encodeLegacyValue:signedValue includeSignature:YES];
+    if (!bytes) return nil;
 
     unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(signedBytes.bytes, (CC_LONG)signedBytes.length, digest);
+    CC_SHA256(bytes.bytes, (CC_LONG)bytes.length, digest);
+
     NSData *hashData = [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
     return [NSString stringWithFormat:@"%%%@.sha256",
             [hashData base64EncodedStringWithOptions:0]];
+}
+
+#pragma mark - Content Warning (SIP 10)
+
++ (BOOL)shouldShowContentForMessage:(NSDictionary *)messageValue {
+    NSString *cw = [self contentWarningForMessage:messageValue];
+    return (cw == nil || cw.length == 0);
+}
+
++ (nullable NSString *)contentWarningForMessage:(NSDictionary *)messageValue {
+    NSDictionary *content = messageValue[@"content"];
+    if ([content isKindOfClass:[NSDictionary class]]) {
+        return content[@"contentWarning"];
+    }
+    return nil;
 }
 
 #pragma mark - Verification

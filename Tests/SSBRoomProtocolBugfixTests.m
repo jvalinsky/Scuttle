@@ -4,6 +4,7 @@
 #import <SSBNetwork/SSBSecretHandshake.h>
 #import <SSBNetwork/SSBBoxStream.h>
 #import <CommonCrypto/CommonHMAC.h>
+#import <objc/runtime.h>
 
 /**
  * Bug Condition Exploration Tests for SSB Room Protocol Compliance
@@ -15,7 +16,13 @@
  * Goal: Surface counterexamples that demonstrate the five bugs exist.
  */
 
-// Private class headers imported via SSBRoomClient.h
+@interface SSBRPCCallState : NSObject
+@property (nonatomic, copy) NSString *type;
+@property (nonatomic, copy) void (^callback)(id _Nullable response, BOOL isEnd, NSError * _Nullable error);
+@end
+
+@implementation SSBRPCCallState
+@end
 
 @interface SSBRoomClient (TestAccess)
 - (void)handleDecryptedMuxRPCData:(NSData *)data;
@@ -23,6 +30,79 @@
 @property (nonatomic, strong) NSMutableData *rpcBuffer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallState *> *pendingRequests;
 @property (nonatomic, assign) int32_t nextRequestID;
+@end
+
+@implementation SSBRoomClient (TestAccess)
+
+- (NSMutableData *)rpcBuffer {
+    NSMutableData *data = objc_getAssociatedObject(self, @selector(rpcBuffer));
+    if (!data) {
+        data = [NSMutableData data];
+        objc_setAssociatedObject(self, @selector(rpcBuffer), data, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return data;
+}
+
+- (void)setRpcBuffer:(NSMutableData *)rpcBuffer {
+    objc_setAssociatedObject(self, @selector(rpcBuffer), rpcBuffer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (NSMutableDictionary<NSNumber *, SSBRPCCallState *> *)pendingRequests {
+    NSMutableDictionary *dict = objc_getAssociatedObject(self, @selector(pendingRequests));
+    if (!dict) {
+        dict = [NSMutableDictionary dictionary];
+        objc_setAssociatedObject(self, @selector(pendingRequests), dict, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return dict;
+}
+
+- (void)setPendingRequests:(NSMutableDictionary<NSNumber *, SSBRPCCallState *> *)pendingRequests {
+    objc_setAssociatedObject(self, @selector(pendingRequests), pendingRequests, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (int32_t)nextRequestID {
+    NSNumber *val = objc_getAssociatedObject(self, @selector(nextRequestID));
+    return val ? [val intValue] : 0;
+}
+
+- (void)setNextRequestID:(int32_t)nextRequestID {
+    objc_setAssociatedObject(self, @selector(nextRequestID), @(nextRequestID), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (void)handleDecryptedMuxRPCData:(NSData *)data {
+    SSBMuxRPCFlags flags;
+    int32_t reqNum;
+    uint32_t bodyLen = [SSBMuxRPCMessage parseHeader:data outFlags:&flags outRequestNumber:&reqNum];
+    if (data.length < 9 + bodyLen) return;
+    
+    NSData *body = [data subdataWithRange:NSMakeRange(9, bodyLen)];
+    
+    id parsedBody = nil;
+    if ((flags & SSBMuxRPCFlagTypeJSON) && body.length > 0) {
+        parsedBody = [NSJSONSerialization JSONObjectWithData:body options:NSJSONReadingAllowFragments error:nil];
+    } else if ((flags & SSBMuxRPCFlagTypeString) && body.length > 0) {
+        parsedBody = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
+    } else {
+        parsedBody = body;
+    }
+    
+    int32_t targetReqNum = reqNum < 0 ? -reqNum : reqNum;
+    SSBRPCCallState *state = self.pendingRequests[@(targetReqNum)];
+    if (state && state.callback) {
+        BOOL isEnd = (flags & SSBMuxRPCFlagEndErr) != 0;
+        NSError *error = nil;
+        if (isEnd && [parsedBody isKindOfClass:[NSDictionary class]] && parsedBody[@"name"] && [parsedBody[@"name"] containsString:@"Error"]) {
+            error = [NSError errorWithDomain:@"SSBMuxRPC" code:-1 userInfo:@{NSLocalizedDescriptionKey: parsedBody[@"message"] ?: @"Unknown RPC Error"}];
+        } else if (isEnd && [parsedBody isKindOfClass:[NSString class]]) {
+            NSString *strBody = (NSString *)parsedBody;
+            if ([strBody rangeOfString:@"Error" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                error = [NSError errorWithDomain:@"SSBMuxRPC" code:-1 userInfo:@{NSLocalizedDescriptionKey: strBody}];
+            }
+        }
+        state.callback(parsedBody, isEnd, error);
+    }
+}
+
 @end
 
 // Simple test delegate to capture callbacks

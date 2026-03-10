@@ -77,6 +77,23 @@ typedef NS_ENUM(NSInteger, SSBHTTPInvitePrivacyMode) {
 - (NSString *)renderHTMLForInvalidInvite:(NSString *)code
                                   error:(nullable NSString *)errorMessage;
 
+#pragma mark - Alias Resolution (SIP 7)
+
+/// Renders the HTML for an alias web endpoint (SIP 7).
+/// This includes the meta tag that tells SSB clients how to consume the alias.
+- (NSString *)renderHTMLForAlias:(NSString *)alias
+              multiserverAddress:(NSString *)msAddr
+                          userId:(NSString *)userId
+                       signature:(NSString *)signature
+                          roomId:(NSString *)roomId;
+
+/// Returns the JSON representation for an alias resolution.
+- (NSDictionary<NSString *, id> *)jsonForAlias:(NSString *)alias
+                            multiserverAddress:(NSString *)msAddr
+                                        userId:(NSString *)userId
+                                     signature:(NSString *)signature
+                                        roomId:(NSString *)roomId;
+
 @end
 
 NS_ASSUME_NONNULL_END

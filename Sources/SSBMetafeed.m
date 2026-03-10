@@ -34,6 +34,24 @@ static NSInteger const kNumberOfShards = 16;
 
 @implementation SSBMetafeed
 
+#pragma mark - Instance Operations (SIP 2)
+
+- (nullable NSDictionary<NSString *, id> *)addExistingFeedMessage:(NSString *)feedID
+                                                          purpose:(SSBMetafeedPurpose)purpose {
+    return [SSBMetafeed createMetafeed:self.ID addExistingFeed:feedID purpose:purpose];
+}
+
+- (nullable NSDictionary<NSString *, id> *)addDerivedFeedMessage:(NSString *)feedName
+                                                         purpose:(SSBMetafeedPurpose)purpose
+                                                           nonce:(NSData *)nonce {
+    return [SSBMetafeed createMetafeed:self.ID addDerivedFeed:feedName purpose:purpose nonce:nonce];
+}
+
+- (nullable NSDictionary<NSString *, id> *)tombstoneFeedMessage:(NSString *)feedID
+                                                         reason:(nullable NSString *)reason {
+    return [SSBMetafeed createMetafeed:self.ID tombstoneFeed:feedID reason:reason];
+}
+
 #pragma mark - Seed Generation
 
 + (nullable NSData *)generateSeed {

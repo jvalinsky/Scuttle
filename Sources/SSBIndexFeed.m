@@ -79,28 +79,26 @@ static NSString *const kMetafeedAddDerivedType = @"metafeed/add/derived";
     };
 }
 
++ (nullable NSDictionary *)createQueryWithAuthor:(NSString *)author
+                                     messageType:(nullable NSString *)messageType
+                                       isPrivate:(BOOL)isPrivate {
+    NSMutableDictionary *query = [NSMutableDictionary dictionary];
+    query[@"author"] = author;
+    query[@"type"] = messageType ?: [NSNull null];
+    query[@"private"] = @(isPrivate);
+    
+    // If private: true then type MUST be null
+    if (isPrivate) {
+        query[@"type"] = [NSNull null];
+    }
+    
+    return [query copy];
+}
+
 + (nullable NSDictionary *)createQueryWithAuthor:(nullable NSString *)author
                                      messageType:(nullable NSString *)messageType
-                                        channel:(nullable NSString *)channel {
-    NSMutableDictionary *query = [NSMutableDictionary dictionary];
-
-    if (author) {
-        query[@"author"] = author;
-    }
-
-    if (messageType) {
-        query[@"type"] = messageType;
-    }
-
-    if (channel) {
-        query[@"channel"] = channel;
-    }
-
-    if (query.count == 0) {
-        return nil;
-    }
-
-    return [query copy];
+                                         channel:(nullable NSString *)channel {
+    return [self createQueryWithAuthor:author ?: @"" messageType:messageType isPrivate:NO];
 }
 
 + (NSString *)queryLanguageIdentifier {
@@ -139,55 +137,34 @@ static NSString *const kMetafeedAddDerivedType = @"metafeed/add/derived";
 }
 
 + (nullable NSDictionary *)createContactIndexQueryForAuthor:(NSString *)author {
-    if (!author) {
-        return nil;
-    }
-    return @{@"author": author, @"type": @"contact"};
+    return [self createQueryWithAuthor:author messageType:@"contact" isPrivate:NO];
 }
 
 + (nullable NSDictionary *)createAboutIndexQueryForAuthor:(NSString *)author {
-    NSMutableDictionary *query = [NSMutableDictionary dictionary];
-    query[@"type"] = @"about";
-
-    if (author) {
-        query[@"author"] = author;
-    }
-
-    return [query copy];
+    return [self createQueryWithAuthor:author messageType:@"about" isPrivate:NO];
 }
 
-+ (nullable NSDictionary *)createPostsIndexQueryForAuthor:(NSString *)author
-                                                   channel:(nullable NSString *)channel {
-    NSMutableDictionary *query = [NSMutableDictionary dictionary];
-    query[@"type"] = @"post";
-
-    if (author) {
-        query[@"author"] = author;
-    }
-
-    if (channel) {
-        query[@"channel"] = channel;
-    }
-
-    return [query copy];
++ (nullable NSDictionary *)createPostsIndexQueryForAuthor:(nullable NSString *)author
+                                                 channel:(nullable NSString *)channel {
+    return [self createQueryWithAuthor:author ?: @"" messageType:@"post" isPrivate:NO];
 }
 
 + (nullable NSDictionary *)createContactIndexQuery {
-    return @{@"type": @"contact"};
+    return [self createQueryWithAuthor:@"" messageType:@"contact" isPrivate:NO];
 }
 
 + (nullable NSDictionary *)createAboutIndexQuery {
-    return @{@"type": @"about"};
+    return [self createQueryWithAuthor:@"" messageType:@"about" isPrivate:NO];
 }
 
 + (nullable NSDictionary *)createPostsIndexQuery {
-    return @{@"type": @"post"};
+    return [self createQueryWithAuthor:@"" messageType:@"post" isPrivate:NO];
 }
 
 + (nullable NSDictionary *)createGenericIndexQueryWithAuthor:(nullable NSString *)author
-                                               messageType:(nullable NSString *)messageType
-                                                  channel:(nullable NSString *)channel {
-    return [self createQueryWithAuthor:author messageType:messageType channel:channel];
+                                                 messageType:(nullable NSString *)messageType
+                                                     channel:(nullable NSString *)channel {
+    return [self createQueryWithAuthor:author ?: @"" messageType:messageType isPrivate:NO];
 }
 
 + (nullable NSDictionary *)createIndexFeedForQuery:(NSDictionary *)query

@@ -10,6 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *previousKey;
 @property (nonatomic, assign) int64_t claimedTimestamp; // author's timestamp (ms)
 @property (nonatomic, assign) int64_t receivedAt;       // local store time (ms)
+@property (nonatomic, assign) BOOL isPrivate;
 @property (nonatomic, copy, nullable) NSString *contentType; // "post", "contact", etc
 @property (nonatomic, copy) NSData *valueJSON;          // canonical signed value bytes
 @property (nonatomic, strong, nullable) NSDictionary<NSString *, id> *content; // parsed content dict
@@ -44,6 +45,9 @@ NS_ASSUME_NONNULL_BEGIN
                                 fromSequence:(NSInteger)startSeq
                                        limit:(NSInteger)limit;
 
+/// Returns the latest N messages across all feeds (Global).
+- (NSArray<SSBMessage *> *)recentMessagesWithLimit:(NSInteger)limit;
+
 /// Returns the latest N messages across all followed feeds, for timeline display.
 - (NSArray<SSBMessage *> *)timelineWithLimit:(NSInteger)limit;
 
@@ -52,6 +56,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Returns messages of a specific content type across all feeds.
 - (NSArray<SSBMessage *> *)messagesOfType:(NSString *)contentType limit:(NSInteger)limit;
+
+#pragma mark - Subset Queries (SIP 3)
+
+/// Executes an ssb-ql-0 query and returns matching messages.
+/// @param query The ssb-ql-0 query dictionary.
+/// @param options Query options: @"pageSize" (NSNumber), @"descending" (NSNumber), @"startFrom" (NSNumber/seq).
+- (NSArray<SSBMessage *> *)querySubset:(NSDictionary<NSString *, id> *)query
+                               options:(NSDictionary<NSString *, id> *)options;
 
 #pragma mark - Follow Graph
 

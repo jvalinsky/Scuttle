@@ -10,6 +10,8 @@ typedef NS_OPTIONS(uint8_t, SSBMuxRPCFlags) {
     SSBMuxRPCFlagStream     = 0x08
 };
 
+typedef void (^SSBRPCCallback)(id _Nullable response, NSError * _Nullable error);
+
 /// Represents a single multiplexed RPC message header
 @interface SSBMuxRPCMessage : NSObject
 

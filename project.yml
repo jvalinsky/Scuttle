@@ -45,4 +45,3 @@ schemes:
     test:
       targets:
         - SSBNetworkTests
-

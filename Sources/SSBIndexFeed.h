@@ -24,9 +24,13 @@ typedef NS_ENUM(NSInteger, SSBIndexFeedType) {
 
 + (nullable NSDictionary<NSString *, id> *)parseIndexMessage:(NSDictionary<NSString *, id> *)content;
 
++ (nullable NSDictionary<NSString *, id> *)createQueryWithAuthor:(NSString *)author
+                                       messageType:(nullable NSString *)messageType
+                                         isPrivate:(BOOL)isPrivate;
+
 + (nullable NSDictionary<NSString *, id> *)createQueryWithAuthor:(nullable NSString *)author
                                        messageType:(nullable NSString *)messageType
-                                          channel:(nullable NSString *)channel;
+                                           channel:(nullable NSString *)channel __deprecated_msg("Use createQueryWithAuthor:messageType:isPrivate:");
 
 + (NSString *)queryLanguageIdentifier;
 

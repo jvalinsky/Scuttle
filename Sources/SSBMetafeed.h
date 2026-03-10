@@ -78,6 +78,21 @@ typedef NS_ENUM(NSInteger, SSBMetafeedMessageType) {
 @property (nonatomic, readonly) SSBMetafeed *v1Subfeed;
 @property (nonatomic, readonly) NSArray<SSBMetafeed *> *shardFeeds;
 
+#pragma mark - Instance Operations (SIP 2)
+
+/// Generates an 'add/existing' message for the current metafeed.
+- (nullable NSDictionary<NSString *, id> *)addExistingFeedMessage:(NSString *)feedID
+                                                          purpose:(SSBMetafeedPurpose)purpose;
+
+/// Generates an 'add/derived' message for the current metafeed.
+- (nullable NSDictionary<NSString *, id> *)addDerivedFeedMessage:(NSString *)feedName
+                                                         purpose:(SSBMetafeedPurpose)purpose
+                                                           nonce:(NSData *)nonce;
+
+/// Generates a 'tombstone' message for a subfeed.
+- (nullable NSDictionary<NSString *, id> *)tombstoneFeedMessage:(NSString *)feedID
+                                                         reason:(nullable NSString *)reason;
+
 @end
 
 NS_ASSUME_NONNULL_END
