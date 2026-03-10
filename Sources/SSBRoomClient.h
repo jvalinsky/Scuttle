@@ -1,7 +1,15 @@
 #import <Foundation/Foundation.h>
 #import "SSBMuxRPC.h"
+#import "RoomInviteHandler.h"
+#import "SSBFeedStore.h"
+#import "SSBMessageCodec.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+@interface SSBRPCCallState : NSObject
+@property (nonatomic, copy) NSString *type;
+@property (nonatomic, copy) void (^callback)(id _Nullable response, BOOL isEnd, NSError * _Nullable error);
+@end
 
 typedef void (^SSBRPCCallback)(id _Nullable response, BOOL isEndOrError, NSError * _Nullable error);
 
@@ -17,6 +25,10 @@ typedef void (^SSBRPCCallback)(id _Nullable response, BOOL isEndOrError, NSError
 - (void)roomClient:(id)client didEstablishTunnelWithPeer:(NSString *)peerId;
 /// Called when an error occurs in the room connection or RPC.
 - (void)roomClient:(id)client didEncounterError:(NSError *)error;
+/// Called when the client wants to emit a diagnostic log.
+- (void)roomClient:(id)client didLogMessage:(NSString *)message;
+/// Called when new messages are replicated from a peer.
+- (void)roomClient:(id)client didReplicateMessagesFromPeer:(NSString *)peerId count:(NSInteger)count;
 @end
 
 /// High-level client for connecting to an SSB-Room server and managing muxrpc tunneling.
@@ -30,21 +42,48 @@ typedef void (^SSBRPCCallback)(id _Nullable response, BOOL isEndOrError, NSError
 @property (nonatomic, readonly) uint16_t port;
 @property (nonatomic, readonly) NSData *serverPubKey;
 @property (nonatomic, readonly) NSData *localIdentitySecret;
+@property (nonatomic, readonly, nullable) NSString *inviteToken;
+@property (nonatomic, readonly, nullable) NSArray<NSString *> *roomFeatures;
 
 /// Initialize with a target room server explicitly.
 - (instancetype)initWithHost:(NSString *)host 
                         port:(uint16_t)port 
                 serverPubKey:(NSData *)serverPubKey 
-               localIdentity:(NSData *)localIdentitySecret;
+               localIdentity:(nullable NSData *)localIdentitySecret;
+
+/// Initialize using a RoomConfig object.
+- (instancetype)initWithConfig:(RoomConfig *)config 
+                  localIdentity:(nullable NSData *)localIdentitySecret;
 
 /// Connects to the room server, performing SHS and Box Stream setup.
 - (void)connect;
 
+/// Redeems an invite token via RPC.
+- (void)redeemInvite:(NSString *)token completion:(nullable SSBRPCCallback)completion;
+
+/// Lists aliases registered in the room.
+- (void)listAliasesWithCompletion:(nullable SSBRPCCallback)completion;
+
+/// Registers an alias with the room server.
+- (void)registerAlias:(NSString *)alias signature:(NSString *)signature completion:(nullable SSBRPCCallback)completion;
+
+/// Revokes a previously registered alias.
+- (void)revokeAlias:(NSString *)alias completion:(nullable SSBRPCCallback)completion;
+
+/// Publishes a contact (follow/unfollow) message to the user's feed.
+- (void)publishContact:(NSString *)targetPubKey following:(BOOL)following completion:(nullable SSBRPCCallback)completion;
+
 /// Sends a generic MuxRPC request with a callback handler.
 - (int32_t)sendRPCRequest:(NSArray<NSString *> *)name
-                     args:(NSArray *)args
+                     args:(NSArray<id> *)args
                      type:(NSString *)type
                completion:(nullable SSBRPCCallback)completion;
+
+/// Fetches a preview of a peer's recent messages.
+- (void)fetchFeedForPeer:(NSString *)peerID limit:(NSInteger)limit completion:(nullable SSBRPCCallback)completion;
+
+/// Fetches profile information (metadata/about) for a peer.
+- (void)fetchProfileForPeer:(NSString *)peerID completion:(nullable SSBRPCCallback)completion;
 
 /// Sends a `tunnel.ping` muxrpc request.
 - (void)ping;
@@ -57,6 +96,27 @@ typedef void (^SSBRPCCallback)(id _Nullable response, BOOL isEndOrError, NSError
 
 /// Sends a `tunnel.connect` duplex request to connect to a specific target peer.
 - (void)connectToPeer:(NSString *)targetPeerId;
+
+/// Publishes a new post to the local feed and makes it available for replication.
+- (nullable SSBMessage *)publishPostWithText:(NSString *)text error:(NSError **)error;
+
+/// Publishes a contact (follow/unfollow) to the local feed.
+- (nullable SSBMessage *)publishLocalContact:(NSString *)targetPubKey following:(BOOL)following error:(NSError **)error;
+
+/// Publishes an about message to set profile name/description.
+- (nullable SSBMessage *)publishAboutWithName:(nullable NSString *)name description:(nullable NSString *)description error:(NSError **)error;
+
+/// Replicates feeds from a connected peer. Requests createHistoryStream for all followed feeds.
+- (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost;
+
+/// Handles incoming data from a duplex tunnel stream (Task 3.6).
+- (void)handleIncomingTunnelStream:(NSData *)data fromPeer:(NSString *)peerId;
+
+/// Internal method to handle attendants response (Task 3.3).
+- (void)handleAttendantsResponse:(id)response;
+
+/// Returns the local feed store.
+@property (nonatomic, readonly) SSBFeedStore *feedStore;
 
 /// Disconnects from the room.
 - (void)disconnect;

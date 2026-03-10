@@ -11,6 +11,23 @@
     [client ping];
     [client announce];
     [client subscribeToEndpoints];
+    
+    [client listAliasesWithCompletion:^(id  _Nullable response, BOOL isEndOrError, NSError * _Nullable error) {
+        NSLog(@"[Test] Aliases: %@ (Error: %@)", response, error);
+    }];
+    
+    // Test following a dummy user
+    NSString *dummyUser = @"@abc.ed25519";
+    [client publishContact:dummyUser following:YES completion:^(id  _Nullable response, BOOL isEndOrError, NSError * _Nullable error) {
+        NSLog(@"[Test] Follow dummy user result: %@ (Error: %@)", response, error);
+    }];
+    
+    // Test self-follow validation
+    NSData *pkData = [client.localIdentitySecret subdataWithRange:NSMakeRange(32, 32)];
+    NSString *myId = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+    [client publishContact:myId following:YES completion:^(id  _Nullable response, BOOL isEndOrError, NSError * _Nullable error) {
+        NSLog(@"[Test] Self-follow validation (expected error): %@", error.localizedDescription);
+    }];
 }
 
 - (void)roomClient:(SSBRoomClient *)client didUpdateEndpoints:(NSArray<NSString *> *)endpoints {

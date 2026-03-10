@@ -14,3 +14,5 @@ FOUNDATION_EXPORT const unsigned char SSBNetworkVersionString[];
 #import "SSBSecretHandshake.h"
 #import "SSBBoxStream.h"
 #import "SSBMuxRPC.h"
+#import "SSBFeedStore.h"
+#import "SSBMessageCodec.h"

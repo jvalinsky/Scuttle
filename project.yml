@@ -8,6 +8,8 @@ targets:
     deploymentTarget: "10.15"
     sources:
       - path: Sources
+    dependencies:
+      - sdk: libsqlite3.tbd
     settings:
       CODE_SIGN_IDENTITY: ""
       CODE_SIGNING_REQUIRED: NO
@@ -35,4 +37,12 @@ targets:
       CODE_SIGN_IDENTITY: ""
       CODE_SIGNING_REQUIRED: NO
       INFOPLIST_FILE: App/Info.plist
+schemes:
+  SSBNetwork:
+    build:
+      targets:
+        SSBNetwork: all
+    test:
+      targets:
+        - SSBNetworkTests
 

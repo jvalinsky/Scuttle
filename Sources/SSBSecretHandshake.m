@@ -73,7 +73,7 @@ static os_log_t ssb_shs_log;
     // Generate Ephemeral Keypair (a)
     crypto_box_curve25519xsalsa20poly1305_keypair(_clientEphPubKey, _clientEphSecKey);
     
-    // Client Hello is HMAC-SHA256(net_id, a_pub)
+    // Client Hello is HMAC-SHA-512-256(net_id, a_pub) — first 32 bytes of HMAC-SHA-512
     unsigned char hmacOut[CC_SHA512_DIGEST_LENGTH];
     CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length,
            _clientEphPubKey, sizeof(_clientEphPubKey), hmacOut);
