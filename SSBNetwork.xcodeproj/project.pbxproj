@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		00EE11A38AA65AB2658832BF /* SSBSecretHandshake.m in Sources */ = {isa = PBXBuildFile; fileRef = 0255A98ECFDE1B94FD72FDC8 /* SSBSecretHandshake.m */; };
+		02B32B268B26D2DC78051FC6 /* SSBThread.h in Headers */ = {isa = PBXBuildFile; fileRef = 91B91E4D73FD27B4DB5709DA /* SSBThread.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		039B4FFDD41842731258C5A0 /* SSBHTTPInviteServer.h in Headers */ = {isa = PBXBuildFile; fileRef = B9BB92B839045329BFED6CF9 /* SSBHTTPInviteServer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		047DD05B99FEB5CF11CF4C60 /* SSBBendyButt.h in Headers */ = {isa = PBXBuildFile; fileRef = AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		04FBDC2110F3898DE17DD339 /* SSBMessageCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = EBEB65F0F3E4B90137A01A1F /* SSBMessageCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -36,6 +37,7 @@
 		884F44BF881CE3A4D3DC4DF7 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 410B0BC80AF863D21E803C0F /* AppIcon.icns */; };
 		8AB648382104AA27043DE092 /* SSBHTTPAuth.m in Sources */ = {isa = PBXBuildFile; fileRef = C716E64EB06334D09F2227F6 /* SSBHTTPAuth.m */; };
 		8AF74B0C6F85ABD1BAAFBB44 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */; };
+		8D3934723670160DEA6C15C9 /* SSBThread.m in Sources */ = {isa = PBXBuildFile; fileRef = 85C37916511E60DA6855662D /* SSBThread.m */; };
 		957A819F27BDA12D6A818E7B /* SSBNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; };
 		96B02CDE1D300F6A5623E45D /* SSBBoxStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */; };
 		9EA9951A01E1E1F883481100 /* SSBMuxRPC.h in Headers */ = {isa = PBXBuildFile; fileRef = B73C35617F300D1233DB2B83 /* SSBMuxRPC.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -138,9 +140,11 @@
 		7E748DFDDA660FFBB10D82FB /* SSBBFETests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBFETests.m; sourceTree = "<group>"; };
 		82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRoomProtocolBugfixTests.m; sourceTree = "<group>"; };
 		84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBRoomClient.h; sourceTree = "<group>"; };
+		85C37916511E60DA6855662D /* SSBThread.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBThread.m; sourceTree = "<group>"; };
 		883B75B6F77728C6B18E47AA /* SSBBFE.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBFE.h; sourceTree = "<group>"; };
 		8B1A74C0B6939BE415F1577B /* RoomStorage.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RoomStorage.h; sourceTree = "<group>"; };
 		90204CE2735F70BB02436E71 /* SSBIndexFeed.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBIndexFeed.h; sourceTree = "<group>"; };
+		91B91E4D73FD27B4DB5709DA /* SSBThread.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBThread.h; sourceTree = "<group>"; };
 		99F91286CB3ED206B79A3E77 /* SSBSecretHandshake.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecretHandshake.h; sourceTree = "<group>"; };
 		9B42ABD39574F1380A7D4E02 /* SSBFramer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFramer.h; sourceTree = "<group>"; };
 		9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBoxStream.m; sourceTree = "<group>"; };
@@ -280,6 +284,8 @@
 				0255A98ECFDE1B94FD72FDC8 /* SSBSecretHandshake.m */,
 				2EA1EE9798EA1AC943C4251F /* SSBTangle.h */,
 				EC626AA0CD6651F362F3A259 /* SSBTangle.m */,
+				91B91E4D73FD27B4DB5709DA /* SSBThread.h */,
+				85C37916511E60DA6855662D /* SSBThread.m */,
 				53D2EEA4027CFD4A5B573A70 /* SSBURI.h */,
 				FF643DB59B16753E557EAF57 /* SSBURI.m */,
 				75516176EABD43E300304542 /* tweetnacl.c */,
@@ -326,6 +332,7 @@
 				CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */,
 				39E8170656DD2630FC0DF719 /* SSBSecretHandshake.h in Headers */,
 				E2B98592E789745288819A91 /* SSBTangle.h in Headers */,
+				02B32B268B26D2DC78051FC6 /* SSBThread.h in Headers */,
 				C675DBFEC6E02324C36C7FF1 /* SSBURI.h in Headers */,
 				B4B1781611491EA710139777 /* tweetnacl.h in Headers */,
 			);
@@ -459,6 +466,7 @@
 				AC2D8D590BA4C02C2BFC96B5 /* SSBRoomClient.m in Sources */,
 				00EE11A38AA65AB2658832BF /* SSBSecretHandshake.m in Sources */,
 				B40F60D75D99FFFB352DF537 /* SSBTangle.m in Sources */,
+				8D3934723670160DEA6C15C9 /* SSBThread.m in Sources */,
 				884E6C004581AD0133CC3FD3 /* SSBURI.m in Sources */,
 				CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */,
 				2D27C4B1478B3BEE80FD5ACE /* tweetnacl.c in Sources */,
