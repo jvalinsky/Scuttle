@@ -639,6 +639,38 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
     return authors;
 }
 
+- (NSArray<NSString *> *)allChannels {
+    __block NSMutableArray<NSString *> *results = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT DISTINCT json_extract(content_json, '$.channel') FROM messages WHERE content_type = 'post' AND json_extract(content_json, '$.channel') IS NOT NULL ORDER BY 1";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *chan = (const char *)sqlite3_column_text(stmt, 0);
+                if (chan) [results addObject:[NSString stringWithUTF8String:chan]];
+            }
+            sqlite3_finalize(stmt);
+        }
+    });
+    return results;
+}
+
+- (NSArray<SSBMessage *> *)searchMessages:(NSString *)searchText limit:(NSInteger)limit {
+    __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE content_json LIKE ? ORDER BY claimed_timestamp DESC LIMIT ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            NSString *likePattern = [NSString stringWithFormat:@"%%%@%%", searchText];
+            sqlite3_bind_text(stmt, 1, likePattern.UTF8String, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt, 2, limit);
+            while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
+            sqlite3_finalize(stmt);
+        }
+    });
+    return results;
+}
+
 - (NSInteger)totalMessageCount {
     __block NSInteger count = 0;
     dispatch_sync(self.dbQueue, ^{

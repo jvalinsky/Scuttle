@@ -1,8 +1,9 @@
-#import "SRPeerListViewController.h"
+make #import "SRPeerListViewController.h"
 
 @interface SRPeerCell : NSTableCellView
 @property (nonatomic, strong) NSView *avatarView;
 @property (nonatomic, strong) NSTextField *idLabel;
+@property (nonatomic, strong) NSView *followStatusDot;
 @end
 
 @implementation SRPeerCell
@@ -21,6 +22,13 @@
         _idLabel.cell.lineBreakMode = NSLineBreakByTruncatingMiddle;
         [self addSubview:_idLabel];
         
+        _followStatusDot = [[NSView alloc] init];
+        _followStatusDot.wantsLayer = YES;
+        _followStatusDot.layer.cornerRadius = 3;
+        _followStatusDot.translatesAutoresizingMaskIntoConstraints = NO;
+        _followStatusDot.hidden = YES;
+        [self addSubview:_followStatusDot];
+        
         [NSLayoutConstraint activateConstraints:@[
             [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12],
             [_avatarView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -28,18 +36,24 @@
             [_avatarView.heightAnchor constraintEqualToConstant:28],
             
             [_idLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:10],
-            [_idLabel.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-12],
-            [_idLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor]
+            [_idLabel.trailingAnchor constraintEqualToAnchor:_followStatusDot.leadingAnchor constant:-8],
+            [_idLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            
+            [_followStatusDot.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-12],
+            [_followStatusDot.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_followStatusDot.widthAnchor constraintEqualToConstant:6],
+            [_followStatusDot.heightAnchor constraintEqualToConstant:6]
         ]];
     }
     return self;
 }
 @end
 
-@interface SRPeerListViewController ()
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, copy) NSArray<NSString *> *peers;
+@property (nonatomic, strong) NSTextField *emptyLabel;
+@property (nonatomic, strong) NSProgressIndicator *progressIndicator;
 @end
 
 @implementation SRPeerListViewController
@@ -86,12 +100,71 @@
     self.tableView.delegate = self;
     self.tableView.dataSource = self;
     
+    NSMenu *menu = [[NSMenu alloc] init];
+    [menu addItemWithTitle:@"Follow" action:@selector(followAction:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"Unfollow" action:@selector(unfollowAction:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"Block" action:@selector(blockAction:) keyEquivalent:@""];
+    self.tableView.menu = menu;
+    
     self.scrollView.documentView = self.tableView;
+    
+    self.emptyLabel = [NSTextField labelWithString:@"No peers in this room"];
+    self.emptyLabel.font = [NSFont systemFontOfSize:13];
+    self.emptyLabel.textColor = [NSColor tertiaryLabelColor];
+    self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.emptyLabel.hidden = YES;
+    [self.view addSubview:self.emptyLabel];
+    
+    self.progressIndicator = [[NSProgressIndicator alloc] init];
+    self.progressIndicator.style = NSProgressIndicatorStyleSpinning;
+    self.progressIndicator.controlSize = NSControlSizeSmall;
+    self.progressIndicator.translatesAutoresizingMaskIntoConstraints = NO;
+    self.progressIndicator.displayedWhenStopped = NO;
+    [self.view addSubview:self.progressIndicator];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.emptyLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.emptyLabel.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        
+        [self.progressIndicator.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.progressIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor]
+    ]];
+}
+
+- (void)followAction:(id)sender {
+    [self updateFollowStatus:YES];
+}
+
+- (void)unfollowAction:(id)sender {
+    [self updateFollowStatus:NO];
+}
+
+- (void)blockAction:(id)sender {
+    // TODO: Implement blocking
+}
+
+- (void)updateFollowStatus:(BOOL)following {
+    NSInteger row = self.tableView.clickedRow;
+    if (row < 0 || (NSUInteger)row >= self.peers.count) return;
+    
+    NSString *peerID = self.peers[row];
+    if (following) {
+        if ([self.delegate respondsToSelector:@selector(peerListViewController:didRequestFollow:)]) {
+            [self.delegate peerListViewController:self didRequestFollow:peerID];
+        }
+    } else {
+        if ([self.delegate respondsToSelector:@selector(peerListViewController:didRequestUnfollow:)]) {
+            [self.delegate peerListViewController:self didRequestUnfollow:peerID];
+        }
+    }
 }
 
 - (void)updatePeers:(NSArray<NSString *> *)peers {
     NSLog(@"[PeerList] Updating with %lu peers: %@", (unsigned long)peers.count, peers);
     self.peers = [peers copy];
+    self.emptyLabel.hidden = (peers.count > 0);
+    [self.progressIndicator stopAnimation:nil];
+    
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.tableView reloadData];
     });
@@ -120,6 +193,13 @@
         
         NSUInteger hash = [peerID hash];
         cell.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;
+        
+        if ([[SSBFeedStore sharedStore] isFollowing:peerID]) {
+            cell.followStatusDot.hidden = NO;
+            cell.followStatusDot.layer.backgroundColor = [NSColor systemBlueColor].CGColor;
+        } else {
+            cell.followStatusDot.hidden = YES;
+        }
     }
     
     return cell;

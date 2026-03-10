@@ -71,6 +71,12 @@
     [self.tableView addTableColumn:column];
     self.tableView.delegate = self;
     self.tableView.dataSource = self;
+    
+    NSMenu *menu = [[NSMenu alloc] init];
+    [menu addItemWithTitle:@"Disconnect" action:@selector(disconnectAction:) keyEquivalent:@""];
+    [menu addItemWithTitle:@"Remove Room" action:@selector(removeRoomAction:) keyEquivalent:@""];
+    self.tableView.menu = menu;
+    
     self.scrollView.documentView = self.tableView;
     
     self.joinButton = [NSButton buttonWithTitle:@"Join Room..." target:self action:@selector(joinRoomAction:)];
@@ -121,23 +127,118 @@
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {
     NSInteger row = self.tableView.selectedRow;
-    NSLog(@"[Sidebar] Selection changed to row %ld", (long)row);
-    if (row >= 0) {
-        RoomConfig *room = [SRRoomManager sharedManager].rooms[row];
+    if (row < 0) return;
+    
+    if (row == 0) return; // Header
+    
+    NSInteger roomCount = [SRRoomManager sharedManager].rooms.count;
+    if (row <= roomCount) {
+        RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
         NSLog(@"[Sidebar] Notifying room selected: %@", room.host);
         [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSelectedNotification" object:room];
+    } else if (row == roomCount + 1) {
+        // Discovery Header
+        return;
+    } else if (row == roomCount + 2) {
+        // Browse Channels
+        if ([self.view.window.contentViewController respondsToSelector:@selector(showChannelBrowser)]) {
+            [self.view.window.contentViewController performSelector:@selector(showChannelBrowser)];
+        }
     }
+}
+
+- (void)disconnectAction:(id)sender {
+    NSInteger row = self.tableView.clickedRow;
+    if (row < 0) return;
+    RoomConfig *room = [SRRoomManager sharedManager].rooms[row];
+    [[SRRoomManager sharedManager] disconnectFromRoom:room.host];
+}
+
+- (void)removeRoomAction:(id)sender {
+    NSInteger row = self.tableView.clickedRow;
+    if (row < 0) return;
+    RoomConfig *room = [SRRoomManager sharedManager].rooms[row];
+    [[SRRoomManager sharedManager] removeRoom:room];
 }
 
 #pragma mark - NSTableViewDataSource
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return [SRRoomManager sharedManager].rooms.count;
+    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
+    // Section 1: Rooms Header + Rooms
+    // Section 2: Discovery Header + Browse Channels
+    return (1 + rooms) + 2;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView isGroupRow:(NSInteger)row {
+    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
+    return (row == 0 || row == rooms + 1);
 }
 
 #pragma mark - NSTableViewDelegate
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
+    
+    if (row == 0) {
+        NSTableCellView *header = [tableView makeViewWithIdentifier:@"HeaderCell" owner:self];
+        if (!header) {
+            header = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
+            header.identifier = @"HeaderCell";
+            NSTextField *tf = [NSTextField labelWithString:@""];
+            tf.font = [NSFont boldSystemFontOfSize:11];
+            tf.textColor = [NSColor secondaryLabelColor];
+            tf.translatesAutoresizingMaskIntoConstraints = NO;
+            [header addSubview:tf];
+            header.textField = tf;
+            [NSLayoutConstraint activateConstraints:@[
+                [tf.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:4],
+                [tf.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
+            ]];
+        }
+        header.textField.stringValue = @"ROOMS";
+        return header;
+    }
+    
+    if (row == rooms + 1) {
+        NSTableCellView *header = [tableView makeViewWithIdentifier:@"HeaderCell" owner:self];
+        if (!header) {
+            header = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
+            header.identifier = @"HeaderCell";
+            NSTextField *tf = [NSTextField labelWithString:@""];
+            tf.font = [NSFont boldSystemFontOfSize:11];
+            tf.textColor = [NSColor secondaryLabelColor];
+            tf.translatesAutoresizingMaskIntoConstraints = NO;
+            [header addSubview:tf];
+            header.textField = tf;
+            [NSLayoutConstraint activateConstraints:@[
+                [tf.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:4],
+                [tf.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
+            ]];
+        }
+        header.textField.stringValue = @"DISCOVERY";
+        return header;
+    }
+    
+    if (row == rooms + 2) {
+        NSTableCellView *cell = [tableView makeViewWithIdentifier:@"ActionCell" owner:self];
+        if (!cell) {
+            cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
+            cell.identifier = @"ActionCell";
+            NSTextField *tf = [NSTextField labelWithString:@""];
+            tf.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell addSubview:tf];
+            cell.textField = tf;
+            [NSLayoutConstraint activateConstraints:@[
+                [tf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
+                [tf.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
+            ]];
+        }
+        cell.textField.stringValue = @"Browse Channels";
+        return cell;
+    }
+    
+    // Room Cells
     NSTableCellView *cell = [tableView makeViewWithIdentifier:@"RoomCell" owner:self];
     if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 44)];
@@ -155,6 +256,13 @@
         [cell addSubview:textField];
         cell.textField = textField;
         
+        NSTextField *peerCountLabel = [NSTextField labelWithString:@""];
+        peerCountLabel.font = [NSFont systemFontOfSize:11];
+        peerCountLabel.textColor = [NSColor secondaryLabelColor];
+        peerCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        peerCountLabel.identifier = @"PeerCountLabel";
+        [cell addSubview:peerCountLabel];
+        
         [NSLayoutConstraint activateConstraints:@[
             [statusDot.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
             [statusDot.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
@@ -163,22 +271,34 @@
             
             [textField.leadingAnchor constraintEqualToAnchor:statusDot.trailingAnchor constant:8],
             [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-            [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12]
+            
+            [peerCountLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:textField.trailingAnchor constant:8],
+            [peerCountLabel.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12],
+            [peerCountLabel.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
         ]];
     }
     
-    RoomConfig *room = [SRRoomManager sharedManager].rooms[row];
-    cell.textField.stringValue = room.host;
+    RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
+    cell.textField.stringValue = room.name.length > 0 ? room.name : room.host;
     
-    SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
+    NSTextField *peerCountLabel = nil;
     NSView *statusDot = nil;
     for (NSView *subview in cell.subviews) {
-        if ([subview.identifier isEqualToString:@"StatusDot"]) {
+        if ([subview.identifier isEqualToString:@"PeerCountLabel"]) {
+            peerCountLabel = (NSTextField *)subview;
+        } else if ([subview.identifier isEqualToString:@"StatusDot"]) {
             statusDot = subview;
-            break;
         }
     }
     
+    NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[room.host];
+    if (peers.count > 0) {
+        peerCountLabel.stringValue = [NSString stringWithFormat:@"%lu", (unsigned long)peers.count];
+    } else {
+        peerCountLabel.stringValue = @"";
+    }
+    
+    SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
     if (client.isConnected) {
         statusDot.layer.backgroundColor = [NSColor systemGreenColor].CGColor;
     } else {

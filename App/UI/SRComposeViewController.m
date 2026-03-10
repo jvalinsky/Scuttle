@@ -72,11 +72,16 @@
     if (text.length == 0) return;
     
     if (self.onPublish) {
-        self.onPublish(text, cw.length > 0 ? cw : nil);
+        self.onPublish(text, cw.length > 0 ? cw : nil, self.replyToKey);
     }
     
+    [self clear];
+}
+
+- (void)clear {
     self.textView.string = @"";
     self.cwField.stringValue = @"";
+    self.replyToKey = nil;
 }
 
 @end

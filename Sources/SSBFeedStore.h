@@ -76,6 +76,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the set of all authors we follow.
 - (NSArray<NSString *> *)followedAuthors;
 
+/// Returns the set of all unique channel names found in 'post' messages.
+- (NSArray<NSString *> *)allChannels;
+
+/// Searches for messages containing the given text in their content.
+- (NSArray<SSBMessage *> *)searchMessages:(NSString *)searchText limit:(NSInteger)limit;
+
 /// Returns the total number of stored messages.
 - (NSInteger)totalMessageCount;
 

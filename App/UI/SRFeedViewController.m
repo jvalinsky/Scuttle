@@ -1,142 +1,14 @@
 #import "SRFeedViewController.h"
+#import "SRFeedItem.h"
 #import "../../Sources/SSBNetwork.h"
 
-@interface SRFeedItem : NSCollectionViewItem
-@property (nonatomic, strong) NSTextField *authorLabel;
-@property (nonatomic, strong) NSTextField *contentLabel;
-@property (nonatomic, strong) NSTextField *cwLabel;
-@property (nonatomic, strong) NSView *avatarView;
-@property (nonatomic, strong) NSButton *showCWButton;
-@property (nonatomic, strong) NSButton *replyButton;
-@property (nonatomic, strong) NSButton *likeButton;
-@end
-
-@implementation SRFeedItem
-
-- (void)loadView {
-    self.view = [[NSView alloc] init];
-    self.view.wantsLayer = YES;
-    self.view.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
-    self.view.layer.cornerRadius = 8;
-    self.view.layer.borderWidth = 1;
-    self.view.layer.borderColor = [NSColor separatorColor].CGColor;
-    
-    _avatarView = [[NSView alloc] init];
-    _avatarView.wantsLayer = YES;
-    _avatarView.layer.cornerRadius = 16;
-    _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_avatarView];
-    
-    _authorLabel = [NSTextField labelWithString:@""];
-    _authorLabel.font = [NSFont boldSystemFontOfSize:12];
-    _authorLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_authorLabel];
-    
-    _cwLabel = [NSTextField labelWithString:@""];
-    _cwLabel.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
-    _cwLabel.textColor = [NSColor systemOrangeColor];
-    _cwLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    _cwLabel.hidden = YES;
-    [self.view addSubview:_cwLabel];
-    
-    _showCWButton = [NSButton buttonWithTitle:@"Show Content" target:self action:@selector(toggleCW:)];
-    _showCWButton.bezelStyle = NSBezelStyleInline;
-    _showCWButton.controlSize = NSControlSizeSmall;
-    _showCWButton.translatesAutoresizingMaskIntoConstraints = NO;
-    _showCWButton.hidden = YES;
-    [self.view addSubview:_showCWButton];
-    
-    _contentLabel = [NSTextField labelWithString:@""];
-    _contentLabel.font = [NSFont systemFontOfSize:13];
-    _contentLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    _contentLabel.maximumNumberOfLines = 0;
-    _contentLabel.cell.lineBreakMode = NSLineBreakByWordWrapping;
-    [self.view addSubview:_contentLabel];
-    
-    _replyButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"arrowshape.turn.up.left" accessibilityDescription:@"Reply"] target:self action:@selector(replyAction:)];
-    _replyButton.bordered = NO;
-    _replyButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_replyButton];
-    
-    _likeButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"heart" accessibilityDescription:@"Like"] target:self action:@selector(likeAction:)];
-    _likeButton.bordered = NO;
-    _likeButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:_likeButton];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [_avatarView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
-        [_avatarView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
-        [_avatarView.widthAnchor constraintEqualToConstant:32],
-        [_avatarView.heightAnchor constraintEqualToConstant:32],
-        
-        [_authorLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:10],
-        [_authorLabel.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
-        [_authorLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
-        
-        [_cwLabel.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
-        [_cwLabel.topAnchor constraintEqualToAnchor:_authorLabel.bottomAnchor constant:4],
-        
-        [_showCWButton.leadingAnchor constraintEqualToAnchor:_cwLabel.trailingAnchor constant:8],
-        [_showCWButton.centerYAnchor constraintEqualToAnchor:_cwLabel.centerYAnchor],
-        
-        [_contentLabel.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
-        [_contentLabel.topAnchor constraintEqualToAnchor:_authorLabel.bottomAnchor constant:4], // Will adjust if CW shown
-        [_contentLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
-        [_contentLabel.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-32],
-        
-        [_replyButton.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
-        [_replyButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
-        
-        [_likeButton.leadingAnchor constraintEqualToAnchor:_replyButton.trailingAnchor constant:16],
-        [_likeButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8]
-    ]];
-}
-
-- (void)setRepresentedObject:(id)representedObject {
-    [super setRepresentedObject:representedObject];
-    if ([representedObject isKindOfClass:[SSBMessage class]]) {
-        SSBMessage *msg = (SSBMessage *)representedObject;
-        self.authorLabel.stringValue = msg.author;
-        
-        NSString *cw = msg.content[@"contentWarning"];
-        if (cw.length > 0) {
-            self.cwLabel.stringValue = [NSString stringWithFormat:@"CW: %@", cw];
-            self.cwLabel.hidden = NO;
-            self.showCWButton.hidden = NO;
-            self.contentLabel.hidden = YES;
-        } else {
-            self.cwLabel.hidden = YES;
-            self.showCWButton.hidden = YES;
-            self.contentLabel.hidden = NO;
-            self.contentLabel.stringValue = msg.content[@"text"] ?: @"(No text)";
-        }
-        
-        NSUInteger hash = [msg.author hash];
-        self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;
-    }
-}
-
-- (void)toggleCW:(id)sender {
-    SSBMessage *msg = (SSBMessage *)self.representedObject;
-    self.contentLabel.stringValue = msg.content[@"text"] ?: @"(No text)";
-    self.contentLabel.hidden = NO;
-    self.showCWButton.hidden = YES;
-}
-
-- (void)replyAction:(id)sender {
-    // Notify delegate
-}
-
-- (void)likeAction:(id)sender {
-    // Notify delegate
-}
-
-@end
-
-@interface SRFeedViewController ()
+@interface SRFeedViewController () <NSCollectionViewDelegateFlowLayout>
 @property (nonatomic, strong) NSCollectionView *collectionView;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSArray<SSBMessage *> *messages;
+@property (nonatomic, strong) NSButton *backButton;
+@property (nonatomic, strong) NSTextField *emptyLabel;
+@property (nonatomic, strong) NSProgressIndicator *progressIndicator;
 @end
 
 @implementation SRFeedViewController
@@ -170,24 +42,97 @@
     
     self.scrollView.documentView = self.collectionView;
     
+    self.backButton = [NSButton buttonWithTitle:@"Show All Messages" target:self action:@selector(showAllAction:)];
+    self.backButton.bezelStyle = NSBezelStyleRounded;
+    self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
+    self.backButton.hidden = YES;
+    [self.view addSubview:self.backButton];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.backButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
+        [self.backButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20]
+    ]];
+    
+    self.emptyLabel = [NSTextField labelWithString:@"No messages found"];
+    self.emptyLabel.font = [NSFont systemFontOfSize:16];
+    self.emptyLabel.textColor = [NSColor tertiaryLabelColor];
+    self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.emptyLabel.hidden = YES;
+    [self.view addSubview:self.emptyLabel];
+    
+    self.progressIndicator = [[NSProgressIndicator alloc] init];
+    self.progressIndicator.style = NSProgressIndicatorStyleSpinning;
+    self.progressIndicator.controlSize = NSControlSizeRegular;
+    self.progressIndicator.translatesAutoresizingMaskIntoConstraints = NO;
+    self.progressIndicator.displayedWhenStopped = NO;
+    [self.view addSubview:self.progressIndicator];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.emptyLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.emptyLabel.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        
+        [self.progressIndicator.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.progressIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor]
+    ]];
+    
     [self refreshFeed];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshFeed) name:@"SRNewMessageNotification" object:nil];
 }
 
 - (void)refreshFeed {
+    NSMutableArray *newMessages = [NSMutableArray array];
+    
     if (self.filterAuthor) {
-        self.messages = [[SSBFeedStore sharedStore] feedForAuthor:self.filterAuthor limit:100];
+        [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] feedForAuthor:self.filterAuthor limit:50]];
+        self.backButton.hidden = NO;
+    } else if (self.filterChannel) {
+        NSDictionary *query = @{@"path": @[@"content", @"channel"], @"op": @"eq", @"value": self.filterChannel};
+        [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] querySubset:query options:@{@"descending": @YES, @"pageSize": @100}]];
+        self.backButton.hidden = NO;
+    } else if (self.filterSearch) {
+        [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] searchMessages:self.filterSearch limit:100]];
+        self.backButton.hidden = NO;
     } else {
-        self.messages = [[SSBFeedStore sharedStore] recentMessagesWithLimit:100];
+        if (self.feedType == SRFeedTypeTimeline) {
+            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] timelineWithLimit:50]];
+        } else {
+            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] recentMessagesWithLimit:50]];
+        }
+        self.backButton.hidden = YES;
     }
+    
+    self.messages = newMessages;
+    self.emptyLabel.hidden = (newMessages.count > 0);
+    
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.collectionView reloadData];
     });
 }
 
+- (void)loadFeedForChannel:(NSString *)channel {
+    self.filterChannel = channel;
+    self.filterAuthor = nil;
+    self.filterSearch = nil;
+    [self refreshFeed];
+}
+
+- (void)loadFeedWithSearch:(NSString *)searchText {
+    self.filterSearch = searchText;
+    self.filterAuthor = nil;
+    self.filterChannel = nil;
+    [self refreshFeed];
+}
+
+- (void)showAllAction:(id)sender {
+    self.filterAuthor = nil;
+    self.filterChannel = nil;
+    [self refreshFeed];
+}
+
 - (void)loadFeedForAuthor:(NSString *)author client:(SSBRoomClient *)client {
     self.filterAuthor = author;
+    self.filterChannel = nil;
     [self refreshFeed];
     
     // Fetch profile (about)
@@ -226,6 +171,16 @@
     [self.collectionView.collectionViewLayout invalidateLayout];
 }
 
+- (void)collectionView:(NSCollectionView *)collectionView didSelectItemsAtIndexPaths:(NSSet<NSIndexPath *> *)indexPaths {
+    NSIndexPath *indexPath = indexPaths.anyObject;
+    if (indexPath && indexPath.item < self.messages.count) {
+        SSBMessage *msg = self.messages[indexPath.item];
+        if ([self.delegate respondsToSelector:@selector(feedViewController:didSelectMessageThread:)]) {
+            [self.delegate feedViewController:self didSelectMessageThread:msg];
+        }
+    }
+}
+
 #pragma mark - NSCollectionViewDataSource
 
 - (NSInteger)collectionView:(NSCollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
@@ -235,13 +190,41 @@
 - (NSCollectionViewItem *)collectionView:(NSCollectionView *)collectionView itemForRepresentedObjectAtIndexPath:(NSIndexPath *)indexPath {
     SRFeedItem *item = [collectionView makeItemWithIdentifier:@"FeedItem" forIndexPath:indexPath];
     item.representedObject = self.messages[indexPath.item];
+    item.owner = self;
     return item;
+}
+
+- (void)itemDidRequestLike:(SRFeedItem *)item {
+    SSBMessage *msg = (SSBMessage *)item.representedObject;
+    if ([self.delegate respondsToSelector:@selector(feedViewController:didLikeMessage:)]) {
+        [self.delegate feedViewController:self didLikeMessage:msg];
+    }
+}
+
+- (void)itemDidRequestReply:(SRFeedItem *)item {
+    SSBMessage *msg = (SSBMessage *)item.representedObject;
+    if ([self.delegate respondsToSelector:@selector(feedViewController:didReplyToMessage:)]) {
+        [self.delegate feedViewController:self didReplyToMessage:msg];
+    }
 }
 
 #pragma mark - NSCollectionViewDelegateFlowLayout
 
 - (NSSize)collectionView:(NSCollectionView *)collectionView layout:(NSCollectionViewLayout *)collectionViewLayout sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
-    return NSMakeSize(collectionView.bounds.size.width - 40, 100); // Dynamic height would be better
+    SSBMessage *msg = self.messages[indexPath.item];
+    NSString *text = msg.content[@"text"] ?: @"(No text)";
+    
+    CGFloat width = collectionView.bounds.size.width - 80; // 20 section inset * 2 + cell padding etc
+    if (width < 100) width = 100;
+    
+    NSRect rect = [text boundingRectWithSize:NSMakeSize(width, CGFLOAT_MAX)
+                                     options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
+                                  attributes:@{NSFontAttributeName: [NSFont systemFontOfSize:13]}];
+    
+    CGFloat height = ceil(rect.size.height) + 80; // Padding for avatar, buttons, etc.
+    if (height < 100) height = 100;
+    
+    return NSMakeSize(collectionView.bounds.size.width - 40, height);
 }
 
 @end
