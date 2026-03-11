@@ -22,6 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)roomClient:(id)client didLogMessage:(NSString *)message;
 /// Called when new messages are replicated from a peer.
 - (void)roomClient:(id)client didReplicateMessagesFromPeer:(NSString *)peerId count:(NSInteger)count;
+/// Called when sync status or progress changes.
+- (void)roomClient:(id)client didUpdateSyncStatus:(NSString *)status progress:(float)progress;
 @end
 
 /// High-level client for connecting to an SSB-Room server and managing muxrpc tunneling.
@@ -105,6 +107,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Returns the local feed store.
 @property (nonatomic, readonly) SSBFeedStore *feedStore;
+
+/// Manually trigger replication from a peer via a room.
+- (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost;
+
+/// Resets the local identity secret in NSUserDefaults.
++ (void)resetLocalIdentity;
 
 /// Disconnects from the room.
 - (void)disconnect;

@@ -1,5 +1,8 @@
 #import "SRRoomManager.h"
 #import "RoomStorage.h"
+#import <Cocoa/Cocoa.h>
+#import "../../Sources/SSBFeedStore.h"
+#import "../../Sources/SSBRoomClient.h"
 #import "RoomInviteHandler.h"
 #import <os/log.h>
 
@@ -140,9 +143,47 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     });
 }
 
+- (void)roomClient:(SSBRoomClient *)client didUpdateSyncStatus:(NSString *)status progress:(float)progress {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification" 
+                                                            object:client 
+                                                          userInfo:@{@"status": status, @"progress": @(progress)}];
+    });
+}
+
 - (void)disconnectFromRoom:(NSString *)host {
     SSBRoomClient *client = self.internalClients[host];
     [client disconnect];
+}
+
+- (void)resetAccount {
+    NSLog(@"[RoomManager] RESETTING ACCOUNT...");
+    
+    // Disconnect everything
+    for (SSBRoomClient *client in self.internalClients.allValues) {
+        [client disconnect];
+    }
+    [self.internalClients removeAllObjects];
+    
+    // Clear credentials and DB
+    [SSBRoomClient resetLocalIdentity];
+    [[SSBFeedStore sharedStore] wipeDatabase];
+    
+    // Clear all saved rooms
+    for (RoomConfig *config in [self.internalRooms copy]) {
+        [RoomStorage removeRoom:config];
+    }
+    [self.internalRooms removeAllObjects];
+    [self.internalRoomEndpoints removeAllObjects];
+    
+    [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"Account Reset";
+        alert.informativeText = @"Identity and Database have been wiped. Please restart the app for full effect.";
+        [alert runModal];
+    });
 }
 
 - (void)removeRoom:(RoomConfig *)config {

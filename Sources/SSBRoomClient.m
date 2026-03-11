@@ -69,6 +69,7 @@ static os_log_t ssb_room_log;
                 _localIdentitySecret = [NSData dataWithBytes:sk length:64];
                 [[NSUserDefaults standardUserDefaults] setObject:_localIdentitySecret forKey:@"SSBLocalIdentity"];
                 [[NSUserDefaults standardUserDefaults] synchronize];
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"SRLocalIdentityGeneratedNotification" object:nil];
             }
         }
         
@@ -316,6 +317,13 @@ static os_log_t ssb_room_log;
     SSBFeedState *state = [self.feedStore feedStateForAuthor:feedAuthor];
     NSDictionary *args = @{@"id": feedAuthor, @"seq": @(state ? state.maxSequence + 1 : 1), @"limit": @100, @"live": @NO};
     
+    // Notify progress started
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+            [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Syncing %@...", [feedAuthor substringToIndex:MIN(10, feedAuthor.length)]] progress:0.0];
+        }
+    });
+
     __block NSInteger replicatedCount = 0;
     [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (!error && [response isKindOfClass:[NSDictionary class]]) {
@@ -344,6 +352,17 @@ static os_log_t ssb_room_log;
                     [self.delegate roomClient:self didReplicateMessagesFromPeer:peerID count:replicatedCount];
                 });
             }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+                    [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Synced %ld from %@", (long)replicatedCount, [peerID substringToIndex:MIN(10, peerID.length)]] progress:1.0];
+                }
+            });
+        } else if (!response) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+                    [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0];
+                }
+            });
         }
     }];
 }
@@ -423,6 +442,16 @@ static os_log_t ssb_room_log;
             if (peerID) {
                 [self.attendantsList removeObject:peerID];
             }
+        }
+    }
+    
+    // Auto-sync from newly joined or state-updated peers
+    if ([response isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)response;
+        NSString *type = dict[@"type"];
+        NSString *peerID = dict[@"id"] ?: dict[@"key"];
+        if (([type isEqualToString:@"joined"] || [type isEqualToString:@"state"]) && peerID) {
+            [self replicateFromPeer:peerID viaRoom:self.host];
         }
     }
     
@@ -539,6 +568,12 @@ static os_log_t ssb_room_log;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), self.clientQueue, ^{
         [self connect];
     });
+}
+
++ (void)resetLocalIdentity {
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"SSBLocalIdentity"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    NSLog(@"[Client] Local identity reset. A new one will be generated on next connection.");
 }
 
 @end

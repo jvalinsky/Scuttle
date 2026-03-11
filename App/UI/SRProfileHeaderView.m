@@ -16,8 +16,17 @@
     if (self) {
         [self setupUI];
         [self loadLocalIdentity];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self 
+                                                 selector:@selector(loadLocalIdentity) 
+                                                     name:@"SRLocalIdentityGeneratedNotification" 
+                                                   object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)setupUI {
@@ -61,10 +70,13 @@
         [_idLabel.trailingAnchor constraintEqualToAnchor:_nameLabel.trailingAnchor],
 
         [_profileButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-8],
-        [_profileButton.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-
-        [self.heightAnchor constraintEqualToConstant:56]
+        [_profileButton.centerYAnchor constraintEqualToAnchor:self.centerYAnchor]
     ]];
+}
+
+- (void)setHidesProfileButton:(BOOL)hidesProfileButton {
+    _hidesProfileButton = hidesProfileButton;
+    self.profileButton.hidden = hidesProfileButton;
 }
 
 - (void)loadLocalIdentity {
@@ -94,6 +106,18 @@
 }
 
 - (void)setProfileAction:(id)sender {
+    if (!self.feedId) {
+        [self loadLocalIdentity];
+    }
+    
+    if (!self.feedId) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"Identity Missing";
+        alert.informativeText = @"Your SSB identity is still being generated. Please wait a moment and try again.";
+        [alert runModal];
+        return;
+    }
+
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"Set Profile";
     alert.informativeText = @"Set your display name and description.";

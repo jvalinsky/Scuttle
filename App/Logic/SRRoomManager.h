@@ -19,6 +19,7 @@ extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
 - (void)connectToRoom:(RoomConfig *)config;
 - (void)disconnectFromRoom:(NSString *)host;
 - (void)removeRoom:(RoomConfig *)config;
+- (void)resetAccount;
 
 - (nullable SSBRoomClient *)clientForHost:(NSString *)host;
 

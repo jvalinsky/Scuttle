@@ -93,6 +93,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the display name for a given author, or the author ID if none set.
 - (NSString *)displayNameForAuthor:(NSString *)author;
 
+/// Wipes all data from the store and resets the database file.
+- (void)wipeDatabase;
+
 @end
 
 NS_ASSUME_NONNULL_END

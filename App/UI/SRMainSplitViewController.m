@@ -50,13 +50,19 @@
     [self.contentAreaContainer addSubview:self.errorBanner];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor],
         [self.errorBanner.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
         [self.errorBanner.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
         [self.errorBanner.heightAnchor constraintEqualToConstant:40]
     ]];
     
+    if (@available(macOS 11.0, *)) {
+        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor].active = YES;
+    } else {
+        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor constant:40].active = YES;
+    }
+    
     self.headerView = [[SRProfileHeaderView alloc] init];
+    self.headerView.hidesProfileButton = YES;
     [contentContainer.view addSubview:self.headerView];
     self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
     
@@ -79,10 +85,10 @@
     };
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.headerView.topAnchor constraintEqualToAnchor:contentContainer.view.topAnchor],
+        [self.headerView.topAnchor constraintEqualToAnchor:self.errorBanner.bottomAnchor],
         [self.headerView.leadingAnchor constraintEqualToAnchor:contentContainer.view.leadingAnchor],
         [self.headerView.trailingAnchor constraintEqualToAnchor:contentContainer.view.trailingAnchor],
-        [self.headerView.heightAnchor constraintEqualToConstant:80],
+        [self.headerView.heightAnchor constraintEqualToConstant:60],
 
         [self.feedVC.view.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
         [self.feedVC.view.leadingAnchor constraintEqualToAnchor:contentContainer.view.leadingAnchor],
@@ -118,6 +124,16 @@
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:@"SRRoomSelectedNotification" object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusDidUpdate:) name:SRRoomManagerConnectionStatusChangedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(endpointsDidUpdate:) name:SRRoomManagerDidUpdateEndpointsNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:@"SRLocalIdentityGeneratedNotification" object:nil];
+}
+
+- (void)identityDidGenerate:(NSNotification *)notification {
+    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    if (localSecret && localSecret.length >= 64) {
+        NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
+        NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+        [self.headerView updateWithIdentity:pubkey name:nil];
+    }
 }
 
 - (void)dealloc {
@@ -223,7 +239,7 @@
     self.profileVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.profileVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor], // Full height for profile
+        [self.profileVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor constant:40], // Full height for profile, but clear titlebar
         [self.profileVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
         [self.profileVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
         [self.profileVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]
@@ -272,7 +288,7 @@
     self.channelBrowserVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.channelBrowserVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor],
+        [self.channelBrowserVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor constant:40],
         [self.channelBrowserVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
         [self.channelBrowserVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
         [self.channelBrowserVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]

@@ -10,6 +10,9 @@
 @property (nonatomic, strong) SRProfileHeaderView *headerView;
 @property (nonatomic, strong) NSTextField *displayNameField;
 @property (nonatomic, strong) NSButton *saveButton;
+@property (nonatomic, strong) NSButton *wipeButton;
+@property (nonatomic, strong) NSButton *resetButton;
+@property (nonatomic, strong) NSButton *devButton;
 @end
 
 @implementation SRPreferencesViewController
@@ -56,8 +59,32 @@
         [self.displayNameField.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
         
         [self.saveButton.topAnchor constraintEqualToAnchor:self.displayNameField.bottomAnchor constant:30],
-        [self.saveButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
+        [self.saveButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        
+        [self.wipeButton.topAnchor constraintEqualToAnchor:self.saveButton.bottomAnchor constant:40],
+        [self.wipeButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+        
+        [self.resetButton.topAnchor constraintEqualToAnchor:self.saveButton.bottomAnchor constant:40],
+        [self.resetButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+        
+        [self.devButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:20],
+        [self.devButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
     ]];
+    
+    self.wipeButton = [NSButton buttonWithTitle:@"Wipe Database" target:self action:@selector(wipeAction:)];
+    self.wipeButton.bezelStyle = NSBezelStyleRounded;
+    self.wipeButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.wipeButton];
+    
+    self.resetButton = [NSButton buttonWithTitle:@"Reset Identity" target:self action:@selector(resetIdentityAction:)];
+    self.resetButton.bezelStyle = NSBezelStyleRounded;
+    self.resetButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.resetButton];
+    
+    self.devButton = [NSButton buttonWithTitle:@"Show Developer Panel" target:self action:@selector(showDevPanelAction:)];
+    self.devButton.bezelStyle = NSBezelStyleRounded;
+    self.devButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.devButton];
     
     [self loadIdentity];
 }
@@ -90,8 +117,49 @@
         [client publishLocalMessageWithContent:content error:&error];
         if (!error) {
             [self.headerView updateWithIdentity:pubkey name:name];
-            [[SSBFeedStore sharedStore] setDisplayName:name image:nil forAuthor:pubkey];
         }
+    }
+}
+
+- (void)wipeAction:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Wipe Database?";
+    alert.informativeText = @"This will delete all stored messages and cannot be undone.";
+    [alert addButtonWithTitle:@"Wipe"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleCritical;
+    
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        [[SSBFeedStore sharedStore] wipeDatabase];
+    }
+}
+
+- (void)resetIdentityAction:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Reset Identity?";
+    alert.informativeText = @"This will wipe your current SSB identity and generate a new one. All peers will see you as a new user.";
+    [alert addButtonWithTitle:@"Reset"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleCritical;
+    
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        [[SRRoomManager sharedManager] resetAccount];
+    }
+}
+
+- (void)showDevPanelAction:(id)sender {
+    // We need to import the class header or use reflection/dynamic creation if not imported
+    // Since I'm adding it, I should ensure it's imported in SRPreferencesViewController.m
+    Class devPanelClass = NSClassFromString(@"SRDevPanelViewController");
+    if (devPanelClass) {
+        NSViewController *vc = [[devPanelClass alloc] init];
+        NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 400)
+                                                       styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                         backing:NSBackingStoreBuffered
+                                                           defer:NO];
+        window.title = @"Developer Panel";
+        window.contentViewController = vc;
+        [window makeKeyAndOrderFront:nil];
     }
 }
 

@@ -36,14 +36,18 @@
     self.scrollView.documentView = self.tableView;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.backButton.topAnchor constraintEqualToAnchor:container.topAnchor constant:12],
         [self.backButton.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:20],
-        
         [self.scrollView.topAnchor constraintEqualToAnchor:self.backButton.bottomAnchor constant:12],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:container.bottomAnchor]
     ]];
+    
+    if (@available(macOS 11.0, *)) {
+        [self.backButton.topAnchor constraintEqualToAnchor:container.safeAreaLayoutGuide.topAnchor constant:12].active = YES;
+    } else {
+        [self.backButton.topAnchor constraintEqualToAnchor:container.topAnchor constant:52].active = YES;
+    }
     
     self.view = container;
 }

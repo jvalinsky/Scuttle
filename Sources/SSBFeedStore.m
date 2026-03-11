@@ -31,6 +31,8 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
 - (void)_updateQuarantineDependenciesForMessage:(SSBMessage *)message missingDeps:(NSArray<NSString *> *)missingDeps;
 - (NSArray<NSString *> *)_getMissingDependenciesForMessage:(SSBMessage *)message;
 - (void)_tryReleaseQuarantinedMessageWithKey:(NSString *)msgKey;
+- (void)_setDisplayName:(nullable NSString *)name image:(nullable NSString *)image forAuthor:(NSString *)author;
+- (void)wipeDatabase;
 
 @end
 
@@ -207,7 +209,7 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
                     NSString *name = message.content[@"name"];
                     NSString *image = message.content[@"image"];
                     if ([target isEqualToString:message.author]) {
-                        [self setDisplayName:name image:image forAuthor:target];
+                        [self _setDisplayName:name image:image forAuthor:target];
                     }
                 }
             }
@@ -703,20 +705,24 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
 
 - (void)setDisplayName:(nullable NSString *)name image:(nullable NSString *)image forAuthor:(NSString *)author {
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "INSERT INTO profiles (author, display_name, image_link) VALUES (?, ?, ?) "
-                          "ON CONFLICT(author) DO UPDATE SET display_name = COALESCE(excluded.display_name, display_name), "
-                          "image_link = COALESCE(excluded.image_link, image_link)";
-        sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
-            if (name) sqlite3_bind_text(stmt, 2, name.UTF8String, -1, SQLITE_TRANSIENT);
-            else sqlite3_bind_null(stmt, 2);
-            if (image) sqlite3_bind_text(stmt, 3, image.UTF8String, -1, SQLITE_TRANSIENT);
-            else sqlite3_bind_null(stmt, 3);
-            sqlite3_step(stmt);
-            sqlite3_finalize(stmt);
-        }
+        [self _setDisplayName:name image:image forAuthor:author];
     });
+}
+
+- (void)_setDisplayName:(nullable NSString *)name image:(nullable NSString *)image forAuthor:(NSString *)author {
+    const char *sql = "INSERT INTO profiles (author, display_name, image_link) VALUES (?, ?, ?) "
+                      "ON CONFLICT(author) DO UPDATE SET display_name = COALESCE(excluded.display_name, display_name), "
+                      "image_link = COALESCE(excluded.image_link, image_link)";
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+        sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        if (name) sqlite3_bind_text(stmt, 2, name.UTF8String, -1, SQLITE_TRANSIENT);
+        else sqlite3_bind_null(stmt, 2);
+        if (image) sqlite3_bind_text(stmt, 3, image.UTF8String, -1, SQLITE_TRANSIENT);
+        else sqlite3_bind_null(stmt, 3);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
 }
 
 - (NSString *)displayNameForAuthor:(NSString *)author {
@@ -734,6 +740,31 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         }
     });
     return name;
+}
+
+- (void)wipeDatabase {
+    dispatch_sync(self.dbQueue, ^{
+        os_log_info(ssb_feedstore_log, "Wiping database...");
+        
+        const char *sql = 
+            "DROP TABLE IF EXISTS messages;"
+            "DROP TABLE IF EXISTS feed_state;"
+            "DROP TABLE IF EXISTS contacts;"
+            "DROP TABLE IF EXISTS profiles;"
+            "DROP TABLE IF EXISTS quarantine;"
+            "DROP TABLE IF EXISTS quarantine_dependencies;";
+        
+        char *errMsg = NULL;
+        if (sqlite3_exec(self->_db, sql, NULL, NULL, &errMsg) != SQLITE_OK) {
+            os_log_error(ssb_feedstore_log, "Failed to drop tables: %s", errMsg);
+            sqlite3_free(errMsg);
+        }
+        
+        [self createSchema];
+        [self migrateSchema];
+        
+        os_log_info(ssb_feedstore_log, "Database wipe complete.");
+    });
 }
 
 @end

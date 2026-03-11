@@ -409,6 +409,7 @@ static os_log_t codecLog(void) {
 }
 
 + (NSDictionary *)aboutContentForFeed:(NSString *)feedId name:(nullable NSString *)name description:(nullable NSString *)description {
+    if (!feedId) return nil;
     NSMutableDictionary *content = [NSMutableDictionary dictionary];
     content[@"type"] = @"about";
     content[@"about"] = feedId;

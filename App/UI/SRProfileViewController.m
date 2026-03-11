@@ -52,14 +52,12 @@
     self.feedVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.backButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
         [self.backButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
         
-        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.headerView.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:12],
         [self.headerView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.headerView.heightAnchor constraintEqualToConstant:80],
-        
+
         [self.followButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
         [self.followButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
         
@@ -68,6 +66,14 @@
         [self.feedVC.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.feedVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
     ]];
+
+    if (@available(macOS 11.0, *)) {
+        [self.backButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12].active = YES;
+        [self.headerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
+    } else {
+        [self.backButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:52].active = YES;
+        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40].active = YES;
+    }
     
     [self.headerView updateWithIdentity:self.peerID name:nil];
     [self.feedVC loadFeedForAuthor:self.peerID client:self.client];

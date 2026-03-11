@@ -9,6 +9,9 @@
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSButton *joinButton;
+@property (nonatomic, strong) NSView *syncStatusContainer;
+@property (nonatomic, strong) NSProgressIndicator *syncProgress;
+@property (nonatomic, strong) NSTextField *syncLabel;
 @end
 
 @implementation SRSidebarViewController
@@ -39,6 +42,11 @@
                                              selector:@selector(endpointsDidUpdate:) 
                                                  name:SRRoomManagerDidUpdateEndpointsNotification 
                                                object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(syncStatusDidUpdate:) 
+                                                 name:@"SRRoomSyncStatusChangedNotification" 
+                                               object:nil];
 }
 
 - (void)endpointsDidUpdate:(NSNotification *)notification {
@@ -50,6 +58,28 @@
 - (void)statusDidUpdate:(NSNotification *)notification {
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.tableView reloadData];
+    });
+}
+
+- (void)syncStatusDidUpdate:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *status = userInfo[@"status"];
+    float progress = [userInfo[@"progress"] floatValue];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.syncLabel.stringValue = status ?: @"Idle";
+        if (progress < 1.0 && progress >= 0.0) {
+            [self.syncProgress startAnimation:nil];
+            self.syncStatusContainer.hidden = NO;
+        } else {
+            [self.syncProgress stopAnimation:nil];
+            // Hide after a short delay if idle
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if ([self.syncLabel.stringValue isEqualToString:@"Idle"] || [self.syncLabel.stringValue hasPrefix:@"Synced"]) {
+                    self.syncStatusContainer.hidden = YES;
+                }
+            });
+        }
     });
 }
 
@@ -101,19 +131,57 @@
     self.joinButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.joinButton];
     
+    self.syncStatusContainer = [[NSView alloc] init];
+    self.syncStatusContainer.translatesAutoresizingMaskIntoConstraints = NO;
+    self.syncStatusContainer.hidden = YES;
+    [self.view addSubview:self.syncStatusContainer];
+    
+    self.syncProgress = [[NSProgressIndicator alloc] init];
+    self.syncProgress.style = NSProgressIndicatorStyleSpinning;
+    self.syncProgress.controlSize = NSControlSizeSmall;
+    self.syncProgress.displayedWhenStopped = NO;
+    self.syncProgress.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.syncStatusContainer addSubview:self.syncProgress];
+    
+    self.syncLabel = [NSTextField labelWithString:@"Idle"];
+    self.syncLabel.font = [NSFont systemFontOfSize:10];
+    self.syncLabel.textColor = [NSColor secondaryLabelColor];
+    self.syncLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.syncLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    [self.syncStatusContainer addSubview:self.syncLabel];
+    
     [NSLayoutConstraint activateConstraints:@[
-        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40],
         [self.profileHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.profileHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-
+        [self.profileHeader.heightAnchor constraintEqualToConstant:64],
         [self.scrollView.topAnchor constraintEqualToAnchor:self.profileHeader.bottomAnchor constant:4],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:self.joinButton.topAnchor constant:-12],
         
         [self.joinButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.joinButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-20]
+        [self.joinButton.bottomAnchor constraintEqualToAnchor:self.syncStatusContainer.topAnchor constant:-8],
+        
+        [self.syncStatusContainer.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
+        [self.syncStatusContainer.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
+        [self.syncStatusContainer.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-12],
+        [self.syncStatusContainer.heightAnchor constraintEqualToConstant:20],
+        
+        [self.syncProgress.leadingAnchor constraintEqualToAnchor:self.syncStatusContainer.leadingAnchor],
+        [self.syncProgress.centerYAnchor constraintEqualToAnchor:self.syncStatusContainer.centerYAnchor],
+        [self.syncProgress.widthAnchor constraintEqualToConstant:16],
+        [self.syncProgress.heightAnchor constraintEqualToConstant:16],
+        
+        [self.syncLabel.leadingAnchor constraintEqualToAnchor:self.syncProgress.trailingAnchor constant:6],
+        [self.syncLabel.trailingAnchor constraintEqualToAnchor:self.syncStatusContainer.trailingAnchor],
+        [self.syncLabel.centerYAnchor constraintEqualToAnchor:self.syncStatusContainer.centerYAnchor]
     ]];
+    
+    if (@available(macOS 11.0, *)) {
+        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
+    } else {
+        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40].active = YES;
+    }
 }
 
 - (void)joinRoomAction:(id)sender {
