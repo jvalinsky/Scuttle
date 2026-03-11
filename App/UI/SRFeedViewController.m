@@ -1,6 +1,8 @@
 #import "SRFeedViewController.h"
 #import "SRFeedItem.h"
+#import "../../Sources/SSBLogger.h"
 #import "../../Sources/SSBNetwork.h"
+#import <SSBNetwork/SSBBlobStore.h>
 
 @interface SRFeedViewController () <NSCollectionViewDelegateFlowLayout>
 @property (nonatomic, strong) NSCollectionView *collectionView;
@@ -56,6 +58,10 @@
     self.emptyLabel = [NSTextField labelWithString:@"No messages found"];
     self.emptyLabel.font = [NSFont systemFontOfSize:16];
     self.emptyLabel.textColor = [NSColor tertiaryLabelColor];
+    self.emptyLabel.alignment = NSTextAlignmentCenter;
+    self.emptyLabel.maximumNumberOfLines = 0;
+    self.emptyLabel.lineBreakMode = NSLineBreakByWordWrapping;
+    self.emptyLabel.preferredMaxLayoutWidth = 300;
     self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.emptyLabel.hidden = YES;
     [self.view addSubview:self.emptyLabel];
@@ -70,6 +76,8 @@
     [NSLayoutConstraint activateConstraints:@[
         [self.emptyLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [self.emptyLabel.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+        [self.emptyLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.view.leadingAnchor constant:40],
+        [self.emptyLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-40],
         
         [self.progressIndicator.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [self.progressIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor]
@@ -85,14 +93,14 @@
     
     if (self.filterAuthor) {
         [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] feedForAuthor:self.filterAuthor limit:50]];
-        self.backButton.hidden = NO;
+        self.backButton.hidden = self.hidesBackButton;
     } else if (self.filterChannel) {
         NSDictionary *query = @{@"path": @[@"content", @"channel"], @"op": @"eq", @"value": self.filterChannel};
         [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] querySubset:query options:@{@"descending": @YES, @"pageSize": @100}]];
-        self.backButton.hidden = NO;
+        self.backButton.hidden = self.hidesBackButton;
     } else if (self.filterSearch) {
         [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] searchMessages:self.filterSearch limit:100]];
-        self.backButton.hidden = NO;
+        self.backButton.hidden = self.hidesBackButton;
     } else {
         if (self.feedType == SRFeedTypeTimeline) {
             [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] timelineWithLimit:50]];
@@ -131,23 +139,62 @@
 }
 
 - (void)loadFeedForAuthor:(NSString *)author client:(SSBRoomClient *)client {
+    SSBLogInfo(SSBLogCategoryUI, @"📥 loadFeedForAuthor: %@ client=%@ connected=%d", 
+               [author substringToIndex:MIN(8, author.length)], 
+               client ? @"yes" : @"no", 
+               client.isConnected);
+    
+    if (!client) {
+        SSBLogError(SSBLogCategoryUI, @"   ❌ No client provided!");
+        self.emptyLabel.stringValue = @"Not connected to server";
+        self.emptyLabel.hidden = NO;
+        return;
+    }
+    
+    if (!client.isConnected) {
+        SSBLogError(SSBLogCategoryUI, @"   ❌ Client not connected!");
+        self.emptyLabel.stringValue = @"Not connected to server";
+        self.emptyLabel.hidden = NO;
+        return;
+    }
+    
     self.filterAuthor = author;
     self.filterChannel = nil;
+    self.currentClient = client;
+    
+    BOOL isFollowing = [[SSBFeedStore sharedStore] isFollowing:author];
+    NSInteger limit = isFollowing ? 50 : 15;
+    SSBLogInfo(SSBLogCategoryUI, @"   isFollowing=%d limit=%ld", isFollowing, (long)limit);
+    
     [self refreshFeed];
+    [self.progressIndicator startAnimation:nil];
     
     // Fetch profile (about)
+    __weak typeof(self) weakSelf = self;
     [client fetchProfileForPeer:author completion:^(id _Nullable response, NSError * _Nullable error) {
         if (!error && [response isKindOfClass:[NSDictionary class]]) {
-            // Room servers sometimes return just the about msg or a list
-            // For now we just log it, but ideally we'd update a profile view
-            NSLog(@"[FeedVC] Profile for %@: %@", author, response);
+            SSBLogInfo(SSBLogCategoryUI, @"   ✅ Profile fetched: %@", response);
+            NSString *name = response[@"name"];
+            NSString *image = response[@"image"];
+            if ([name isKindOfClass:[NSString class]] || [image isKindOfClass:[NSString class]]) {
+                [[SSBFeedStore sharedStore] setDisplayName:name image:image forAuthor:author];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"SRProfileUpdatedNotification" object:author];
+                    [weakSelf refreshFeed];
+                });
+            }
+        } else if (error) {
+            SSBLogError(SSBLogCategoryUI, @"   ❌ Profile fetch error: %@", error.localizedDescription);
         }
     }];
     
     // Fetch history
-    __weak typeof(self) weakSelf = self;
-    [client fetchFeedForPeer:author limit:50 completion:^(id _Nullable response, NSError * _Nullable error) {
+    [client fetchFeedForPeer:author limit:limit completion:^(id _Nullable response, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf.progressIndicator stopAnimation:nil];
+        });
         if (!error && [response isKindOfClass:[NSDictionary class]]) {
+            SSBLogInfo(SSBLogCategoryUI, @"   ✅ Feed fetched successfully");
             NSDictionary *val = response[@"value"];
             if ([SSBMessageCodec verifyMessage:val]) {
                 SSBMessage *msg = [[SSBMessage alloc] init];
@@ -163,6 +210,24 @@
                     [weakSelf refreshFeed];
                 });
             }
+        } else if (error) {
+            SSBLogError(SSBLogCategoryUI, @"   ❌ Feed fetch error: %@", error.localizedDescription);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSString *errStr = error.localizedDescription.lowercaseString;
+                if ([errStr containsString:@"could not find"] || 
+                    [errStr containsString:@"no messages"] || 
+                    [errStr containsString:@"stream is closed"] || 
+                    [errStr containsString:@"unexpected end"]) {
+                    weakSelf.emptyLabel.stringValue = @"No messages found";
+                } else {
+                    weakSelf.emptyLabel.stringValue = [NSString stringWithFormat:@"Error loading feed:\n%@", error.localizedDescription];
+                }
+                weakSelf.emptyLabel.hidden = NO;
+            });
+        } else {
+            SSBLogWarning(SSBLogCategoryUI, @"   ⚠️ No response (peer may have no messages)");
+            weakSelf.emptyLabel.stringValue = @"No messages found";
+            weakSelf.emptyLabel.hidden = NO;
         }
     }];
 }
@@ -189,6 +254,7 @@
 
 - (NSCollectionViewItem *)collectionView:(NSCollectionView *)collectionView itemForRepresentedObjectAtIndexPath:(NSIndexPath *)indexPath {
     SRFeedItem *item = [collectionView makeItemWithIdentifier:@"FeedItem" forIndexPath:indexPath];
+    item.client = self.currentClient;
     item.representedObject = self.messages[indexPath.item];
     item.owner = self;
     return item;
@@ -223,6 +289,21 @@
     
     CGFloat height = ceil(rect.size.height) + 100; // More padding for avatar, buttons, and display name
     if (height < 120) height = 120;
+    
+    NSString *blobID = [SRFeedItem extractBlobIDFromMessage:msg];
+    if (blobID) {
+        NSString *localPath = [[SSBBlobStore sharedStore] localPathForBlobID:blobID];
+        CGFloat imageHeight = 300;
+        if (localPath) {
+            NSImage *image = [[NSImage alloc] initWithContentsOfFile:localPath];
+            if (image && image.size.width > 0) {
+                CGFloat maxWidth = width + 14;
+                CGFloat aspectRatio = image.size.height / image.size.width;
+                imageHeight = MIN(maxWidth * aspectRatio, 300);
+            }
+        }
+        height += imageHeight + 16;
+    }
     
     return NSMakeSize(collectionView.bounds.size.width - 40, height);
 }

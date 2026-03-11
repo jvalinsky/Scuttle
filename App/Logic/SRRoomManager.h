@@ -23,6 +23,11 @@ extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
 
 - (nullable SSBRoomClient *)clientForHost:(NSString *)host;
 
+/**
+ * Resolves the display name for a given author by querying the feed store for About messages.
+ */
+- (void)resolveDisplayNameForAuthor:(NSString *)author completion:(void(^)(NSString *name))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

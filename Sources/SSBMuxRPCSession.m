@@ -81,6 +81,27 @@ static os_log_t rpc_log;
     return reqNum;
 }
 
+- (void)sendData:(id)data forRequest:(int32_t)requestID isEnd:(BOOL)isEnd {
+    SSBMuxRPCFlags flags = SSBMuxRPCFlagStream;
+    if (isEnd) flags |= SSBMuxRPCFlagEndErr;
+    
+    NSData *bodyData = nil;
+    if ([data isKindOfClass:[NSData class]]) {
+        bodyData = data;
+    } else if ([data isKindOfClass:[NSString class]]) {
+        flags |= SSBMuxRPCFlagTypeString;
+        bodyData = [(NSString *)data dataUsingEncoding:NSUTF8StringEncoding];
+    } else if (data) {
+        flags |= SSBMuxRPCFlagTypeJSON;
+        bodyData = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
+    }
+    
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:requestID body:bodyData];
+    if (self.sendMessageBlock) {
+        self.sendMessageBlock(msg);
+    }
+}
+
 - (void)handleIncomingMessage:(SSBMuxRPCMessage *)message {
     NSLog(@"[ROOM_DIAG] Session: handleIncomingMessage called: req=%d", message.requestNumber);
     BOOL isStream = (message.flags & SSBMuxRPCFlagStream) != 0;

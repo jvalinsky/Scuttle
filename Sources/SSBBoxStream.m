@@ -7,7 +7,6 @@
 }
 @property (nonatomic, copy) NSData *clientToServerKey;
 @property (nonatomic, copy) NSData *serverToClientKey;
-@property (nonatomic, assign) BOOL isClient;
 @end
 
 @implementation SSBBoxStream
@@ -20,8 +19,7 @@
     if (self) {
         _clientToServerKey = [clientToServerKey copy];
         _serverToClientKey = [serverToClientKey copy];
-        // For simplicity in this demo, ASSUME client role. 
-        // Real implementation hooks this flag from SHS.
+        // Default to client role, but this should be set by SHS handler.
         _isClient = YES; 
         
         memset(_clientToServerNonce, 0, crypto_secretbox_xsalsa20poly1305_NONCEBYTES);

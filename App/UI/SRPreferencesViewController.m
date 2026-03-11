@@ -7,6 +7,54 @@
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/SSBFeedStore.h>
 
+@interface SRStorageUsageView : NSView
+@property (nonatomic, strong) NSDictionary<NSString *, NSNumber *> *stats;
+@end
+
+@implementation SRStorageUsageView
+
+- (void)drawRect:(NSRect)dirtyRect {
+    [super drawRect:dirtyRect];
+    
+    if (self.stats.count == 0) {
+        [[NSColor tertiaryLabelColor] set];
+        NSRectFill(self.bounds);
+        return;
+    }
+    
+    NSArray *sortedAuthors = [self.stats.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        return [self.stats[b] compare:self.stats[a]];
+    }];
+    
+    long long total = 0;
+    for (NSNumber *n in self.stats.allValues) total += n.longLongValue;
+    
+    CGFloat x = 0;
+    int i = 0;
+    NSArray *colors = @[[NSColor systemBlueColor], [NSColor systemOrangeColor], [NSColor systemPurpleColor], [NSColor systemGreenColor], [NSColor systemRedColor]];
+    
+    for (NSString *author in sortedAuthors) {
+        long long count = self.stats[author].longLongValue;
+        CGFloat width = (CGFloat)count / total * self.bounds.size.width;
+        
+        NSRect rect = NSMakeRect(x, 0, width, self.bounds.size.height);
+        [(NSColor *)colors[i % colors.count] set];
+        NSRectFill(rect);
+        
+        x += width;
+        i++;
+        if (i > 10) break; // Only show top 10
+    }
+    
+    // Remaining gray
+    if (x < self.bounds.size.width) {
+        [[NSColor systemGrayColor] set];
+        NSRectFill(NSMakeRect(x, 0, self.bounds.size.width - x, self.bounds.size.height));
+    }
+}
+
+@end
+
 @interface SRPreferencesViewController ()
 @property (nonatomic, strong) SRProfileHeaderView *headerView;
 @property (nonatomic, strong) NSTextField *displayNameField;
@@ -14,12 +62,14 @@
 @property (nonatomic, strong) NSButton *wipeButton;
 @property (nonatomic, strong) NSButton *resetButton;
 @property (nonatomic, strong) NSButton *devButton;
+@property (nonatomic, strong) SRStorageUsageView *usageView;
+@property (nonatomic, strong) NSTextField *usageLegend;
 @end
 
 @implementation SRPreferencesViewController
 
 - (void)loadView {
-    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320)];
+    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 600, 750)];
     view.wantsLayer = YES;
     view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
     self.view = view;
@@ -38,41 +88,30 @@
     
     self.displayNameField = [[NSTextField alloc] init];
     self.displayNameField.translatesAutoresizingMaskIntoConstraints = NO;
-    self.displayNameField.placeholderString = @"Your Name";
     [self.view addSubview:self.displayNameField];
     
-    self.saveButton = [NSButton buttonWithTitle:@"Save Profile" target:self action:@selector(saveAction:)];
+    self.saveButton = [NSButton buttonWithTitle:@"Save" target:self action:@selector(saveAction:)];
     self.saveButton.bezelStyle = NSBezelStyleRounded;
     self.saveButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.saveButton];
     
-    [NSLayoutConstraint activateConstraints:@[
-        [self.headerView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
-        [self.headerView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
-        [self.headerView.heightAnchor constraintEqualToConstant:80],
-        
-        [label.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor constant:30],
-        [label.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
-        
-        [self.displayNameField.centerYAnchor constraintEqualToAnchor:label.centerYAnchor],
-        [self.displayNameField.leadingAnchor constraintEqualToAnchor:label.trailingAnchor constant:12],
-        [self.displayNameField.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
-        
-        [self.saveButton.topAnchor constraintEqualToAnchor:self.displayNameField.bottomAnchor constant:30],
-        [self.saveButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        
-        [self.wipeButton.topAnchor constraintEqualToAnchor:self.saveButton.bottomAnchor constant:40],
-        [self.wipeButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
-        
-        [self.resetButton.topAnchor constraintEqualToAnchor:self.saveButton.bottomAnchor constant:40],
-        [self.resetButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
-        
-        [self.devButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:20],
-        [self.devButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
-    ]];
+    NSTextField *usageLabel = [NSTextField labelWithString:@"Database Storage Usage:"];
+    usageLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    usageLabel.font = [NSFont boldSystemFontOfSize:13];
+    [self.view addSubview:usageLabel];
     
-    [self.headerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:20].active = YES;
+    self.usageView = [[SRStorageUsageView alloc] init];
+    self.usageView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.usageView.wantsLayer = YES;
+    self.usageView.layer.cornerRadius = 4;
+    [self.view addSubview:self.usageView];
     
+    self.usageLegend = [NSTextField labelWithString:@"Loading stats..."];
+    self.usageLegend.translatesAutoresizingMaskIntoConstraints = NO;
+    self.usageLegend.font = [NSFont systemFontOfSize:11];
+    self.usageLegend.textColor = [NSColor secondaryLabelColor];
+    [self.view addSubview:self.usageLegend];
+
     self.wipeButton = [NSButton buttonWithTitle:@"Wipe Database" target:self action:@selector(wipeAction:)];
     self.wipeButton.bezelStyle = NSBezelStyleRounded;
     self.wipeButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -87,8 +126,59 @@
     self.devButton.bezelStyle = NSBezelStyleRounded;
     self.devButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.devButton];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:20],
+        [self.headerView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        [self.headerView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
+        [self.headerView.heightAnchor constraintEqualToConstant:80],
+        
+        [label.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor constant:30],
+        [label.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+        
+        [self.displayNameField.centerYAnchor constraintEqualToAnchor:label.centerYAnchor],
+        [self.displayNameField.leadingAnchor constraintEqualToAnchor:label.trailingAnchor constant:12],
+        [self.displayNameField.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+        
+        [self.saveButton.topAnchor constraintEqualToAnchor:self.displayNameField.bottomAnchor constant:20],
+        [self.saveButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        
+        [usageLabel.topAnchor constraintEqualToAnchor:self.saveButton.bottomAnchor constant:40],
+        [usageLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+        
+        [self.usageView.topAnchor constraintEqualToAnchor:usageLabel.bottomAnchor constant:10],
+        [self.usageView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+        [self.usageView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+        [self.usageView.heightAnchor constraintEqualToConstant:24],
+        
+        [self.usageLegend.topAnchor constraintEqualToAnchor:self.usageView.bottomAnchor constant:8],
+        [self.usageLegend.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+        [self.usageLegend.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+        
+        [self.wipeButton.topAnchor constraintEqualToAnchor:self.usageLegend.bottomAnchor constant:40],
+        [self.wipeButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+        
+        [self.resetButton.topAnchor constraintEqualToAnchor:self.usageLegend.bottomAnchor constant:40],
+        [self.resetButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+        
+        [self.devButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:20],
+        [self.devButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
+    ]];
     
     [self loadIdentity];
+    [self updateStorageStats];
+}
+
+- (void)updateStorageStats {
+    NSDictionary<NSString *, NSNumber *> *stats = [[SSBFeedStore sharedStore] storageStatistics];
+    self.usageView.stats = stats;
+    [self.usageView setNeedsDisplay:YES];
+    
+    NSInteger total = [[SSBFeedStore sharedStore] totalMessageCount];
+    if (total > 0) {
+        self.usageLegend.stringValue = [NSString stringWithFormat:@"Total messages: %ld across %lu authors.", (long)total, (unsigned long)stats.count];
+    } else {
+        self.usageLegend.stringValue = @"Database is empty.";
+    }
 }
 
 - (void)loadIdentity {
@@ -160,6 +250,7 @@
                                                          backing:NSBackingStoreBuffered
                                                            defer:NO];
         window.title = @"Developer Panel";
+        window.releasedWhenClosed = NO;
         window.contentViewController = vc;
         [window makeKeyAndOrderFront:nil];
     }

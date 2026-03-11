@@ -1,5 +1,11 @@
 #import "SRFeedItem.h"
 #import "SRMarkdownParser.h"
+#import <SSBNetwork/SSBBlobStore.h>
+
+@interface SRFeedItem ()
+@property (nonatomic, strong) NSLayoutConstraint *imageHeightConstraint;
+@property (nonatomic, copy) NSString *currentBlobID;
+@end
 
 @implementation SRFeedItem
 
@@ -44,6 +50,16 @@
     _contentLabel.cell.truncatesLastVisibleLine = NO;
     [self.view addSubview:_contentLabel];
     
+    _blobImageView = [[NSImageView alloc] init];
+    _blobImageView.imageScaling = NSImageScaleProportionallyUpOrDown;
+    _blobImageView.imageAlignment = NSImageAlignCenter;
+    _blobImageView.translatesAutoresizingMaskIntoConstraints = NO;
+    _blobImageView.wantsLayer = YES;
+    _blobImageView.layer.cornerRadius = 6;
+    _blobImageView.layer.masksToBounds = YES;
+    _blobImageView.hidden = YES;
+    [self.view addSubview:_blobImageView];
+    
     _replyButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"arrowshape.turn.up.left" accessibilityDescription:@"Reply"] target:self action:@selector(replyAction:)];
     _replyButton.bordered = NO;
     _replyButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -59,6 +75,8 @@
     _timestampLabel.textColor = [NSColor secondaryLabelColor];
     _timestampLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_timestampLabel];
+    
+    _imageHeightConstraint = [_blobImageView.heightAnchor constraintEqualToConstant:0];
     
     [NSLayoutConstraint activateConstraints:@[
         [_avatarView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
@@ -82,7 +100,12 @@
         [_contentLabel.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
         [_contentLabel.topAnchor constraintEqualToAnchor:_authorLabel.bottomAnchor constant:4],
         [_contentLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
-        [_contentLabel.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-32],
+        
+        [_blobImageView.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
+        [_blobImageView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
+        [_blobImageView.topAnchor constraintEqualToAnchor:_contentLabel.bottomAnchor constant:8],
+        _imageHeightConstraint,
+        [_blobImageView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-32],
         
         [_replyButton.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
         [_replyButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
@@ -94,6 +117,13 @@
 
 - (void)setRepresentedObject:(id)representedObject {
     [super setRepresentedObject:representedObject];
+    
+    // Reset image state
+    self.blobImageView.image = nil;
+    self.blobImageView.hidden = YES;
+    self.imageHeightConstraint.constant = 0;
+    self.currentBlobID = nil;
+    
     if ([representedObject isKindOfClass:[SSBMessage class]]) {
         SSBMessage *msg = (SSBMessage *)representedObject;
         self.authorLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:msg.author];
@@ -126,6 +156,78 @@
         } else {
             self.timestampLabel.stringValue = @"";
         }
+        
+        // Load blob image if present
+        NSString *blobID = [SRFeedItem extractBlobIDFromMessage:msg];
+        if (blobID) {
+            [self loadBlobImage:blobID];
+        }
+    }
+}
+
++ (nullable NSString *)extractBlobIDFromMessage:(SSBMessage *)msg {
+    // Check mentions for blob references
+    NSArray *mentions = msg.content[@"mentions"];
+    if ([mentions isKindOfClass:[NSArray class]]) {
+        for (id mention in mentions) {
+            if ([mention isKindOfClass:[NSDictionary class]]) {
+                NSString *link = mention[@"link"];
+                if ([link hasPrefix:@"&"] && [link hasSuffix:@".sha256"]) {
+                    NSString *type = mention[@"type"];
+                    if (!type || [type hasPrefix:@"image/"]) {
+                        return link;
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check for image blob refs in markdown text: ![alt](&blobid.sha256)
+    NSString *text = msg.content[@"text"];
+    if (text) {
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"!\\[.*?\\]\\((&[A-Za-z0-9+/=]+\\.sha256)\\)" options:0 error:nil];
+        NSTextCheckingResult *match = [regex firstMatchInString:text options:0 range:NSMakeRange(0, text.length)];
+        if (match && match.numberOfRanges > 1) {
+            return [text substringWithRange:[match rangeAtIndex:1]];
+        }
+    }
+    
+    return nil;
+}
+
+- (void)loadBlobImage:(NSString *)blobID {
+    self.currentBlobID = blobID;
+    
+    // Check local cache first
+    NSString *localPath = [[SSBBlobStore sharedStore] localPathForBlobID:blobID];
+    if (localPath) {
+        [self displayImageAtPath:localPath forBlobID:blobID];
+        return;
+    }
+    
+    // Fetch from peer if client is available
+    if (self.client) {
+        __weak typeof(self) weakSelf = self;
+        [self.client fetchBlob:blobID completion:^(NSString * _Nullable path, NSError * _Nullable error) {
+            if (path && [weakSelf.currentBlobID isEqualToString:blobID]) {
+                [weakSelf displayImageAtPath:path forBlobID:blobID];
+            }
+        }];
+    }
+}
+
+- (void)displayImageAtPath:(NSString *)path forBlobID:(NSString *)blobID {
+    if (![self.currentBlobID isEqualToString:blobID]) return;
+    
+    NSImage *image = [[NSImage alloc] initWithContentsOfFile:path];
+    if (image && image.size.width > 0) {
+        self.blobImageView.image = image;
+        self.blobImageView.hidden = NO;
+        CGFloat maxWidth = self.view.bounds.size.width - 66;
+        if (maxWidth < 100) maxWidth = 300;
+        CGFloat aspectRatio = image.size.height / image.size.width;
+        CGFloat height = MIN(maxWidth * aspectRatio, 300);
+        self.imageHeightConstraint.constant = height;
     }
 }
 

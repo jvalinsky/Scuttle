@@ -5,6 +5,8 @@
 @property (nonatomic, strong) NSView *avatarView;
 @property (nonatomic, strong) NSTextField *idLabel;
 @property (nonatomic, strong) NSView *followStatusDot;
+@property (nonatomic, strong) NSProgressIndicator *syncProgressBar;
+@property (nonatomic, strong) NSTextField *statusLabel;
 @end
 
 @implementation SRPeerCell
@@ -30,6 +32,22 @@
         _followStatusDot.hidden = YES;
         [self addSubview:_followStatusDot];
         
+        _syncProgressBar = [[NSProgressIndicator alloc] init];
+        _syncProgressBar.style = NSProgressIndicatorStyleBar;
+        _syncProgressBar.controlSize = NSControlSizeMini;
+        _syncProgressBar.minValue = 0;
+        _syncProgressBar.maxValue = 1.0;
+        _syncProgressBar.doubleValue = 0;
+        _syncProgressBar.translatesAutoresizingMaskIntoConstraints = NO;
+        _syncProgressBar.hidden = YES;
+        [self addSubview:_syncProgressBar];
+        
+        _statusLabel = [NSTextField labelWithString:@""];
+        _statusLabel.font = [NSFont systemFontOfSize:9];
+        _statusLabel.textColor = [NSColor tertiaryLabelColor];
+        _statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        [self addSubview:_statusLabel];
+        
         [NSLayoutConstraint activateConstraints:@[
             [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12],
             [_avatarView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -38,7 +56,15 @@
             
             [_idLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:10],
             [_idLabel.trailingAnchor constraintEqualToAnchor:_followStatusDot.leadingAnchor constant:-8],
-            [_idLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+            [_idLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:6],
+            
+            [_statusLabel.leadingAnchor constraintEqualToAnchor:_idLabel.leadingAnchor],
+            [_statusLabel.topAnchor constraintEqualToAnchor:_idLabel.bottomAnchor constant:0],
+            
+            [_syncProgressBar.leadingAnchor constraintEqualToAnchor:_statusLabel.trailingAnchor constant:6],
+            [_syncProgressBar.centerYAnchor constraintEqualToAnchor:_statusLabel.centerYAnchor],
+            [_syncProgressBar.widthAnchor constraintEqualToConstant:60],
+            [_syncProgressBar.heightAnchor constraintEqualToConstant:4],
             
             [_followStatusDot.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-12],
             [_followStatusDot.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -57,6 +83,8 @@
 @property (nonatomic, strong) NSTextField *headerLabel;
 @property (nonatomic, strong) NSTextField *emptyLabel;
 @property (nonatomic, strong) NSProgressIndicator *progressIndicator;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *peerSyncProgress;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *peerSyncStatus;
 @end
 
 @implementation SRPeerListViewController
@@ -139,6 +167,30 @@
         [self.progressIndicator.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [self.progressIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor]
     ]];
+    
+    self.peerSyncProgress = [NSMutableDictionary dictionary];
+    self.peerSyncStatus = [NSMutableDictionary dictionary];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:@"SRRoomSyncStatusChangedNotification" object:nil];
+}
+
+- (void)syncStatusChanged:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *author = userInfo[@"author"];
+    NSString *status = userInfo[@"status"];
+    float progress = [userInfo[@"progress"] floatValue];
+    
+    if (author) {
+        self.peerSyncProgress[author] = @(progress);
+        self.peerSyncStatus[author] = status;
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSInteger row = [self.peers indexOfObject:author];
+            if (row != NSNotFound) {
+                [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:row] columnIndexes:[NSIndexSet indexSetWithIndex:0]];
+            }
+        });
+    }
 }
 
 - (void)followAction:(id)sender {
@@ -150,7 +202,18 @@
 }
 
 - (void)blockAction:(id)sender {
-    // TODO: Implement blocking
+    NSInteger row = self.tableView.clickedRow;
+    if (row < 0 || (NSUInteger)row >= self.peers.count) return;
+    
+    NSString *peerID = self.peers[row];
+    BOOL isBlocked = [[SSBFeedStore sharedStore] isBlocked:peerID];
+    
+    // For now we don't have a delegate method for blocking directly in this interface
+    // but we can post a notification or add a delegate method. Let's add it via a notification or delegate.
+    // To keep it simple, we can just let the user block from the Profile View. But let's add it to the delegate anyway.
+    if ([self.delegate respondsToSelector:@selector(peerListViewController:didRequestBlock:blocking:)]) {
+        [self.delegate peerListViewController:self didRequestBlock:peerID blocking:!isBlocked];
+    }
 }
 
 - (void)updateFollowStatus:(BOOL)following {
@@ -209,6 +272,23 @@
             cell.followStatusDot.layer.backgroundColor = [NSColor systemBlueColor].CGColor;
         } else {
             cell.followStatusDot.hidden = YES;
+        }
+        
+        float progress = [self.peerSyncProgress[peerID] floatValue];
+        NSString *status = self.peerSyncStatus[peerID];
+        
+        if (status) {
+            cell.statusLabel.stringValue = status;
+            cell.statusLabel.hidden = NO;
+            if (progress < 1.0) {
+                cell.syncProgressBar.hidden = NO;
+                cell.syncProgressBar.doubleValue = progress;
+            } else {
+                cell.syncProgressBar.hidden = YES;
+            }
+        } else {
+            cell.statusLabel.hidden = YES;
+            cell.syncProgressBar.hidden = YES;
         }
     }
     

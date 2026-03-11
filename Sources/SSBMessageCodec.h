@@ -116,6 +116,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Creates an "about" content dictionary for setting profile name/description.
 + (NSDictionary<NSString *, id> *)aboutContentForFeed:(NSString *)feedId name:(nullable NSString *)name description:(nullable NSString *)description;
 
+/// Signs a string with an Ed25519 secret key and returns base64 signature with .sig.ed25519 suffix.
++ (nullable NSString *)signString:(NSString *)string withSecretKey:(NSData *)secretKey;
+
 @end
 
 NS_ASSUME_NONNULL_END

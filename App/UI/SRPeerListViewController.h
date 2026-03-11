@@ -9,6 +9,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)peerListViewController:(SRPeerListViewController *)vc didSelectPeer:(NSString *)peerID;
 - (void)peerListViewController:(SRPeerListViewController *)vc didRequestFollow:(NSString *)peerID;
 - (void)peerListViewController:(SRPeerListViewController *)vc didRequestUnfollow:(NSString *)peerID;
+- (void)peerListViewController:(SRPeerListViewController *)vc didRequestBlock:(NSString *)peerID blocking:(BOOL)blocking;
 @end
 
 @interface SRPeerListViewController : NSViewController <NSTableViewDelegate, NSTableViewDataSource>

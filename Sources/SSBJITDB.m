@@ -104,29 +104,57 @@
 }
 
 - (SSBBitset *)query:(NSDictionary *)query {
-    // This is a simplified query engine for the prototype.
-    // It implements a subset of ssb-ql-0 logic.
+    __block SSBBitset *result = [[SSBBitset alloc] initWithCapacity:1000000];
+    [result not]; // Universal set
     
-    __block SSBBitset *result = nil;
     dispatch_sync(self.dbQueue, ^{
-        result = [[SSBBitset alloc] initWithCapacity:1000000];
-        [result not]; // Start with all bits set (Universal set)
+        NSMutableDictionary *unindexedConstraints = [query mutableCopy];
         
+        // 1. Try to satisfy as much as possible with existing indexes
         NSString *author = query[@"author"];
         if (author) {
             SSBPrefixIndex *pIndex = [self prefixIndexForField:@"author" capacity:1000000];
             [pIndex filterBitset:result withValue:author];
+            [unindexedConstraints removeObjectForKey:@"author"];
         }
         
         NSString *type = query[@"type"];
         if (type && ![type isEqual:[NSNull null]]) {
             NSString *indexKey = [NSString stringWithFormat:@"type:%@", type];
-            SSBBitset *bIndex = [self bitsetIndexForKey:indexKey capacity:1000000];
-            [result andWithBitset:bIndex];
+            if (_bitsetIndexes[indexKey]) {
+                [result andWithBitset:_bitsetIndexes[indexKey]];
+                [unindexedConstraints removeObjectForKey:@"type"];
+            }
         }
         
-        // Note: Real JITDB would check if these indexes exist and trigger a LOG SCAN if not.
+        // 2. For anything left, perform a LOG SCAN
+        if (unindexedConstraints.count > 0) {
+            [self->_log enumerateRecordsUsingBlock:^BOOL(NSData *data, uint64_t offset) {
+                NSUInteger consumed = 0;
+                NSDictionary *msg = [SSBBIPF decode:data consumed:&consumed];
+                if (!msg) return YES;
+                
+                __block BOOL match = YES;
+                [unindexedConstraints enumerateKeysAndObjectsUsingBlock:^(id key, id val, BOOL *innerStop) {
+                    id actualVal = msg[key];
+                    if (!actualVal && [key isEqualToString:@"type"]) {
+                        actualVal = msg[@"content"][@"type"];
+                    }
+                    
+                    if (![actualVal isEqual:val]) {
+                        match = NO;
+                        *innerStop = YES;
+                    }
+                }];
+                
+                if (!match) {
+                    [result clearBitAtIndex:offset];
+                }
+                return YES;
+            }];
+        }
     });
+    
     return result;
 }
 

@@ -1,5 +1,9 @@
 #import "SRErrorBannerView.h"
 
+@interface SRErrorBannerView ()
+@property (nonatomic, strong) NSLayoutConstraint *heightConstraint;
+@end
+
 @implementation SRErrorBannerView
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -25,7 +29,11 @@
     self.closeButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:self.closeButton];
     
+    self.heightConstraint = [self.heightAnchor constraintEqualToConstant:0];
+    
     [NSLayoutConstraint activateConstraints:@[
+        self.heightConstraint,
+        
         [self.messageLabel.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
         [self.messageLabel.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [self.messageLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.closeButton.leadingAnchor constant:-12],
@@ -41,10 +49,12 @@
 
 - (void)showMessage:(NSString *)message {
     self.messageLabel.stringValue = message;
+    self.heightConstraint.constant = 40;
     self.hidden = NO;
 }
 
 - (void)hide {
+    self.heightConstraint.constant = 0;
     self.hidden = YES;
 }
 

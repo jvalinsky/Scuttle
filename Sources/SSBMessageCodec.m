@@ -185,6 +185,29 @@ static os_log_t codecLog(void) {
 
 #pragma mark - Signing
 
++ (nullable NSString *)signString:(NSString *)string withSecretKey:(NSData *)secretKey {
+    if (!string || secretKey.length != crypto_sign_ed25519_SECRETKEYBYTES) {
+        return nil;
+    }
+    
+    NSData *data = [string dataUsingEncoding:NSUTF8StringEncoding];
+    unsigned long long smlen = 0;
+    NSUInteger msgLen = data.length;
+    unsigned char *sm = malloc(crypto_sign_ed25519_BYTES + msgLen);
+    
+    int ret = crypto_sign_ed25519(sm, &smlen, data.bytes, msgLen, secretKey.bytes);
+    if (ret != 0) {
+        free(sm);
+        return nil;
+    }
+    
+    NSData *sig = [NSData dataWithBytes:sm length:crypto_sign_ed25519_BYTES];
+    free(sm);
+    
+    NSString *sigStr = [NSString stringWithFormat:@"%@.sig.ed25519", [sig base64EncodedStringWithOptions:0]];
+    return sigStr;
+}
+
 + (nullable NSDictionary *)createSignedMessageWithContent:(NSDictionary *)content
                                                    author:(NSString *)author
                                                  sequence:(NSInteger)sequence

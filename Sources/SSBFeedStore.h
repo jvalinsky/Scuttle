@@ -39,6 +39,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the current feed state for an author, or nil if no messages stored.
 - (nullable SSBFeedState *)feedStateForAuthor:(NSString *)author;
 
+/// Returns the current local clock (max sequence for each author we follow or own).
+- (NSDictionary<NSString *, NSNumber *> *)localClock;
+
 /// Returns messages for a given author, starting at sequence, up to limit.
 /// Used for serving createHistoryStream requests.
 - (NSArray<SSBMessage *> *)messagesForAuthor:(NSString *)author
@@ -70,8 +73,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// Records that we follow or unfollow a given author.
 - (void)setFollowing:(BOOL)following forAuthor:(NSString *)author atSequence:(NSInteger)seq;
 
+/// Records that we block or unblock a given author.
+- (void)setBlocked:(BOOL)blocked forAuthor:(NSString *)author atSequence:(NSInteger)seq;
+
 /// Returns YES if we are following the given author.
 - (BOOL)isFollowing:(NSString *)author;
+
+/// Returns YES if we have blocked the given author.
+- (BOOL)isBlocked:(NSString *)author;
 
 /// Returns the set of all authors we follow.
 - (NSArray<NSString *> *)followedAuthors;
@@ -84,6 +93,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Returns the total number of stored messages.
 - (NSInteger)totalMessageCount;
+
+/// Returns a dictionary of author -> message count for visualization.
+- (NSDictionary<NSString *, NSNumber *> *)storageStatistics;
 
 #pragma mark - Profiles
 

@@ -145,11 +145,13 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     });
 }
 
-- (void)roomClient:(SSBRoomClient *)client didUpdateSyncStatus:(NSString *)status progress:(float)progress {
+- (void)roomClient:(SSBRoomClient *)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author {
     dispatch_async(dispatch_get_main_queue(), ^{
+        NSMutableDictionary *userInfo = [@{@"status": status, @"progress": @(progress)} mutableCopy];
+        if (author) userInfo[@"author"] = author;
         [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification" 
                                                             object:client 
-                                                          userInfo:@{@"status": status, @"progress": @(progress)}];
+                                                           userInfo:[userInfo copy]];
     });
 }
 
@@ -199,6 +201,44 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     [self.internalRoomEndpoints removeObjectForKey:config.host];
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
+    });
+}
+
+- (void)resolveDisplayNameForAuthor:(NSString *)author completion:(void(^)(NSString *name))completion {
+    if (!author) return;
+    
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        SSBFeedStore *store = [SSBFeedStore sharedStore];
+        
+        // Check if we already have it cached in the DB
+        NSString *cached = [store displayNameForAuthor:author];
+        if (![cached isEqualToString:author]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(cached);
+            });
+            return;
+        }
+        
+        // Otherwise, scan for an 'about' message
+        // querySubset: will trigger a log scan for 'about' if type isn't indexed!
+        NSArray<SSBMessage *> *msgs = [store querySubset:@{@"author": author, @"type": @"about"} 
+                                               options:@{@"descending": @YES, @"pageSize": @1}];
+        
+        if (msgs.count > 0) {
+            SSBMessage *latestAbout = msgs.firstObject;
+            NSString *name = latestAbout.content[@"name"];
+            if (name.length > 0) {
+                [store setDisplayName:name image:nil forAuthor:author];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    completion(name);
+                });
+                return;
+            }
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(author);
+        });
     });
 }
 

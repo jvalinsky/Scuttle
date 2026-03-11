@@ -31,6 +31,12 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * Closes the log and flushes any pending writes.
  */
+/**
+ * Enumerates all records in the log.
+ * @param block Called for each record with data and its offset. Return NO to stop.
+ */
+- (void)enumerateRecordsUsingBlock:(BOOL(^)(NSData *data, uint64_t offset))block;
+
 - (void)close;
 
 /**

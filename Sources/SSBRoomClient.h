@@ -3,6 +3,7 @@
 #import "RoomInviteHandler.h"
 #import "SSBFeedStore.h"
 #import "SSBMessageCodec.h"
+#import "SSBLogger.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -23,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Called when new messages are replicated from a peer.
 - (void)roomClient:(id)client didReplicateMessagesFromPeer:(NSString *)peerId count:(NSInteger)count;
 /// Called when sync status or progress changes.
-- (void)roomClient:(id)client didUpdateSyncStatus:(NSString *)status progress:(float)progress;
+- (void)roomClient:(id)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author;
 /// Called when the local feed is fully synced and ready to publish.
 - (void)roomClientDidSyncLocalFeed:(id)client;
 /// Called when messages in the publish queue have been processed.
@@ -45,6 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSData *localIdentitySecret;
 @property (nonatomic, readonly, nullable) NSString *inviteToken;
 @property (nonatomic, readonly, nullable) NSArray<NSString *> *roomFeatures;
+@property (nonatomic, readonly) BOOL isInternalUser;
 
 /// Initialize with a target room server explicitly.
 - (instancetype)initWithHost:(NSString *)host 
@@ -62,7 +64,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Redeems an invite token via RPC.
 - (void)redeemInvite:(NSString *)token completion:(nullable SSBRPCCallback)completion;
 
-/// Registers an alias with the room server.
+/// Registers an alias with the room server. Automatically signs the registration per SIP 7.
+- (void)registerAlias:(NSString *)alias completion:(nullable SSBRPCCallback)completion;
+
+/// Registers an alias with a pre-computed signature.
 - (void)registerAlias:(NSString *)alias signature:(NSString *)signature completion:(nullable SSBRPCCallback)completion;
 
 /// Revokes a previously registered alias.
@@ -70,6 +75,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Publishes a contact (follow/unfollow) message to the user's feed.
 - (void)publishContact:(NSString *)targetPubKey following:(BOOL)following completion:(nullable SSBRPCCallback)completion;
+
+/// Publishes a contact (block/unblock) message to the user's feed.
+- (void)publishBlock:(NSString *)targetPubKey blocking:(BOOL)blocking completion:(nullable SSBRPCCallback)completion;
 
 /// Publishes a post message to the local feed.
 - (nullable SSBMessage *)publishPostWithText:(NSString *)text error:(NSError **)error;
@@ -88,6 +96,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Fetches profile information (metadata/about) for a peer.
 - (void)fetchProfileForPeer:(NSString *)peerID completion:(nullable SSBRPCCallback)completion;
+
+/// Fetches a blob from the connected peer by its blob ID (&hash.sha256).
+/// The blob data is accumulated from the source stream and stored locally via SSBBlobStore.
+- (void)fetchBlob:(NSString *)blobID completion:(void (^)(NSString * _Nullable localPath, NSError * _Nullable error))completion;
+
+/// Checks if the connected peer has a specific blob.
+- (void)hasBlob:(NSString *)blobID completion:(void (^)(BOOL hasIt))completion;
 
 /// Fetches room metadata (name, features, etc.) - SIP 7.
 - (void)fetchRoomMetadataWithCompletion:(nullable SSBRPCCallback)completion;

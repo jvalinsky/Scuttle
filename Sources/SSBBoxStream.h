@@ -33,6 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// @return The decrypted payload, or nil on failure.
 - (nullable NSData *)decryptBody:(NSData *)bodyData expectedMac:(NSData *)bodyMac;
 
+/// Whether this stream is acting as the SHS client (initiator).
+@property (nonatomic, assign) BOOL isClient;
+
 @end
 
 NS_ASSUME_NONNULL_END

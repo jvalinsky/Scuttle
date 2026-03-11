@@ -100,6 +100,31 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
             sqlite3_free(errMsg);
         }
     }
+    
+    // Check if we need to migrate contacts table for 'blocking'
+    BOOL hasBlocking = NO;
+    const char *contactsInfoSQL = "PRAGMA table_info(contacts)";
+    sqlite3_stmt *contactsStmt = NULL;
+    if (sqlite3_prepare_v2(_db, contactsInfoSQL, -1, &contactsStmt, NULL) == SQLITE_OK) {
+        while (sqlite3_step(contactsStmt) == SQLITE_ROW) {
+            const char *name = (const char *)sqlite3_column_text(contactsStmt, 1);
+            if (name && strcmp(name, "blocking") == 0) {
+                hasBlocking = YES;
+                break;
+            }
+        }
+        sqlite3_finalize(contactsStmt);
+    }
+    
+    if (!hasBlocking) {
+        os_log_info(ssb_feedstore_log, "Migrating database: adding blocking column to contacts");
+        const char *alterSQL = "ALTER TABLE contacts ADD COLUMN blocking INTEGER NOT NULL DEFAULT 0";
+        char *errMsg = NULL;
+        if (sqlite3_exec(_db, alterSQL, NULL, NULL, &errMsg) != SQLITE_OK) {
+            os_log_error(ssb_feedstore_log, "Migration failed: %s", errMsg);
+            sqlite3_free(errMsg);
+        }
+    }
 }
 
 - (void)dealloc {
@@ -132,6 +157,7 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         "CREATE TABLE IF NOT EXISTS contacts ("
         "    target_author TEXT PRIMARY KEY,"
         "    following INTEGER NOT NULL,"
+        "    blocking INTEGER NOT NULL DEFAULT 0,"
         "    sequence INTEGER NOT NULL"
         ");"
         "CREATE TABLE IF NOT EXISTS profiles ("
@@ -469,6 +495,26 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
     return result;
 }
 
+- (NSDictionary<NSString *, NSNumber *> *)localClock {
+    __block NSMutableDictionary *clock = [NSMutableDictionary dictionary];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT author, max_sequence FROM feed_state";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *authorStr = (const char *)sqlite3_column_text(stmt, 0);
+                if (authorStr) {
+                    NSString *author = [NSString stringWithUTF8String:authorStr];
+                    NSInteger seq = (NSInteger)sqlite3_column_int64(stmt, 1);
+                    clock[author] = @(seq);
+                }
+            }
+            sqlite3_finalize(stmt);
+        }
+    });
+    return [clock copy];
+}
+
 - (nullable SSBFeedState *)_feedStateForAuthor:(NSString *)author {
     const char *sql = "SELECT author, max_sequence, max_key FROM feed_state WHERE author = ?";
     sqlite3_stmt *stmt = NULL;
@@ -614,12 +660,28 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
 
 - (void)setFollowing:(BOOL)following forAuthor:(NSString *)author atSequence:(NSInteger)seq {
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "INSERT INTO contacts (target_author, following, sequence) VALUES (?, ?, ?) ON CONFLICT(target_author) DO UPDATE SET following = excluded.following, sequence = excluded.sequence";
+        const char *sql = "INSERT INTO contacts (target_author, following, blocking, sequence) VALUES (?, ?, COALESCE((SELECT blocking FROM contacts WHERE target_author = ?), 0), ?) ON CONFLICT(target_author) DO UPDATE SET following = excluded.following, sequence = excluded.sequence";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
             sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
             sqlite3_bind_int(stmt, 2, following ? 1 : 0);
-            sqlite3_bind_int64(stmt, 3, seq);
+            sqlite3_bind_text(stmt, 3, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt, 4, seq);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
+    });
+}
+
+- (void)setBlocked:(BOOL)blocked forAuthor:(NSString *)author atSequence:(NSInteger)seq {
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "INSERT INTO contacts (target_author, following, blocking, sequence) VALUES (?, COALESCE((SELECT following FROM contacts WHERE target_author = ?), 0), ?, ?) ON CONFLICT(target_author) DO UPDATE SET blocking = excluded.blocking, sequence = excluded.sequence";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 2, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 3, blocked ? 1 : 0);
+            sqlite3_bind_int64(stmt, 4, seq);
             sqlite3_step(stmt);
             sqlite3_finalize(stmt);
         }
@@ -638,6 +700,20 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         }
     });
     return following;
+}
+
+- (BOOL)isBlocked:(NSString *)author {
+    __block BOOL blocked = NO;
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT blocking FROM contacts WHERE target_author = ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(stmt) == SQLITE_ROW) blocked = sqlite3_column_int(stmt, 0) != 0;
+            sqlite3_finalize(stmt);
+        }
+    });
+    return blocked;
 }
 
 - (NSArray<NSString *> *)followedAuthors {
@@ -699,6 +775,25 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         }
     });
     return count;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)storageStatistics {
+    NSMutableDictionary *stats = [NSMutableDictionary dictionary];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT author, COUNT(*) FROM messages GROUP BY author ORDER BY COUNT(*) DESC LIMIT 50";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *author = (const char *)sqlite3_column_text(stmt, 0);
+                long long count = sqlite3_column_int64(stmt, 1);
+                if (author) {
+                    stats[[NSString stringWithUTF8String:author]] = @(count);
+                }
+            }
+            sqlite3_finalize(stmt);
+        }
+    });
+    return [stats copy];
 }
 
 #pragma mark - Profiles

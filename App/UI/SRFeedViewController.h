@@ -25,7 +25,10 @@ typedef NS_ENUM(NSInteger, SRFeedType) {
 @property (nonatomic, copy, nullable) NSString *filterAuthor;
 @property (nonatomic, copy, nullable) NSString *filterChannel;
 @property (nonatomic, copy, nullable) NSString *filterSearch;
+@property (nonatomic, weak, nullable) SSBRoomClient *currentClient;
 @property (nonatomic, strong, readonly) NSProgressIndicator *progressIndicator;
+
+@property (nonatomic, assign) BOOL hidesBackButton;
 
 - (void)refreshFeed;
 - (void)loadFeedForAuthor:(NSString *)author client:(SSBRoomClient *)client;

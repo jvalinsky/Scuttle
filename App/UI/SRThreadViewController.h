@@ -4,6 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class SRThreadViewController;
+@class SSBRoomClient;
 
 @protocol SRThreadViewControllerDelegate <NSObject>
 @optional
@@ -16,8 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, nullable) id<SRThreadViewControllerDelegate> delegate;
 @property (nonatomic, strong) SSBMessage *rootMessage;
+@property (nonatomic, weak, nullable) SSBRoomClient *client;
 
-- (instancetype)initWithRootMessage:(SSBMessage *)message;
+- (instancetype)initWithRootMessage:(SSBMessage *)message client:(nullable SSBRoomClient *)client;
 
 @end
 

@@ -8,6 +8,7 @@
 #import <SSBNetwork/SSBSecretHandshake.h>
 #import <SSBNetwork/SSBBoxStream.h>
 #import <SSBNetwork/SSBMuxRPC.h>
+#import <SSBNetwork/SSBBlobStore.h>
 #import <SSBNetwork/SSBFeedStore.h>
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/SSBTangle.h>

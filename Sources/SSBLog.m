@@ -86,6 +86,33 @@
     });
 }
 
+- (void)enumerateRecordsUsingBlock:(BOOL(^)(NSData *data, uint64_t offset))block {
+    int fd = dispatch_io_get_descriptor(_io);
+    uint64_t offset = 0;
+    uint64_t totalSize = _currentOffset;
+    
+    while (offset < totalSize) {
+        uint32_t len = 0;
+        if (pread(fd, &len, sizeof(len), offset) != sizeof(len)) break;
+        
+        if (len == 0 || len > 1024 * 1024 * 10) { // Safety: 10MB max record
+            offset += sizeof(len);
+            continue;
+        }
+        
+        unsigned char *buf = malloc(len);
+        if (pread(fd, buf, len, offset + sizeof(len)) != len) {
+            free(buf);
+            break;
+        }
+        
+        NSData *data = [NSData dataWithBytesNoCopy:buf length:len freeWhenDone:YES];
+        if (!block(data, offset)) break;
+        
+        offset += sizeof(len) + len;
+    }
+}
+
 - (void)close {
     if (_io) {
         dispatch_io_close(_io, DISPATCH_IO_STOP);

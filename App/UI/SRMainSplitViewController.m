@@ -11,6 +11,7 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMessageCodec.h"
+#import "../../Sources/SSBLogger.h"
 
 @interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate, NSToolbarDelegate>
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
@@ -24,6 +25,8 @@
 @property (nonatomic, strong) NSView *contentAreaContainer; // We'll use this to swap views
 @property (nonatomic, strong) SRPeerListViewController *peerListVC;
 @property (nonatomic, strong, nullable) RoomConfig *selectedRoom;
+- (void)toolbarSettings:(id)sender;
+
 @end
 
 @implementation SRMainSplitViewController
@@ -52,22 +55,24 @@
     [NSLayoutConstraint activateConstraints:@[
         [self.errorBanner.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
         [self.errorBanner.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
-        [self.errorBanner.heightAnchor constraintEqualToConstant:40]
+        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor constant:8]
     ]];
-    
-    [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor].active = YES;
     
     self.headerView = [[SRProfileHeaderView alloc] init];
     self.headerView.hidesProfileButton = YES;
     [contentContainer.view addSubview:self.headerView];
     self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
     
-    // Initial identity update
+    __weak typeof(self) weakSelf = self;
     NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
     if (localSecret && localSecret.length >= 64) {
         NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
         NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
-        [self.headerView updateWithIdentity:pubkey name:nil]; // TODO: Fetch real name from about messages
+        [self.headerView updateWithIdentity:pubkey name:nil];
+        
+        [[SRRoomManager sharedManager] resolveDisplayNameForAuthor:pubkey completion:^(NSString *name) {
+            [weakSelf.headerView updateWithIdentity:pubkey name:name];
+        }];
     }
     
     self.composeVC = [[SRComposeViewController alloc] init];
@@ -75,7 +80,7 @@
     [contentContainer.view addSubview:self.composeVC.view];
     self.composeVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
-    __weak typeof(self) weakSelf = self;
+    
     self.composeVC.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo) {
         [weakSelf handlePublishWithText:text contentWarning:cw replyTo:replyTo];
     };
@@ -168,6 +173,8 @@
     [self.feedVC.progressIndicator startAnimation:nil];
     [self.peerListVC.progressIndicator startAnimation:nil];
     
+    self.feedVC.currentClient = [self currentClient];
+    
     [self updatePeerList];
     [self.feedVC refreshFeed];
 }
@@ -222,12 +229,17 @@
 #pragma mark - SRPeerListDelegate
 
 - (void)peerListViewController:(SRPeerListViewController *)vc didSelectPeer:(NSString *)peerID {
+    SSBLogInfo(SSBLogCategoryUI, @"👤 Peer selected: %@", [peerID substringToIndex:MIN(8, peerID.length)]);
+    
     if (self.profileVC) {
+        SSBLogInfo(SSBLogCategoryUI, @"   Removing existing profile view");
         [self.profileVC.view removeFromSuperview];
         [self.profileVC removeFromParentViewController];
     }
     
     SSBRoomClient *client = [self currentClient];
+    SSBLogInfo(SSBLogCategoryUI, @"   Client: %@ connected=%d", client ? @"available" : @"nil", client.isConnected);
+    
     self.profileVC = [[SRProfileViewController alloc] initWithPeerID:peerID client:client];
     self.profileVC.delegate = self;
     [self addChildViewController:self.profileVC];
@@ -235,7 +247,7 @@
     self.profileVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.profileVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor constant:40], // Full height for profile, but clear titlebar
+        [self.profileVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor],
         [self.profileVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
         [self.profileVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
         [self.profileVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]
@@ -284,7 +296,7 @@
     self.channelBrowserVC.view.translatesAutoresizingMaskIntoConstraints = NO;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.channelBrowserVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor constant:40],
+        [self.channelBrowserVC.view.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
         [self.channelBrowserVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
         [self.channelBrowserVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
         [self.channelBrowserVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]
@@ -317,6 +329,17 @@
     }
 }
 
+- (void)peerListViewController:(SRPeerListViewController *)vc didRequestBlock:(NSString *)peerID blocking:(BOOL)blocking {
+    SSBRoomClient *client = [self currentClient];
+    if (client) {
+        [client publishBlock:peerID blocking:blocking completion:^(NSError *error, id result) {
+            if (!error) {
+                [self.peerListVC updatePeers:self.peerListVC.peers];
+            }
+        }];
+    }
+}
+
 #pragma mark - SRFeedViewControllerDelegate
 
 - (void)feedViewController:(SRFeedViewController *)vc didLikeMessage:(SSBMessage *)message {
@@ -338,7 +361,8 @@
         [self.threadVC removeFromParentViewController];
     }
     
-    self.threadVC = [[SRThreadViewController alloc] initWithRootMessage:message];
+    SSBRoomClient *client = [self currentClient];
+    self.threadVC = [[SRThreadViewController alloc] initWithRootMessage:message client:client];
     self.threadVC.delegate = self;
     [self addChildViewController:self.threadVC];
     [self.contentAreaContainer addSubview:self.threadVC.view];
@@ -424,16 +448,24 @@
         searchItem.action = @selector(toolbarSearch:);
         searchItem.target = self;
         return searchItem;
+    } else if ([itemIdentifier isEqualToString:@"Settings"]) {
+        NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        item.label = @"Settings";
+        item.paletteLabel = @"Settings";
+        item.image = [NSImage imageWithSystemSymbolName:@"gearshape" accessibilityDescription:@"Settings"];
+        item.target = self;
+        item.action = @selector(toolbarSettings:);
+        return item;
     }
     return nil;
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
-    return @[@"Compose", @"Refresh", @"ToggleFeed", @"Search", NSToolbarFlexibleSpaceItemIdentifier];
+    return @[@"Compose", @"Refresh", @"ToggleFeed", @"Search", @"Settings", NSToolbarFlexibleSpaceItemIdentifier];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    return @[@"Compose", @"Refresh", NSToolbarFlexibleSpaceItemIdentifier, @"Search", @"ToggleFeed"];
+    return @[@"Compose", @"Refresh", NSToolbarFlexibleSpaceItemIdentifier, @"Search", @"Settings", @"ToggleFeed"];
 }
 
 - (void)toolbarSearch:(id)sender {

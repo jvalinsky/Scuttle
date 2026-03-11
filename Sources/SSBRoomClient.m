@@ -8,6 +8,7 @@
 #import "SSBMuxRPC.h"
 #import "SSBKeychain.h"
 #import "SSBSecretHandshake.h"
+#import "SSBBlobStore.h"
 #import "tweetnacl.h"
 
 static os_log_t ssb_room_log;
@@ -39,10 +40,14 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) NSMutableArray<NSString *> *attendantsList;
 @property (nonatomic, strong) SSBFeedStore *feedStore;
 @property (nonatomic, readwrite, nullable) NSArray<NSString *> *roomFeatures;
+@property (nonatomic, readwrite) BOOL isInternalUser;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBTunnelState *> *activeTunnels;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingPublishQueue;
 @property (nonatomic, assign) BOOL isSyncingLocalFeed;
 @property (nonatomic, assign) NSInteger localFeedSeq;
+@property (nonatomic, assign) int32_t ebtRequestID;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *remoteClock;
+@property (nonatomic, assign) BOOL isEBTRunning;
 @end
 
 @implementation SSBRoomClient
@@ -227,7 +232,8 @@ static os_log_t ssb_room_log;
         metadataFinished = YES;
         if ([response isKindOfClass:[NSDictionary class]]) {
             weakSelf.roomFeatures = response[@"features"];
-            [weakSelf log:[NSString stringWithFormat:@"Room features: %@", weakSelf.roomFeatures]];
+            weakSelf.isInternalUser = [response[@"membership"] boolValue];
+            [weakSelf log:[NSString stringWithFormat:@"Room features: %@, internal: %d", weakSelf.roomFeatures, weakSelf.isInternalUser]];
             [weakSelf announce];
             [weakSelf subscribeToEndpoints];
             [weakSelf syncLocalFeed];
@@ -259,6 +265,20 @@ static os_log_t ssb_room_log;
     [self sendRPCRequest:@[@"room", @"claimInvite"] args:@[token] type:@"async" completion:completion];
 }
 
+- (void)registerAlias:(NSString *)alias completion:(nullable SSBRPCCallback)completion {
+    NSString *roomId = [self serverPublicID];
+    NSString *userId = [self localPublicID];
+    NSString *registrationStr = [NSString stringWithFormat:@"=room-alias-registration:%@:%@:%@", roomId, userId, alias];
+    
+    NSString *sig = [SSBMessageCodec signString:registrationStr withSecretKey:self.localIdentitySecret];
+    if (!sig) {
+        if (completion) completion(nil, [NSError errorWithDomain:@"SSBError" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Failed to sign alias registration"}]);
+        return;
+    }
+    
+    [self registerAlias:alias signature:sig completion:completion];
+}
+
 - (void)registerAlias:(NSString *)alias signature:(NSString *)signature completion:(nullable SSBRPCCallback)completion {
     [self sendRPCRequest:@[@"room", @"registerAlias"] args:@[alias, signature] type:@"async" completion:completion];
 }
@@ -273,22 +293,34 @@ static os_log_t ssb_room_log;
     NSInteger localSeq = state ? state.maxSequence : 0;
     
     // Start syncing
+    SSBLogInfo(SSBLogCategorySync, @"🔄 syncLocalFeed STARTING: localSeq=%ld", (long)localSeq);
     self.isSyncingLocalFeed = YES;
     self.localFeedSeq = localSeq;
     
-    NSLog(@"[Client] Starting local feed sync from sequence %ld", (long)localSeq);
-    
-    if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+    if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate roomClient:self didUpdateSyncStatus:@"Syncing your feed..." progress:0.0];
+            [self.delegate roomClient:self didUpdateSyncStatus:@"Syncing your feed..." progress:0.0 author:[self localPublicID]];
         });
     }
     
     NSDictionary *args = @{@"id": myId, @"limit": @100, @"reverse": @NO, @"live": @NO};
     
     __block NSInteger replicatedCount = 0;
-    [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
-        if (!error && [response isKindOfClass:[NSDictionary class]]) {
+    int32_t reqID = [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (error) {
+            SSBLogError(SSBLogCategorySync, @"❌ syncLocalFeed ERROR: %@", error.localizedDescription);
+            self.isSyncingLocalFeed = NO;
+            SSBLogInfo(SSBLogCategorySync, @"🔄 syncLocalFeed COMPLETE (error): isSyncingLocalFeed=NO");
+            [self processPublishQueue];
+            if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:[self localPublicID]];
+                });
+            }
+            return;
+        }
+        
+        if ([response isKindOfClass:[NSDictionary class]]) {
             NSDictionary *val = response[@"value"];
             if ([SSBMessageCodec verifyMessage:val]) {
                 SSBMessage *msg = [[SSBMessage alloc] init];
@@ -309,7 +341,8 @@ static os_log_t ssb_room_log;
         // Sync complete (no more messages)
         if (!response) {
             self.isSyncingLocalFeed = NO;
-            NSLog(@"[Client] Local feed sync complete: %ld messages", (long)replicatedCount);
+            SSBLogInfo(SSBLogCategorySync, @"✅ syncLocalFeed COMPLETE: %ld messages replicated", (long)replicatedCount);
+            SSBLogInfo(SSBLogCategorySync, @"🔄 Feed sync state change: isSyncingLocalFeed=NO, isFeedSynced=%d", self.isFeedSynced);
             
             // Process any queued messages
             [self processPublishQueue];
@@ -321,20 +354,114 @@ static os_log_t ssb_room_log;
             }
         }
     }];
+    
+    // sendRPCRequest returns -1 if not connected — completion never fires
+    if (reqID < 0) {
+        SSBLogError(SSBLogCategorySync, @"❌ syncLocalFeed FAILED: not connected");
+        self.isSyncingLocalFeed = NO;
+        SSBLogInfo(SSBLogCategorySync, @"🔄 Feed sync state change: isSyncingLocalFeed=NO (connection failed)");
+        [self processPublishQueue];
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:[self localPublicID]];
+            });
+        }
+    }
 }
 
 - (void)fetchFeedForPeer:(NSString *)peerID limit:(NSInteger)limit completion:(nullable SSBRPCCallback)completion {
+    SSBLogInfo(SSBLogCategoryProfile, @"📥 fetchFeedForPeer: limit=%ld peer=%@", (long)limit, [peerID substringToIndex:MIN(8, peerID.length)]);
     NSDictionary *args = @{@"id": peerID, @"limit": @(limit), @"reverse": @YES, @"live": @NO};
-    [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:completion];
+    [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (error) {
+            SSBLogError(SSBLogCategoryProfile, @"❌ fetchFeedForPeer failed: %@", error.localizedDescription);
+        } else {
+            SSBLogInfo(SSBLogCategoryProfile, @"✅ fetchFeedForPeer succeeded for %@", [peerID substringToIndex:MIN(8, peerID.length)]);
+        }
+        if (completion) {
+            completion(response, error);
+        }
+    }];
 }
 
 - (void)publishContact:(NSString *)targetPubKey following:(BOOL)following completion:(nullable SSBRPCCallback)completion {
-    NSDictionary *content = @{@"type": @"contact", @"contact": targetPubKey, @"following": @(following)};
-    [self sendRPCRequest:@[@"publish"] args:@[content] type:@"async" completion:completion];
+    SSBLogInfo(SSBLogCategoryProfile, @"👤 publishContact: %@ -> %@", following ? @"Follow" : @"Unfollow", [targetPubKey substringToIndex:MIN(8, targetPubKey.length)]);
+    SSBLogInfo(SSBLogCategorySync, @"📊 Feed sync state: isSyncingLocalFeed=%d isFeedSynced=%d", self.isSyncingLocalFeed, self.isFeedSynced);
+    
+    NSError *error = nil;
+    SSBMessage *msg = [self publishLocalContact:targetPubKey following:following error:&error];
+    
+    if (msg) {
+        SSBLogInfo(SSBLogCategoryProfile, @"✅ publishContact succeeded: seq=%ld", (long)msg.sequence);
+    } else if (error) {
+        SSBLogError(SSBLogCategoryProfile, @"❌ publishContact failed: %@", error.localizedDescription);
+    } else {
+        SSBLogInfo(SSBLogCategoryProfile, @"⏳ publishContact queued (feed not synced), queue count: %lu", (unsigned long)self.pendingPublishQueue.count);
+    }
+    
+    if (completion) {
+        completion(msg, error);
+    }
+}
+
+- (void)publishBlock:(NSString *)targetPubKey blocking:(BOOL)blocking completion:(nullable SSBRPCCallback)completion {
+    SSBLogInfo(SSBLogCategoryProfile, @"🚫 publishBlock: %@ -> %@", blocking ? @"Block" : @"Unblock", [targetPubKey substringToIndex:MIN(8, targetPubKey.length)]);
+    
+    NSDictionary *content = [SSBMessageCodec contactContentWithTarget:targetPubKey following:NO];
+    NSMutableDictionary *mutContent = [content mutableCopy];
+    mutContent[@"blocking"] = @(blocking);
+    
+    // Optimistically update the feed store so UI reacts immediately
+    [self.feedStore setBlocked:blocking forAuthor:targetPubKey atSequence:0];
+    SSBLogInfo(SSBLogCategoryProfile, @"🔄 Optimistic update: blocked=%d for %@", blocking, [targetPubKey substringToIndex:MIN(8, targetPubKey.length)]);
+    
+    NSError *error = nil;
+    SSBMessage *msg = [self publishLocalMessageWithContent:mutContent error:&error];
+    if (msg) {
+        [self.feedStore setBlocked:blocking forAuthor:targetPubKey atSequence:msg.sequence];
+        SSBLogInfo(SSBLogCategoryProfile, @"✅ publishBlock succeeded: seq=%ld", (long)msg.sequence);
+    } else if (error) {
+        SSBLogError(SSBLogCategoryProfile, @"❌ publishBlock failed: %@", error.localizedDescription);
+    } else {
+        SSBLogInfo(SSBLogCategoryProfile, @"⏳ publishBlock queued (feed not synced)");
+    }
+    
+    if (completion) {
+        completion(msg, error);
+    }
 }
 
 - (void)fetchProfileForPeer:(NSString *)peerID completion:(nullable SSBRPCCallback)completion {
-    [self sendRPCRequest:@[@"about"] args:@[@{@"id": peerID}] type:@"async" completion:completion];
+    SSBLogInfo(SSBLogCategoryProfile, @"👤 fetchProfileForPeer: %@", [peerID substringToIndex:MIN(8, peerID.length)]);
+    [self sendRPCRequest:@[@"about"] args:@[@{@"id": peerID}] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (error) {
+            SSBLogError(SSBLogCategoryProfile, @"❌ fetchProfileForPeer failed: %@", error.localizedDescription);
+        } else if (response) {
+            SSBLogInfo(SSBLogCategoryProfile, @"✅ fetchProfileForPeer succeeded: %@", response);
+        }
+        if (completion) {
+            completion(response, error);
+        }
+    }];
+}
+
+- (void)fetchBlob:(NSString *)blobID completion:(void (^)(NSString * _Nullable localPath, NSError * _Nullable error))completion {
+    [[SSBBlobStore sharedStore] fetchBlob:blobID session:self.rpcSession completion:completion];
+}
+
+- (void)hasBlob:(NSString *)blobID completion:(void (^)(BOOL hasIt))completion {
+    // Check local store first
+    if ([[SSBBlobStore sharedStore] hasBlob:blobID]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(YES);
+        });
+        return;
+    }
+    [self sendRPCRequest:@[@"blobs", @"has"] args:@[blobID] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(!error && [response isEqual:@YES]);
+        });
+    }];
 }
 
 - (void)fetchRoomMetadataWithCompletion:(nullable SSBRPCCallback)completion {
@@ -348,8 +475,14 @@ static os_log_t ssb_room_log;
 
 - (nullable SSBMessage *)publishLocalContact:(NSString *)targetPubKey following:(BOOL)following error:(NSError **)error {
     NSDictionary *content = [SSBMessageCodec contactContentWithTarget:targetPubKey following:following];
+    
+    // Optimistically update the feed store so UI reacts immediately
+    [self.feedStore setFollowing:following forAuthor:targetPubKey atSequence:0]; // Sequence doesn't matter for contact graph
+    
     SSBMessage *msg = [self publishLocalMessageWithContent:content error:error];
-    if (msg) [self.feedStore setFollowing:following forAuthor:targetPubKey atSequence:msg.sequence];
+    if (msg) {
+        [self.feedStore setFollowing:following forAuthor:targetPubKey atSequence:msg.sequence];
+    }
     return msg;
 }
 
@@ -368,12 +501,12 @@ static os_log_t ssb_room_log;
             @"timestamp": @([[NSDate date] timeIntervalSince1970])
         };
         [self.pendingPublishQueue addObject:queuedItem];
-        NSLog(@"[Client] Message queued for publish (not synced). Queue count: %lu", (unsigned long)self.pendingPublishQueue.count);
+        SSBLogWarning(SSBLogCategorySync, @"⏳ Message QUEUED (feed not synced): type=%@ queue size=%lu", content[@"type"] ?: @"unknown", (unsigned long)self.pendingPublishQueue.count);
         
         // Notify delegate
-        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Queued (%lu)", (unsigned long)self.pendingPublishQueue.count] progress:0];
+                [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Queued (%lu)", (unsigned long)self.pendingPublishQueue.count] progress:0 author:nil];
             });
         }
         return nil;
@@ -420,25 +553,27 @@ static os_log_t ssb_room_log;
     }
     
     if (!self.isFeedSynced) {
-        NSLog(@"[Client] Cannot process queue: feed not synced yet");
+        SSBLogWarning(SSBLogCategorySync, @"⏳ Cannot process publish queue: feed not synced yet (isSyncingLocalFeed=%d)", self.isSyncingLocalFeed);
         return;
     }
     
-    NSLog(@"[Client] Processing publish queue: %lu messages", (unsigned long)self.pendingPublishQueue.count);
+    SSBLogInfo(SSBLogCategorySync, @"📤 Processing publish queue: %lu messages", (unsigned long)self.pendingPublishQueue.count);
     
     NSMutableArray *failedItems = [NSMutableArray array];
     NSInteger successCount = 0;
     
     for (NSDictionary *queuedItem in [self.pendingPublishQueue copy]) {
         NSDictionary *content = queuedItem[@"content"];
+        SSBLogDebug(SSBLogCategorySync, @"   Publishing queued message: %@", content[@"type"]);
         NSError *error = nil;
         SSBMessage *msg = [self publishMessageNow:content error:&error];
         
         if (msg) {
             successCount++;
+            SSBLogInfo(SSBLogCategorySync, @"   ✅ Published: seq=%ld type=%@", (long)msg.sequence, content[@"type"] ?: @"unknown");
             [self.pendingPublishQueue removeObject:queuedItem];
         } else {
-            NSLog(@"[Client] Failed to publish queued message: %@", error.localizedDescription);
+            SSBLogError(SSBLogCategorySync, @"   ❌ Failed to publish: %@", error.localizedDescription);
             [failedItems addObject:queuedItem];
         }
     }
@@ -447,7 +582,7 @@ static os_log_t ssb_room_log;
     [self.pendingPublishQueue removeAllObjects];
     [self.pendingPublishQueue addObjectsFromArray:failedItems];
     
-    NSLog(@"[Client] Publish queue processed: %ld success, %lu remaining", (long)successCount, (unsigned long)self.pendingPublishQueue.count);
+    SSBLogInfo(SSBLogCategorySync, @"✅ Publish queue processed: %ld success, %lu remaining", (long)successCount, (unsigned long)self.pendingPublishQueue.count);
     
     // Notify delegate
     if ([self.delegate respondsToSelector:@selector(roomClientDidProcessPublishQueue:success:queuedCount:)]) {
@@ -458,9 +593,107 @@ static os_log_t ssb_room_log;
 }
 
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost {
-    [self replicateFeed:peerID fromPeer:peerID];
-    for (NSString *author in [self.feedStore followedAuthors]) {
-        [self replicateFeed:author fromPeer:peerID];
+    SSBLogInfo(SSBLogCategoryReplication, @"🔄 replicateFromPeer: %@ via room: %@", [peerID substringToIndex:MIN(8, peerID.length)], roomHost);
+    SSBLogInfo(SSBLogCategoryReplication, @"🔗 Connection state: connected=%d ebtRunning=%d", self.isConnected, self.isEBTRunning);
+    [self startEBTReplication];
+}
+
+#pragma mark - Replication (EBT)
+
+- (void)startEBTReplication {
+    if (self.isEBTRunning) return;
+    
+    NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
+    NSDictionary *args = @{@"version": @3};
+    
+    __weak typeof(self) weakSelf = self;
+    self.ebtRequestID = [self.rpcSession sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (error) {
+            os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
+            weakSelf.isEBTRunning = NO;
+            return;
+        }
+        [weakSelf handleEBTMessage:response];
+    }];
+    
+    self.isEBTRunning = YES;
+    self.remoteClock = [NSMutableDictionary dictionary];
+    
+    // Send initial clock
+    [self.rpcSession sendData:clock forRequest:self.ebtRequestID isEnd:NO];
+    os_log_info(ssb_room_log, "EBT Started replication with clock of %lu feeds", (unsigned long)clock.count);
+}
+
+- (void)handleEBTMessage:(id)message {
+    if ([message isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)message;
+        if (dict[@"key"] && dict[@"value"]) {
+            [self processIncomingMessage:dict];
+        } else {
+            [self handleRemoteClockUpdate:dict];
+        }
+    }
+}
+
+- (void)handleRemoteClockUpdate:(NSDictionary *)update {
+    [update enumerateKeysAndObjectsUsingBlock:^(id author, id seqVal, BOOL *stop) {
+        if ([author isKindOfClass:[NSString class]] && [seqVal isKindOfClass:[NSNumber class]]) {
+            // EBT notes: positive means "send from here", negative means "I have this, don't send".
+            // We store the absolute sequence as the known remote max.
+            NSInteger seq = [seqVal integerValue];
+            self.remoteClock[author] = @(ABS(seq));
+            [self updateSyncProgressForAuthor:author];
+        }
+    }];
+}
+
+- (void)processIncomingMessage:(NSDictionary *)response {
+    NSDictionary *val = response[@"value"];
+    if ([SSBMessageCodec verifyMessage:val]) {
+        SSBMessage *msg = [[SSBMessage alloc] init];
+        msg.key = response[@"key"];
+        msg.author = val[@"author"];
+        msg.sequence = [val[@"sequence"] integerValue];
+        msg.previousKey = val[@"previous"];
+        msg.claimedTimestamp = [val[@"timestamp"] longLongValue];
+        msg.content = val[@"content"];
+        msg.contentType = msg.content[@"type"];
+        msg.valueJSON = [SSBMessageCodec encodeLegacyValue:val includeSignature:YES];
+        
+        NSError *error = nil;
+        if ([self.feedStore appendMessage:msg error:&error]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [[NSNotificationCenter defaultCenter] postNotificationName:@"SRNewMessageNotification" object:nil];
+                if ([self.delegate respondsToSelector:@selector(roomClient:didReplicateMessagesFromPeer:count:)]) {
+                    [self.delegate roomClient:self didReplicateMessagesFromPeer:msg.author count:1];
+                }
+            });
+            [self updateSyncProgressForAuthor:msg.author];
+        }
+    }
+}
+
+- (void)updateSyncProgressForAuthor:(NSString *)author {
+    SSBFeedState *state = [self.feedStore feedStateForAuthor:author];
+    NSInteger localSeq = state ? state.maxSequence : 0;
+    
+    NSNumber *remoteSeqNum = self.remoteClock[author];
+    if (remoteSeqNum) {
+        NSInteger remoteSeq = [remoteSeqNum integerValue];
+        // Handle EBT passive notes (negative)
+        if (remoteSeq < 0) remoteSeq = ABS(remoteSeq);
+        
+        float progress = 1.0;
+        if (remoteSeq > localSeq) {
+            progress = (float)localSeq / (float)remoteSeq;
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                NSString *status = (progress >= 1.0) ? @"Up to date" : @"Gossip Progress";
+                [self.delegate roomClient:self didUpdateSyncStatus:status progress:progress author:author];
+            }
+        });
     }
 }
 
@@ -470,14 +703,24 @@ static os_log_t ssb_room_log;
     
     // Notify progress started
     dispatch_async(dispatch_get_main_queue(), ^{
-        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
-            [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Syncing %@...", [feedAuthor substringToIndex:MIN(10, feedAuthor.length)]] progress:0.0];
-        }
+    if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+        [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Syncing %@...", [feedAuthor substringToIndex:MIN(10, feedAuthor.length)]] progress:0.0 author:feedAuthor];
+    }
     });
 
     __block NSInteger replicatedCount = 0;
-    [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
-        if (!error && [response isKindOfClass:[NSDictionary class]]) {
+    int32_t reqID = [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"[Client] Feed replication error for %@: %@", feedAuthor, error.localizedDescription);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                    [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:feedAuthor];
+                }
+            });
+            return;
+        }
+        
+        if ([response isKindOfClass:[NSDictionary class]]) {
             NSDictionary *val = response[@"value"];
             if ([SSBMessageCodec verifyMessage:val]) {
                 SSBMessage *msg = [[SSBMessage alloc] init];
@@ -504,18 +747,27 @@ static os_log_t ssb_room_log;
                 });
             }
             dispatch_async(dispatch_get_main_queue(), ^{
-                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
-                    [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Synced %ld from %@", (long)replicatedCount, [peerID substringToIndex:MIN(10, peerID.length)]] progress:1.0];
+                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                    [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Synced %ld from %@", (long)replicatedCount, [peerID substringToIndex:MIN(10, peerID.length)]] progress:1.0 author:feedAuthor];
                 }
             });
         } else if (!response) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
-                    [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0];
+                if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                    [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:feedAuthor];
                 }
             });
         }
     }];
+    
+    // sendRPCRequest returns -1 if not connected — completion never fires
+    if (reqID < 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:feedAuthor];
+            }
+        });
+    }
 }
 
 - (void)ping {
@@ -649,15 +901,29 @@ static os_log_t ssb_room_log;
 - (void)disconnect {
     if (self.connection) nw_connection_cancel(self.connection);
     self.isConnected = NO;
+    self.isSyncingLocalFeed = NO;
 }
 
 - (int32_t)sendRPCRequest:(NSArray<NSString *> *)name args:(NSArray *)args type:(NSString *)type completion:(SSBRPCCallback)completion {
     if (!self.isConnected) {
-        NSLog(@"[ROOM_DIAG] Client: sendRPCRequest FAILED: Not connected");
+        SSBLogWarning(SSBLogCategoryNetwork, @"❌ sendRPCRequest FAILED: Not connected - %@", name);
+        if (completion) {
+            NSError *error = [NSError errorWithDomain:@"SSBRoomClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Not connected to server"}];
+            completion(nil, error);
+        }
         return -1;
     }
-    NSLog(@"[ROOM_DIAG] Client: sendRPCRequest: %@ type: %@", name, type);
-    return [self.rpcSession sendRequest:name args:args type:type completion:completion];
+    SSBLogInfo(SSBLogCategoryNetwork, @"📤 RPC Request: %@ type: %@ args: %@", name, type, args);
+    return [self.rpcSession sendRequest:name args:args type:type completion:^(id response, NSError *error) {
+        if (error) {
+            SSBLogError(SSBLogCategoryNetwork, @"❌ RPC Response error: %@ for %@", error.localizedDescription, name);
+        } else {
+            SSBLogInfo(SSBLogCategoryNetwork, @"✅ RPC Response: %@", name);
+        }
+        if (completion) {
+            completion(response, error);
+        }
+    }];
 }
 
 - (void)getSubset:(NSDictionary<NSString *, id> *)query
@@ -739,6 +1005,10 @@ static os_log_t ssb_room_log;
 - (NSString *)localPublicID {
     NSData *pkData = [self.localIdentitySecret subdataWithRange:NSMakeRange(32, 32)];
     return [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+}
+
+- (NSString *)serverPublicID {
+    return [NSString stringWithFormat:@"@%@.ed25519", [self.serverPubKey base64EncodedStringWithOptions:0]];
 }
 
 - (BOOL)isFeedSynced {

@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
                type:(NSString *)type
          completion:(nullable SSBRPCCallback)completion;
 
+- (void)sendData:(id)data forRequest:(int32_t)requestID isEnd:(BOOL)isEnd;
+
 @end
 
 NS_ASSUME_NONNULL_END

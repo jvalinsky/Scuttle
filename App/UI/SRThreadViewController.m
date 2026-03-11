@@ -2,6 +2,7 @@
 #import "SRFeedViewController.h"
 #import "SRFeedItem.h"
 #import <SSBNetwork/SSBThread.h>
+#import <SSBNetwork/SSBBlobStore.h>
 
 @interface SRThreadViewController ()
 @property (nonatomic, strong) NSCollectionView *collectionView;
@@ -12,10 +13,11 @@
 
 @implementation SRThreadViewController
 
-- (instancetype)initWithRootMessage:(SSBMessage *)message {
+- (instancetype)initWithRootMessage:(SSBMessage *)message client:(nullable SSBRoomClient *)client {
     self = [super init];
     if (self) {
         _rootMessage = message;
+        _client = client;
     }
     return self;
 }
@@ -94,6 +96,7 @@
 - (NSCollectionViewItem *)collectionView:(NSCollectionView *)collectionView itemForRepresentedObjectAtIndexPath:(NSIndexPath *)indexPath {
     SRFeedItem *item = [collectionView makeItemWithIdentifier:@"ThreadItem" forIndexPath:indexPath];
     item.representedObject = self.threadMessages[indexPath.item];
+    item.client = self.client;
     item.owner = self;
     return item;
 }
@@ -127,6 +130,21 @@
     
     CGFloat height = ceil(rect.size.height) + 80;
     if (height < 100) height = 100;
+    
+    NSString *blobID = [SRFeedItem extractBlobIDFromMessage:msg];
+    if (blobID) {
+        NSString *localPath = [[SSBBlobStore sharedStore] localPathForBlobID:blobID];
+        CGFloat imageHeight = 300;
+        if (localPath) {
+            NSImage *image = [[NSImage alloc] initWithContentsOfFile:localPath];
+            if (image && image.size.width > 0) {
+                CGFloat maxWidth = width + 14;
+                CGFloat aspectRatio = image.size.height / image.size.width;
+                imageHeight = MIN(maxWidth * aspectRatio, 300);
+            }
+        }
+        height += imageHeight + 16;
+    }
     
     return NSMakeSize(collectionView.bounds.size.width - 80, height);
 }
