@@ -22,19 +22,20 @@ typedef NS_ENUM(NSInteger, SSBLogCategory) {
     SSBLogCategoryAuth = 8
 };
 
-#define SSB_LOG_CATEGORY_NAME(cat) \
-    (cat == SSBLogCategoryGeneral ? "General" : \
-     cat == SSBLogCategoryUI ? "UI" : \
-     cat == SSBLogCategorySync ? "Sync" : \
-     cat == SSBLogCategoryNetwork ? "Network" : \
-     cat == SSBLogCategoryFeed ? "Feed" : \
-     cat == SSBLogCategoryProfile ? "Profile" : \
-     cat == SSBLogCategoryReplication ? "Replication" : \
-     cat == SSBLogCategoryDatabase ? "Database" : \
-     cat == SSBLogCategoryAuth ? "Auth" : "Unknown")
-
-#define SSB_LOG_FULL_NAME(bundle, cat) \
-    [NSString stringWithFormat:@"%@.%@", bundle, SSB_LOG_CATEGORY_NAME(cat)]
+static inline NSString *SSBLogCategoryName(SSBLogCategory cat) {
+    switch (cat) {
+        case SSBLogCategoryGeneral: return @"General";
+        case SSBLogCategoryUI: return @"UI";
+        case SSBLogCategorySync: return @"Sync";
+        case SSBLogCategoryNetwork: return @"Network";
+        case SSBLogCategoryFeed: return @"Feed";
+        case SSBLogCategoryProfile: return @"Profile";
+        case SSBLogCategoryReplication: return @"Replication";
+        case SSBLogCategoryDatabase: return @"Database";
+        case SSBLogCategoryAuth: return @"Auth";
+        default: return @"Unknown";
+    }
+}
 
 @interface SSBLogger : NSObject
 

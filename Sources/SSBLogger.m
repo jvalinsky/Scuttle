@@ -32,8 +32,7 @@
     NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier] ?: @"com.scuttlekit";
     
     for (NSInteger i = 0; i <= SSBLogCategoryAuth; i++) {
-        NSString *fullName = SSB_LOG_FULL_NAME(bundleID, (SSBLogCategory)i);
-        os_log_t log = os_log_create([bundleID UTF8String], [SSB_LOG_CATEGORY_NAME((SSBLogCategory)i) UTF8String]);
+        os_log_t log = os_log_create([bundleID UTF8String], [SSBLogCategoryName((SSBLogCategory)i) UTF8String]);
         self.logs[@(i)] = log;
     }
 }
@@ -59,7 +58,7 @@
             os_log_info(log, "%{public}@", message);
             break;
         case SSBLogLevelWarning:
-            os_log_warning(log, "%{public}@", message);
+            os_log(log, "%{public}@", message);
             break;
         case SSBLogLevelError:
             os_log_error(log, "%{public}@", message);
