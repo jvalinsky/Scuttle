@@ -193,14 +193,36 @@
     
     if ([alert runModal] == NSAlertFirstButtonReturn) {
         NSString *invite = input.stringValue;
+        if (invite.length == 0) {
+            NSAlert *err = [[NSAlert alloc] init];
+            err.messageText = @"Invalid Invite";
+            err.informativeText = @"Please enter an invite code.";
+            [err runModal];
+            return;
+        }
+        
+        // Show joining indicator
+        self.syncLabel.stringValue = @"Joining room...";
+        self.syncStatusContainer.hidden = NO;
+        [self.syncProgress startAnimation:nil];
+        
         [[SRRoomManager sharedManager] joinRoomWithInvite:invite completion:^(BOOL success, NSError * _Nullable error) {
             dispatch_async(dispatch_get_main_queue(), ^{
+                [self.syncProgress stopAnimation:nil];
+                self.syncStatusContainer.hidden = YES;
+                
                 if (!success) {
                     NSAlert *err = [[NSAlert alloc] init];
                     err.messageText = @"Join Failed";
                     err.informativeText = error.localizedDescription ?: @"Unknown error";
                     [err runModal];
                 } else {
+                    // Show success briefly
+                    self.syncLabel.stringValue = @"Joined room!";
+                    self.syncStatusContainer.hidden = NO;
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        self.syncStatusContainer.hidden = YES;
+                    });
                     [self.tableView reloadData];
                 }
             });

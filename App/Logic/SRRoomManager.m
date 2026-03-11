@@ -66,12 +66,13 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 
 - (void)joinRoomWithInvite:(NSString *)invite completion:(void (^)(BOOL success, NSError * _Nullable error))completion {
     if ([invite hasPrefix:@"http"]) {
-        NSData *savedIdentity = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+        NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
         NSString *myId;
         if (savedIdentity && savedIdentity.length >= 64) {
             NSData *pkData = [savedIdentity subdataWithRange:NSMakeRange(32, 32)];
             myId = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
         } else {
+            if (completion) completion(NO, [NSError errorWithDomain:@"SRRoomManager" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"No identity found. Please reset and create a new identity."}]);
             return;
         }
         
@@ -109,7 +110,7 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
         return;
     }
     
-    NSData *savedIdentity = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
     NSLog(@"[RoomManager] Creating client for %@ (identity present: %d)", config.host, savedIdentity != nil);
     
     SSBRoomClient *client = [[SSBRoomClient alloc] initWithConfig:config localIdentity:savedIdentity];
