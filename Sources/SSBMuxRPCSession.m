@@ -7,6 +7,7 @@ static os_log_t rpc_log;
 @interface SSBMuxRPCSession ()
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallback> *pendingRequests;
 @property (nonatomic, assign) int32_t nextRequestID;
+@property (nonatomic, strong) dispatch_queue_t accessQueue;
 @end
 
 @implementation SSBMuxRPCSession
@@ -22,6 +23,7 @@ static os_log_t rpc_log;
     if (self) {
         _pendingRequests = [NSMutableDictionary dictionary];
         _nextRequestID = 1;
+        _accessQueue = dispatch_queue_create("com.scuttlebutt.muxrpc.session", DISPATCH_QUEUE_SERIAL);
     }
     return self;
 }
@@ -30,8 +32,15 @@ static os_log_t rpc_log;
                args:(NSArray<id> *)args
                type:(NSString *)type
          completion:(nullable SSBRPCCallback)completion {
-    NSLog(@"[ROOM_DIAG] Session: sendRequest: %@, nextID: %d", method, self.nextRequestID);
-    int32_t reqNum = self.nextRequestID++;
+    __block int32_t reqNum;
+    dispatch_sync(self.accessQueue, ^{
+        reqNum = self.nextRequestID++;
+        if (completion) {
+            self.pendingRequests[@(reqNum)] = [completion copy];
+        }
+    });
+
+    NSLog(@"[ROOM_DIAG] Session: sendRequest: %@, reqNum: %d", method, reqNum);
     
     NSDictionary *bodyDict = @{
         @"name": method,
@@ -44,11 +53,17 @@ static os_log_t rpc_log;
     
     if (jsonError) {
         os_log_error(rpc_log, "JSON encoding error for RPC request: %{public}@", jsonError);
+        dispatch_async(self.accessQueue, ^{
+            [self.pendingRequests removeObjectForKey:@(reqNum)];
+        });
         if (completion) {
             completion(nil, jsonError);
         }
         return -1;
     }
+    
+    NSString *jsonString = [[NSString alloc] initWithData:bodyData encoding:NSUTF8StringEncoding];
+    NSLog(@"[ROOM_DIAG] Session: JSON payload: %@", jsonString);
     
     SSBMuxRPCFlags flags = SSBMuxRPCFlagTypeJSON;
     if ([type isEqualToString:@"source"] || [type isEqualToString:@"sink"] || [type isEqualToString:@"duplex"]) {
@@ -56,10 +71,6 @@ static os_log_t rpc_log;
     }
     
     SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:reqNum body:bodyData];
-    
-    if (completion) {
-        self.pendingRequests[@(reqNum)] = [completion copy];
-    }
     
     NSLog(@"[ROOM_DIAG] Session: Sending request %@ req=%d flags=%u", method, reqNum, flags);
     
@@ -93,9 +104,13 @@ static os_log_t rpc_log;
         
         NSLog(@"[ROOM_DIAG] Session: Parsed body: %@", parsedBody);
         
-        SSBRPCCallback callback = self.pendingRequests[@(reqNum)];
+        __block SSBRPCCallback callback = nil;
+        dispatch_sync(self.accessQueue, ^{
+            callback = self.pendingRequests[@(reqNum)];
+        });
+
         if (!callback) {
-            NSLog(@"[ROOM_DIAG] Session: NO CALLBACK FOUND for req=%d. Pending keys: %@", reqNum, self.pendingRequests.allKeys);
+            NSLog(@"[ROOM_DIAG] Session: NO CALLBACK FOUND for req=%d.", reqNum);
         }
         
         if (isEndErr) {
@@ -122,12 +137,16 @@ static os_log_t rpc_log;
                     callback(parsedBody, nil);
                 }
             }
-            [self.pendingRequests removeObjectForKey:@(reqNum)];
+            dispatch_async(self.accessQueue, ^{
+                [self.pendingRequests removeObjectForKey:@(reqNum)];
+            });
         } else {
             if (callback) {
                 callback(parsedBody, nil);
                 if (!isStream) {
-                    [self.pendingRequests removeObjectForKey:@(reqNum)];
+                    dispatch_async(self.accessQueue, ^{
+                        [self.pendingRequests removeObjectForKey:@(reqNum)];
+                    });
                 }
             }
         }

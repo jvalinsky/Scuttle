@@ -221,18 +221,34 @@ static os_log_t ssb_room_log;
         [weakSelf log:[NSString stringWithFormat:@"Identity: %@", response]];
     }];
     
+    __block BOOL metadataFinished = NO;
     [self sendRPCRequest:@[@"room", @"metadata"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (metadataFinished) return;
+        metadataFinished = YES;
         if ([response isKindOfClass:[NSDictionary class]]) {
             weakSelf.roomFeatures = response[@"features"];
             [weakSelf log:[NSString stringWithFormat:@"Room features: %@", weakSelf.roomFeatures]];
             [weakSelf announce];
+            [weakSelf subscribeToEndpoints];
             [weakSelf syncLocalFeed];
         } else {
-            [weakSelf log:@"No room metadata found, trying legacy announce"];
+            [weakSelf log:@"No room metadata found, trying legacy flow"];
             [weakSelf announce];
+            [weakSelf subscribeToEndpoints];
             [weakSelf syncLocalFeed];
         }
     }];
+    
+    // Timeout fallback after 5 seconds
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (!metadataFinished) {
+            [weakSelf log:@"room.metadata TIMEOUT, falling back to legacy flow"];
+            metadataFinished = YES;
+            [weakSelf announce];
+            [weakSelf subscribeToEndpoints];
+            [weakSelf syncLocalFeed];
+        }
+    });
     
     if (self.usedHTTPInvite && self.inviteToken) {
         [self redeemInvite:self.inviteToken completion:nil];
