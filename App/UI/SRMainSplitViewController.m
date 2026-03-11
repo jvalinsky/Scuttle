@@ -114,6 +114,14 @@
     [self addSplitViewItem:peerListItem];
     
     self.splitView.dividerStyle = NSSplitViewDividerStyleThin;
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:@"SRRoomSelectedNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusDidUpdate:) name:SRRoomManagerConnectionStatusChangedNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(endpointsDidUpdate:) name:SRRoomManagerDidUpdateEndpointsNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)statusDidUpdate:(NSNotification *)notification {
