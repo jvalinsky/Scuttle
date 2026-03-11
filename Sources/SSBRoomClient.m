@@ -38,6 +38,9 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) SSBFeedStore *feedStore;
 @property (nonatomic, readwrite, nullable) NSArray<NSString *> *roomFeatures;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBTunnelState *> *activeTunnels;
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingPublishQueue;
+@property (nonatomic, assign) BOOL isSyncingLocalFeed;
+@property (nonatomic, assign) NSInteger localFeedSeq;
 @end
 
 @implementation SSBRoomClient
@@ -85,6 +88,13 @@ static os_log_t ssb_room_log;
         _attendantsList = [NSMutableArray array];
         _feedStore = [SSBFeedStore sharedStore];
         _activeTunnels = [NSMutableDictionary dictionary];
+        _pendingPublishQueue = [NSMutableArray array];
+        _isSyncingLocalFeed = NO;
+        
+        // Load local feed sequence from store
+        NSString *myId = [self localPublicID];
+        SSBFeedState *state = [_feedStore feedStateForAuthor:myId];
+        _localFeedSeq = state ? state.maxSequence : 0;
     }
     return self;
 }
@@ -214,9 +224,11 @@ static os_log_t ssb_room_log;
             weakSelf.roomFeatures = response[@"features"];
             [weakSelf log:[NSString stringWithFormat:@"Room features: %@", weakSelf.roomFeatures]];
             [weakSelf announce];
+            [weakSelf syncLocalFeed];
         } else {
             [weakSelf log:@"No room metadata found, trying legacy announce"];
             [weakSelf announce];
+            [weakSelf syncLocalFeed];
         }
     }];
     
@@ -235,6 +247,62 @@ static os_log_t ssb_room_log;
 
 - (void)revokeAlias:(NSString *)alias completion:(nullable SSBRPCCallback)completion {
     [self sendRPCRequest:@[@"room", @"revokeAlias"] args:@[alias] type:@"async" completion:completion];
+}
+
+- (void)syncLocalFeed {
+    NSString *myId = [self localPublicID];
+    SSBFeedState *state = [self.feedStore feedStateForAuthor:myId];
+    NSInteger localSeq = state ? state.maxSequence : 0;
+    
+    // Start syncing
+    self.isSyncingLocalFeed = YES;
+    self.localFeedSeq = localSeq;
+    
+    NSLog(@"[Client] Starting local feed sync from sequence %ld", (long)localSeq);
+    
+    if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate roomClient:self didUpdateSyncStatus:@"Syncing your feed..." progress:0.0];
+        });
+    }
+    
+    NSDictionary *args = @{@"id": myId, @"limit": @100, @"reverse": @NO, @"live": @NO};
+    
+    __block NSInteger replicatedCount = 0;
+    [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
+        if (!error && [response isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *val = response[@"value"];
+            if ([SSBMessageCodec verifyMessage:val]) {
+                SSBMessage *msg = [[SSBMessage alloc] init];
+                msg.key = response[@"key"];
+                msg.author = val[@"author"];
+                msg.sequence = [val[@"sequence"] integerValue];
+                msg.previousKey = val[@"previous"];
+                msg.claimedTimestamp = [val[@"timestamp"] longLongValue];
+                msg.content = val[@"content"];
+                msg.contentType = msg.content[@"type"];
+                msg.valueJSON = [SSBMessageCodec encodeLegacyValue:val includeSignature:YES];
+                if ([self.feedStore appendMessage:msg error:nil]) {
+                    replicatedCount++;
+                }
+            }
+        }
+        
+        // Sync complete (no more messages)
+        if (!response) {
+            self.isSyncingLocalFeed = NO;
+            NSLog(@"[Client] Local feed sync complete: %ld messages", (long)replicatedCount);
+            
+            // Process any queued messages
+            [self processPublishQueue];
+            
+            if ([self.delegate respondsToSelector:@selector(roomClientDidSyncLocalFeed:)]) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.delegate roomClientDidSyncLocalFeed:self];
+                });
+            }
+        }
+    }];
 }
 
 - (void)fetchFeedForPeer:(NSString *)peerID limit:(NSInteger)limit completion:(nullable SSBRPCCallback)completion {
@@ -273,18 +341,31 @@ static os_log_t ssb_room_log;
 }
 
 - (nullable SSBMessage *)publishLocalMessageWithContent:(NSDictionary *)content error:(NSError **)error {
-    // Fork prevention: Don't publish if our feed hasn't fully synced
+    // Fork prevention: Queue message if our feed hasn't fully synced
     // This prevents creating forked feeds which can corrupt your identity
     if (!self.isFeedSynced) {
-        if (error) {
-            *error = [NSError errorWithDomain:@"SSB" code:100 userInfo:@{
-                NSLocalizedDescriptionKey: @"Cannot publish: Your feed is still syncing. Please wait for sync to complete."
-            }];
+        // Add to queue instead of blocking
+        NSDictionary *queuedItem = @{
+            @"content": content,
+            @"timestamp": @([[NSDate date] timeIntervalSince1970])
+        };
+        [self.pendingPublishQueue addObject:queuedItem];
+        NSLog(@"[Client] Message queued for publish (not synced). Queue count: %lu", (unsigned long)self.pendingPublishQueue.count);
+        
+        // Notify delegate
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:)]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Queued (%lu)", (unsigned long)self.pendingPublishQueue.count] progress:0];
+            });
         }
-        NSLog(@"[Client] Publish blocked: feed not synced");
         return nil;
     }
     
+    // Feed is synced, publish immediately
+    return [self publishMessageNow:content error:error];
+}
+
+- (nullable SSBMessage *)publishMessageNow:(NSDictionary *)content error:(NSError **)error {
     NSString *myId = [self localPublicID];
     SSBFeedState *state = [self.feedStore feedStateForAuthor:myId];
     NSInteger nextSeq = state ? state.maxSequence + 1 : 1;
@@ -313,6 +394,49 @@ static os_log_t ssb_room_log;
     
     if (![self.feedStore appendMessage:msg error:error]) return nil;
     return msg;
+}
+
+- (void)processPublishQueue {
+    if (self.pendingPublishQueue.count == 0) {
+        return;
+    }
+    
+    if (!self.isFeedSynced) {
+        NSLog(@"[Client] Cannot process queue: feed not synced yet");
+        return;
+    }
+    
+    NSLog(@"[Client] Processing publish queue: %lu messages", (unsigned long)self.pendingPublishQueue.count);
+    
+    NSMutableArray *failedItems = [NSMutableArray array];
+    NSInteger successCount = 0;
+    
+    for (NSDictionary *queuedItem in [self.pendingPublishQueue copy]) {
+        NSDictionary *content = queuedItem[@"content"];
+        NSError *error = nil;
+        SSBMessage *msg = [self publishMessageNow:content error:&error];
+        
+        if (msg) {
+            successCount++;
+            [self.pendingPublishQueue removeObject:queuedItem];
+        } else {
+            NSLog(@"[Client] Failed to publish queued message: %@", error.localizedDescription);
+            [failedItems addObject:queuedItem];
+        }
+    }
+    
+    // Keep failed items in queue for retry
+    [self.pendingPublishQueue removeAllObjects];
+    [self.pendingPublishQueue addObjectsFromArray:failedItems];
+    
+    NSLog(@"[Client] Publish queue processed: %ld success, %lu remaining", (long)successCount, (unsigned long)self.pendingPublishQueue.count);
+    
+    // Notify delegate
+    if ([self.delegate respondsToSelector:@selector(roomClientDidProcessPublishQueue:success:queuedCount:)]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate roomClientDidProcessPublishQueue:self success:(failedItems.count == 0) queuedCount:self.pendingPublishQueue.count];
+        });
+    }
 }
 
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost {
@@ -571,6 +695,15 @@ static os_log_t ssb_room_log;
 - (NSString *)localPublicID {
     NSData *pkData = [self.localIdentitySecret subdataWithRange:NSMakeRange(32, 32)];
     return [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+}
+
+- (BOOL)isFeedSynced {
+    // Feed is synced if we're not actively syncing AND local sequence matches server
+    return !self.isSyncingLocalFeed;
+}
+
+- (NSInteger)pendingMessagesCount {
+    return self.pendingPublishQueue.count;
 }
 
 - (void)scheduleReconnect {

@@ -24,6 +24,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)roomClient:(id)client didReplicateMessagesFromPeer:(NSString *)peerId count:(NSInteger)count;
 /// Called when sync status or progress changes.
 - (void)roomClient:(id)client didUpdateSyncStatus:(NSString *)status progress:(float)progress;
+/// Called when the local feed is fully synced and ready to publish.
+- (void)roomClientDidSyncLocalFeed:(id)client;
+/// Called when messages in the publish queue have been processed.
+- (void)roomClientDidProcessPublishQueue:(id)client success:(BOOL)success queuedCount:(NSInteger)count;
 @end
 
 /// High-level client for connecting to an SSB-Room server and managing muxrpc tunneling.
@@ -31,6 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<SSBRoomClientDelegate> delegate;
 @property (nonatomic, readonly) BOOL isConnected;
+@property (nonatomic, readonly) BOOL isFeedSynced;
+@property (nonatomic, readonly) NSInteger pendingMessagesCount;
 @property (nonatomic, assign) BOOL autoReconnect;
 
 @property (nonatomic, readonly) NSString *host;

@@ -1,4 +1,6 @@
 #import "SRComposeViewController.h"
+#import "../Logic/SRRoomManager.h"
+#import <SSBNetwork/SSBRoomClient.h>
 
 @interface SRComposeViewController ()
 @property (nonatomic, strong) NSTextView *textView;
@@ -22,6 +24,11 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     [self setupUI];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(syncStatusDidUpdate:) 
+                                                 name:@"SRRoomSyncStatusChangedNotification" 
+                                               object:nil];
 }
 
 - (void)setupUI {
@@ -82,6 +89,25 @@
     self.textView.string = @"";
     self.cwField.stringValue = @"";
     self.replyToKey = nil;
+}
+
+- (void)syncStatusDidUpdate:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *status = userInfo[@"status"];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Disable publish if syncing or queued
+        BOOL isSyncing = [status containsString:@"Syncing"] || [status containsString:@"Queued"];
+        self.publishButton.enabled = !isSyncing;
+        
+        if ([status containsString:@"Queued"]) {
+            self.publishButton.title = [NSString stringWithFormat:@"Publish (%@)", status];
+        } else if (isSyncing) {
+            self.publishButton.title = @"Syncing...";
+        } else {
+            self.publishButton.title = @"Publish";
+        }
+    });
 }
 
 @end
