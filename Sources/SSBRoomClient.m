@@ -10,18 +10,9 @@
 #import "SSBSecretHandshake.h"
 #import "SSBBlobStore.h"
 #import "tweetnacl.h"
+#import "SSBTunnelConnection.h"
 
 static os_log_t ssb_room_log;
-
-@interface SSBTunnelState : NSObject
-@property (nonatomic, strong) NSString *peerId;
-@property (nonatomic, assign) int32_t reqID;
-@property (nonatomic, assign) BOOL isEstablished;
-@property (nonatomic, strong) SSBSecretHandshake *shs;
-@end
-
-@implementation SSBTunnelState
-@end
 
 @interface SSBRoomClient ()
 @property (nonatomic, copy) NSString *host;
@@ -41,7 +32,7 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) SSBFeedStore *feedStore;
 @property (nonatomic, readwrite, nullable) NSArray<NSString *> *roomFeatures;
 @property (nonatomic, readwrite) BOOL isInternalUser;
-@property (nonatomic, strong) NSMutableDictionary<NSString *, SSBTunnelState *> *activeTunnels;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, SSBTunnelConnection *> *activeTunnels;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingPublishQueue;
 @property (nonatomic, assign) BOOL isSyncingLocalFeed;
 @property (nonatomic, assign) NSInteger localFeedSeq;
@@ -594,20 +585,25 @@ static os_log_t ssb_room_log;
 
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost {
     SSBLogInfo(SSBLogCategoryReplication, @"🔄 replicateFromPeer: %@ via room: %@", [peerID substringToIndex:MIN(8, peerID.length)], roomHost);
-    SSBLogInfo(SSBLogCategoryReplication, @"🔗 Connection state: connected=%d ebtRunning=%d", self.isConnected, self.isEBTRunning);
-    [self startEBTReplication];
+    
+    SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+    if (tunnel && tunnel.isConnected) {
+        [self startEBTReplicationWithSession:tunnel.rpcSession];
+    } else if (!tunnel) {
+        [self connectToPeer:peerID];
+    }
 }
 
 #pragma mark - Replication (EBT)
 
-- (void)startEBTReplication {
+- (void)startEBTReplicationWithSession:(SSBMuxRPCSession *)session {
     if (self.isEBTRunning) return;
     
     NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
     NSDictionary *args = @{@"version": @3};
     
     __weak typeof(self) weakSelf = self;
-    self.ebtRequestID = [self.rpcSession sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+    self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
             os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
             weakSelf.isEBTRunning = NO;
@@ -620,8 +616,12 @@ static os_log_t ssb_room_log;
     self.remoteClock = [NSMutableDictionary dictionary];
     
     // Send initial clock
-    [self.rpcSession sendData:clock forRequest:self.ebtRequestID isEnd:NO];
-    os_log_info(ssb_room_log, "EBT Started replication with clock of %lu feeds", (unsigned long)clock.count);
+    [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
+    os_log_info(ssb_room_log, "EBT Started replication over tunnel with clock of %lu feeds", (unsigned long)clock.count);
+}
+
+- (void)startEBTReplication {
+    [self startEBTReplicationWithSession:self.rpcSession];
 }
 
 - (void)handleEBTMessage:(id)message {
@@ -885,15 +885,44 @@ static os_log_t ssb_room_log;
         return;
     }
     
-    SSBSecretHandshake *shs = [[SSBSecretHandshake alloc] initWithRole:YES localIdentity:self.localIdentitySecret remotePublicKey:remotePubKey];
-    
-    SSBTunnelState *tunnel = [[SSBTunnelState alloc] init];
-    tunnel.peerId = targetPeerId;
-    tunnel.shs = shs;
-    
     NSDictionary *args = @{@"portal": [self localPublicID], @"target": targetPeerId};
-    int32_t reqID = [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[args] type:@"duplex" completion:nil];
-    tunnel.reqID = reqID;
+    
+    __weak typeof(self) weakSelf = self;
+    __block int32_t reqID = 0;
+    reqID = [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[args] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        
+        SSBTunnelConnection *tunnel = strongSelf.activeTunnels[targetPeerId];
+        if (error || !tunnel) {
+            os_log_error(ssb_room_log, "Tunnel connection failed to %@", targetPeerId);
+            [strongSelf.activeTunnels removeObjectForKey:targetPeerId];
+            return;
+        }
+        
+        if ([response isKindOfClass:[NSData class]]) {
+            [tunnel receiveTunnelData:(NSData *)response];
+        } else if ([response isKindOfClass:[NSString class]]) {
+            [tunnel receiveTunnelData:[(NSString *)response dataUsingEncoding:NSUTF8StringEncoding]];
+        }
+    }];
+    
+    SSBTunnelConnection *tunnel = [[SSBTunnelConnection alloc] initWithPeerId:targetPeerId
+                                                              peerPublicKey:remotePubKey
+                                                              localIdentity:self.localIdentitySecret
+                                                                roomSession:self.rpcSession
+                                                                tunnelReqID:reqID];
+    
+    __weak typeof(self) weakSelfOuter = self;
+    tunnel.onConnectionStateReady = ^{
+        __strong typeof(weakSelfOuter) strongSelfOuter = weakSelfOuter;
+        if (strongSelfOuter) {
+            os_log_info(ssb_room_log, "Tunnel to %@ is ready for RPC!", targetPeerId);
+            [strongSelfOuter replicateFromPeer:targetPeerId viaRoom:strongSelfOuter.host];
+        }
+    };
+    
+    [tunnel start];
     
     self.activeTunnels[targetPeerId] = tunnel;
 }

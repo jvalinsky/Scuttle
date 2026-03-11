@@ -152,7 +152,7 @@
     }
     
     if (!client.isConnected) {
-        SSBLogError(SSBLogCategoryUI, @"   ❌ Client not connected!");
+        SSBLogError(SSBLogCategoryUI, @"   ❌ Client not connected! Checking host: %@", client.host);
         self.emptyLabel.stringValue = @"Not connected to server";
         self.emptyLabel.hidden = NO;
         return;
@@ -172,19 +172,23 @@
     // Fetch profile (about)
     __weak typeof(self) weakSelf = self;
     [client fetchProfileForPeer:author completion:^(id _Nullable response, NSError * _Nullable error) {
-        if (!error && [response isKindOfClass:[NSDictionary class]]) {
-            SSBLogInfo(SSBLogCategoryUI, @"   ✅ Profile fetched: %@", response);
-            NSString *name = response[@"name"];
-            NSString *image = response[@"image"];
-            if ([name isKindOfClass:[NSString class]] || [image isKindOfClass:[NSString class]]) {
-                [[SSBFeedStore sharedStore] setDisplayName:name image:image forAuthor:author];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [[NSNotificationCenter defaultCenter] postNotificationName:@"SRProfileUpdatedNotification" object:author];
-                    [weakSelf refreshFeed];
-                });
-            }
-        } else if (error) {
+        if (error) {
             SSBLogError(SSBLogCategoryUI, @"   ❌ Profile fetch error: %@", error.localizedDescription);
+        } else if (response) {
+            SSBLogInfo(SSBLogCategoryUI, @"   ✅ Profile fetched: %@", response);
+            if ([response isKindOfClass:[NSDictionary class]]) {
+                NSString *name = response[@"name"];
+                NSString *image = response[@"image"];
+                if ([name isKindOfClass:[NSString class]] || [image isKindOfClass:[NSString class]]) {
+                    [[SSBFeedStore sharedStore] setDisplayName:name image:image forAuthor:author];
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRProfileUpdatedNotification" object:author];
+                        [weakSelf refreshFeed];
+                    });
+                }
+            }
+        } else {
+            SSBLogWarning(SSBLogCategoryUI, @"   ⚠️ No profile response");
         }
     }];
     
@@ -193,7 +197,23 @@
         dispatch_async(dispatch_get_main_queue(), ^{
             [weakSelf.progressIndicator stopAnimation:nil];
         });
-        if (!error && [response isKindOfClass:[NSDictionary class]]) {
+        
+        if (error) {
+            SSBLogError(SSBLogCategoryUI, @"   ❌ Feed fetch error: %@", error.localizedDescription);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSString *errStr = error.localizedDescription.lowercaseString;
+                if ([errStr containsString:@"could not find"] || 
+                    [errStr containsString:@"no messages"] || 
+                    [errStr containsString:@"stream is closed"] || 
+                    [errStr containsString:@"unexpected end"] ||
+                    [errStr containsString:@"not connected"]) {
+                    weakSelf.emptyLabel.stringValue = @"No messages found";
+                } else {
+                    weakSelf.emptyLabel.stringValue = [NSString stringWithFormat:@"Error loading feed:\n%@", error.localizedDescription];
+                }
+                weakSelf.emptyLabel.hidden = NO;
+            });
+        } else if (response && [response isKindOfClass:[NSDictionary class]]) {
             SSBLogInfo(SSBLogCategoryUI, @"   ✅ Feed fetched successfully");
             NSDictionary *val = response[@"value"];
             if ([SSBMessageCodec verifyMessage:val]) {
@@ -210,24 +230,12 @@
                     [weakSelf refreshFeed];
                 });
             }
-        } else if (error) {
-            SSBLogError(SSBLogCategoryUI, @"   ❌ Feed fetch error: %@", error.localizedDescription);
-            dispatch_async(dispatch_get_main_queue(), ^{
-                NSString *errStr = error.localizedDescription.lowercaseString;
-                if ([errStr containsString:@"could not find"] || 
-                    [errStr containsString:@"no messages"] || 
-                    [errStr containsString:@"stream is closed"] || 
-                    [errStr containsString:@"unexpected end"]) {
-                    weakSelf.emptyLabel.stringValue = @"No messages found";
-                } else {
-                    weakSelf.emptyLabel.stringValue = [NSString stringWithFormat:@"Error loading feed:\n%@", error.localizedDescription];
-                }
-                weakSelf.emptyLabel.hidden = NO;
-            });
         } else {
             SSBLogWarning(SSBLogCategoryUI, @"   ⚠️ No response (peer may have no messages)");
-            weakSelf.emptyLabel.stringValue = @"No messages found";
-            weakSelf.emptyLabel.hidden = NO;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                weakSelf.emptyLabel.stringValue = @"No messages found";
+                weakSelf.emptyLabel.hidden = NO;
+            });
         }
     }];
 }

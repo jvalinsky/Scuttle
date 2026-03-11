@@ -888,9 +888,9 @@
     NSMutableDictionary *activeTunnels = [self.client valueForKey:@"activeTunnels"];
     id tunnel = activeTunnels[targetPeerId];
     
-    XCTAssertNotNil(tunnel, @"Tunnel state should be created for the peer");
-    XCTAssertNotNil([tunnel valueForKey:@"shs"], @"Inner Secret Handshake should be initialized");
-    XCTAssertTrue([[tunnel valueForKey:@"reqID"] intValue] > 0, @"Request ID should be assigned");
+    XCTAssertNotNil(tunnel, @"Tunnel connection should be created for the peer");
+    XCTAssertNotNil([tunnel valueForKey:@"clientConnection"], @"Inner client connection should be initialized");
+    XCTAssertTrue([[tunnel valueForKey:@"tunnelReqID"] intValue] > 0, @"Request ID should be assigned");
     
     NSLog(@"[TEST TUNNELED CONNECTION] ✓ Step 1-2 passed: Tunnel state and SHS initialized");
 }

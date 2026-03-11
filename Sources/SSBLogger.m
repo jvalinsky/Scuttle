@@ -29,7 +29,7 @@
 }
 
 - (void)createLogsForAllCategories {
-    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier] ?: @"com.scuttlekit";
+    NSString *bundleID = @"com.scuttlebutt.room"; // Match existing logging subsystem
     
     for (NSInteger i = 0; i <= SSBLogCategoryAuth; i++) {
         os_log_t log = os_log_create([bundleID UTF8String], [SSBLogCategoryName((SSBLogCategory)i) UTF8String]);
