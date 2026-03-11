@@ -43,11 +43,7 @@
         [self.scrollView.bottomAnchor constraintEqualToAnchor:container.bottomAnchor]
     ]];
     
-    if (@available(macOS 11.0, *)) {
-        [self.backButton.topAnchor constraintEqualToAnchor:container.safeAreaLayoutGuide.topAnchor constant:12].active = YES;
-    } else {
-        [self.backButton.topAnchor constraintEqualToAnchor:container.topAnchor constant:52].active = YES;
-    }
+    [self.backButton.topAnchor constraintEqualToAnchor:container.safeAreaLayoutGuide.topAnchor constant:12].active = YES;
     
     self.view = container;
 }

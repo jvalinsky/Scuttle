@@ -110,9 +110,7 @@
     self.tableView.backgroundColor = [NSColor clearColor];
     self.tableView.rowHeight = 44;
     
-    if (@available(macOS 11.0, *)) {
-        self.tableView.style = NSTableViewStyleSourceList;
-    }
+    self.tableView.style = NSTableViewStyleSourceList;
     
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:@"RoomColumn"];
     [self.tableView addTableColumn:column];
@@ -177,11 +175,7 @@
         [self.syncLabel.centerYAnchor constraintEqualToAnchor:self.syncStatusContainer.centerYAnchor]
     ]];
     
-    if (@available(macOS 11.0, *)) {
-        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
-    } else {
-        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40].active = YES;
-    }
+    [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
 }
 
 - (void)joinRoomAction:(id)sender {

@@ -5,7 +5,7 @@ targets:
   SSBNetwork:
     type: framework
     platform: macOS
-    deploymentTarget: "10.15"
+    deploymentTarget: "13.0"
     sources:
       - path: Sources
     dependencies:
@@ -17,7 +17,7 @@ targets:
   SSBNetworkTests:
     type: bundle.unit-test
     platform: macOS
-    deploymentTarget: "10.15"
+    deploymentTarget: "13.0"
     sources:
       - path: Tests
     dependencies:
@@ -28,7 +28,7 @@ targets:
   ScuttleRoomApp:
     type: application
     platform: macOS
-    deploymentTarget: "10.15"
+    deploymentTarget: "13.0"
     sources:
       - path: App
     dependencies:

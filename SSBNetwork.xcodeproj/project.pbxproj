@@ -38,6 +38,7 @@
 		585777B3264C53A370D9B1A9 /* SSBMuxRPC.m in Sources */ = {isa = PBXBuildFile; fileRef = 798B55FEB82324DA55E84BE8 /* SSBMuxRPC.m */; };
 		59C7722FFBE59082E6FEFC4E /* SSBFeedStore.m in Sources */ = {isa = PBXBuildFile; fileRef = C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */; };
 		5AF3E0900EE39BCEB8F9512A /* SSBSecurityFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 271691BC4736F87E224B180D /* SSBSecurityFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		642760A729FD7092EEB77A41 /* SRDevPanelViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F67FB0069C61716A718EFB48 /* SRDevPanelViewController.m */; };
 		701850D03E6E980D6C2A8C93 /* SRThreadViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F8500979B39EDBFE8CE1E707 /* SRThreadViewController.m */; };
 		706E3AF480C628B95630B19E /* SRFeedViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = E266A73C95FBF47F2BC5EFBA /* SRFeedViewController.m */; };
 		738A49099B58D25144BF016A /* SRProfileHeaderView.m in Sources */ = {isa = PBXBuildFile; fileRef = 82F2D92492AB62172A997796 /* SRProfileHeaderView.m */; };
@@ -141,6 +142,7 @@
 		0CE6935AA71CFF036FA83BEC /* SRProfileViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRProfileViewController.h; sourceTree = "<group>"; };
 		13E59A3B54452B72A68242DA /* SSBMuxRPCFramer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPCFramer.m; sourceTree = "<group>"; };
 		13F4CE327FDC3F8151698123 /* SRFeedItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRFeedItem.h; sourceTree = "<group>"; };
+		1600DA85D3B35263B2E5ECE0 /* SRDevPanelViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRDevPanelViewController.h; sourceTree = "<group>"; };
 		1652E8449DF14ADC652A4A9F /* SRFeedViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRFeedViewController.h; sourceTree = "<group>"; };
 		189BDF5A7F57785FA15BF879 /* SSBMetafeed.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMetafeed.h; sourceTree = "<group>"; };
 		190288FEB12E8B92A41A5E81 /* SSBMuxRPCFramer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMuxRPCFramer.h; sourceTree = "<group>"; };
@@ -225,6 +227,7 @@
 		ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBConnectionFSM.m; sourceTree = "<group>"; };
 		EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPeerListViewController.m; sourceTree = "<group>"; };
 		F325B1D6582DD9CC76FC5697 /* SSBBIPF.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBIPF.m; sourceTree = "<group>"; };
+		F67FB0069C61716A718EFB48 /* SRDevPanelViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRDevPanelViewController.m; sourceTree = "<group>"; };
 		F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		F8500979B39EDBFE8CE1E707 /* SRThreadViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRThreadViewController.m; sourceTree = "<group>"; };
 		FF643DB59B16753E557EAF57 /* SSBURI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBURI.m; sourceTree = "<group>"; };
@@ -284,6 +287,8 @@
 				DF7FFFBA4AD282CE691A57A3 /* SRChannelBrowserViewController.m */,
 				E559364C3B3E4B49DDCD57EC /* SRComposeViewController.h */,
 				080A56BD6BE1973B64CF3DE6 /* SRComposeViewController.m */,
+				1600DA85D3B35263B2E5ECE0 /* SRDevPanelViewController.h */,
+				F67FB0069C61716A718EFB48 /* SRDevPanelViewController.m */,
 				EA27BA906C2381C5FCB41AAA /* SRErrorBannerView.h */,
 				D2DA508E1273039791E82A04 /* SRErrorBannerView.m */,
 				13F4CE327FDC3F8151698123 /* SRFeedItem.h */,
@@ -598,6 +603,7 @@
 				8AF74B0C6F85ABD1BAAFBB44 /* AppDelegate.m in Sources */,
 				A54BEBA47C18D784D287730B /* SRChannelBrowserViewController.m in Sources */,
 				155CCA0FA02016061106A456 /* SRComposeViewController.m in Sources */,
+				642760A729FD7092EEB77A41 /* SRDevPanelViewController.m in Sources */,
 				38816F2483F37CA70362BA4C /* SRErrorBannerView.m in Sources */,
 				2C54FA73EF2F1B21DB48083C /* SRFeedItem.m in Sources */,
 				706E3AF480C628B95630B19E /* SRFeedViewController.m in Sources */,
@@ -716,7 +722,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.ScuttleRoomApp;
 				SDKROOT = macosx;
 			};
@@ -734,7 +740,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.ScuttleRoomApp;
 				SDKROOT = macosx;
 			};
@@ -757,7 +763,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetwork;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -777,7 +783,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetworkTests;
 				SDKROOT = macosx;
 			};
@@ -850,7 +856,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetworkTests;
 				SDKROOT = macosx;
 			};
@@ -873,7 +879,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBNetwork;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;

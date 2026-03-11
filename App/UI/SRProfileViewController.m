@@ -37,7 +37,7 @@
     self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.headerView];
     
-    self.backButton = [NSButton buttonWithImage:[NSImage imageNamed:NSImageNameTouchBarGoBackTemplate] target:self action:@selector(backAction:)];
+    self.backButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"chevron.left" accessibilityDescription:@"Back"] target:self action:@selector(backAction:)];
     self.backButton.bezelStyle = NSBezelStyleTexturedRounded;
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.backButton];
@@ -67,13 +67,8 @@
         [self.feedVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
     ]];
 
-    if (@available(macOS 11.0, *)) {
-        [self.backButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12].active = YES;
-        [self.headerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
-    } else {
-        [self.backButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:52].active = YES;
-        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40].active = YES;
-    }
+    [self.backButton.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:12].active = YES;
+    [self.headerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
     
     [self.headerView updateWithIdentity:self.peerID name:nil];
     [self.feedVC loadFeedForAuthor:self.peerID client:self.client];

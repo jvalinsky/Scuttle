@@ -101,10 +101,7 @@
     self.tableView.rowHeight = 44;
     self.tableView.selectionHighlightStyle = NSTableViewSelectionHighlightStyleRegular;
     
-    // In macOS 11+, we should set the style.
-    if (@available(macOS 11.0, *)) {
-        self.tableView.style = NSTableViewStyleSourceList;
-    }
+    self.tableView.style = NSTableViewStyleSourceList;
     
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:@"PeerColumn"];
     column.resizingMask = NSTableColumnAutoresizingMask;

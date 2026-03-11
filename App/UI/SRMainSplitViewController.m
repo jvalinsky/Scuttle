@@ -55,11 +55,7 @@
         [self.errorBanner.heightAnchor constraintEqualToConstant:40]
     ]];
     
-    if (@available(macOS 11.0, *)) {
-        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor].active = YES;
-    } else {
-        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.topAnchor constant:40].active = YES;
-    }
+    [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor].active = YES;
     
     self.headerView = [[SRProfileHeaderView alloc] init];
     self.headerView.hidesProfileButton = YES;
@@ -400,7 +396,7 @@
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.label = @"Compose";
         item.paletteLabel = @"Compose";
-        item.image = [NSImage imageNamed:NSImageNameAddTemplate];
+        item.image = [NSImage imageWithSystemSymbolName:@"square.and.pencil" accessibilityDescription:@"Compose"];
         item.target = self;
         item.action = @selector(toolbarCompose:);
         return item;
@@ -408,7 +404,7 @@
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.label = @"Refresh";
         item.paletteLabel = @"Refresh";
-        item.image = [NSImage imageNamed:NSImageNameRefreshTemplate];
+        item.image = [NSImage imageWithSystemSymbolName:@"arrow.clockwise" accessibilityDescription:@"Refresh"];
         item.target = self;
         item.action = @selector(toolbarRefresh:);
         return item;
@@ -421,25 +417,13 @@
         item.paletteLabel = @"Toggle Feed Type";
         return item;
     } else if ([itemIdentifier isEqualToString:@"Search"]) {
-    if (@available(macOS 11.0, *)) {
-        NSSearchToolbarItem *searchItem = [[NSSearchToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+    NSSearchToolbarItem *searchItem = [[NSSearchToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         searchItem.label = @"Search";
         searchItem.paletteLabel = @"Search Messages";
         searchItem.searchField.delegate = (id<NSSearchFieldDelegate>)self;
         searchItem.action = @selector(toolbarSearch:);
         searchItem.target = self;
         return searchItem;
-    } else {
-        NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
-        item.label = @"Search";
-        item.paletteLabel = @"Search Messages";
-        NSSearchField *searchField = [[NSSearchField alloc] initWithFrame:NSMakeRect(0, 0, 150, 22)];
-        searchField.delegate = (id<NSSearchFieldDelegate>)self;
-        searchField.action = @selector(toolbarSearch:);
-        searchField.target = self;
-        item.view = searchField;
-        return item;
-    }
     }
     return nil;
 }
@@ -454,17 +438,8 @@
 
 - (void)toolbarSearch:(id)sender {
     NSString *query = @"";
-    if (@available(macOS 11.0, *)) {
-        if ([sender isKindOfClass:[NSSearchToolbarItem class]]) {
-            query = ((NSSearchToolbarItem *)sender).searchField.stringValue;
-        }
-    } else {
-        if ([sender isKindOfClass:[NSToolbarItem class]]) {
-            NSToolbarItem *item = (NSToolbarItem *)sender;
-            if ([item.view isKindOfClass:[NSSearchField class]]) {
-                query = ((NSSearchField *)item.view).stringValue;
-            }
-        }
+    if ([sender isKindOfClass:[NSSearchToolbarItem class]]) {
+        query = ((NSSearchToolbarItem *)sender).searchField.stringValue;
     }
     
     if (self.threadVC.view.superview) {

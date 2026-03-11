@@ -1,5 +1,7 @@
 # Agent Instructions
 
+**Minimum macOS Version: 13.0 (Ventura)** - This project requires macOS 13 or later.
+
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
 ## Quick Reference
