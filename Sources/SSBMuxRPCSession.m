@@ -158,9 +158,13 @@ static os_log_t rpc_log;
                     callback(parsedBody, nil);
                 }
             }
-            dispatch_async(self.accessQueue, ^{
-                [self.pendingRequests removeObjectForKey:@(reqNum)];
-            });
+            
+            // Only remove callback if this is NOT a stream, OR if it's the end of a stream
+            if (!isStream || isEndErr) {
+                dispatch_async(self.accessQueue, ^{
+                    [self.pendingRequests removeObjectForKey:@(reqNum)];
+                });
+            }
         } else {
             if (callback) {
                 callback(parsedBody, nil);

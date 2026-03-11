@@ -19,6 +19,8 @@
 @property (nonatomic, strong) nw_connection_t clientConnection;
 @property (nonatomic, strong) dispatch_queue_t tunnelQueue;
 @property (nonatomic, strong) os_log_t log;
+@property (nonatomic, assign) BOOL isHandshakeComplete;
+@property (nonatomic, strong) NSMutableArray<SSBMuxRPCMessage *> *pendingMessages;
 @end
 
 @implementation SSBTunnelConnection
@@ -37,13 +39,21 @@
         _roomSession = roomSession;
         _tunnelReqID = tunnelReqID;
         _tunnelQueue = dispatch_queue_create("com.scuttlebutt.tunnel.queue", DISPATCH_QUEUE_SERIAL);
+        _pendingMessages = [NSMutableArray array];
         
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
         __weak typeof(self) weakSelf = self;
         _rpcSession.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
             __strong typeof(weakSelf) strongSelf = weakSelf;
-            if (strongSelf && strongSelf.clientConnection) {
+            if (!strongSelf) return;
+            
+            if (!strongSelf.isHandshakeComplete) {
+                [strongSelf.pendingMessages addObject:message];
+                return;
+            }
+            
+            if (strongSelf.clientConnection) {
                 NSData *data = [message serialize];
                 if (!data) return;
                 
@@ -131,6 +141,13 @@
         if (state == nw_connection_state_ready) {
             os_log_info(weakSelf.log, "Tunnel client connection (with framers) ready");
             weakSelf.isConnected = YES;
+            weakSelf.isHandshakeComplete = YES;
+            
+            NSArray<SSBMuxRPCMessage *> *pending = [weakSelf.pendingMessages copy];
+            [weakSelf.pendingMessages removeAllObjects];
+            for (SSBMuxRPCMessage *msg in pending) {
+                weakSelf.rpcSession.sendMessageBlock(msg);
+            }
             
             if (weakSelf.onConnectionStateReady) {
                 dispatch_async(dispatch_get_main_queue(), ^{

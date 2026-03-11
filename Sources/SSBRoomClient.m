@@ -362,8 +362,39 @@ static os_log_t ssb_room_log;
 
 - (void)fetchFeedForPeer:(NSString *)peerID limit:(NSInteger)limit completion:(nullable SSBRPCCallback)completion {
     SSBLogInfo(SSBLogCategoryProfile, @"📥 fetchFeedForPeer: limit=%ld peer=%@", (long)limit, [peerID substringToIndex:MIN(8, peerID.length)]);
+    
+    NSString *roomId = [NSString stringWithFormat:@"@%@.ed25519", [self.serverPubKey base64EncodedStringWithOptions:0]];
+    BOOL isRoom = [peerID isEqualToString:roomId] || [peerID isEqualToString:self.host];
+    BOOL isSelf = [peerID isEqualToString:self.localPublicID];
+    
+    SSBMuxRPCSession *session = self.rpcSession;
+    BOOL connected = self.isConnected;
+    
+    if (!isRoom && !isSelf) {
+        SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+        if (!tunnel) {
+            [self connectToPeer:peerID];
+            tunnel = self.activeTunnels[peerID];
+        }
+        
+        if (tunnel) {
+            session = tunnel.rpcSession;
+            // The connection might not be ready yet, but nw_connection will buffer the send
+            connected = YES;
+        } else {
+            connected = NO;
+        }
+    }
+    
+    if (!connected) {
+        if (completion) {
+            completion(nil, [NSError errorWithDomain:@"SSBRoomClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Not connected"}]);
+        }
+        return;
+    }
+    
     NSDictionary *args = @{@"id": peerID, @"limit": @(limit), @"reverse": @YES, @"live": @NO};
-    [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
+    [session sendRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
             SSBLogError(SSBLogCategoryProfile, @"❌ fetchFeedForPeer failed: %@", error.localizedDescription);
         } else {
@@ -424,7 +455,38 @@ static os_log_t ssb_room_log;
 
 - (void)fetchProfileForPeer:(NSString *)peerID completion:(nullable SSBRPCCallback)completion {
     SSBLogInfo(SSBLogCategoryProfile, @"👤 fetchProfileForPeer: %@", [peerID substringToIndex:MIN(8, peerID.length)]);
-    [self sendRPCRequest:@[@"about"] args:@[@{@"id": peerID}] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
+    
+    NSString *roomId = [NSString stringWithFormat:@"@%@.ed25519", [self.serverPubKey base64EncodedStringWithOptions:0]];
+    BOOL isRoom = [peerID isEqualToString:roomId] || [peerID isEqualToString:self.host];
+    BOOL isSelf = [peerID isEqualToString:self.localPublicID];
+    
+    SSBMuxRPCSession *session = self.rpcSession;
+    BOOL connected = self.isConnected;
+    
+    if (!isRoom && !isSelf) {
+        SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+        if (!tunnel) {
+            [self connectToPeer:peerID];
+            tunnel = self.activeTunnels[peerID];
+        }
+        
+        if (tunnel) {
+            session = tunnel.rpcSession;
+            // The connection might not be ready yet, but nw_connection will buffer the send
+            connected = YES;
+        } else {
+            connected = NO;
+        }
+    }
+    
+    if (!connected) {
+        if (completion) {
+            completion(nil, [NSError errorWithDomain:@"SSBRoomClient" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Not connected"}]);
+        }
+        return;
+    }
+    
+    [session sendRequest:@[@"about"] args:@[@{@"id": peerID}] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
             SSBLogError(SSBLogCategoryProfile, @"❌ fetchProfileForPeer failed: %@", error.localizedDescription);
         } else if (response) {
@@ -708,8 +770,25 @@ static os_log_t ssb_room_log;
     }
     });
 
+    SSBMuxRPCSession *session = self.rpcSession;
+    BOOL connected = self.isConnected;
+    SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+    if (tunnel && tunnel.isConnected) {
+        session = tunnel.rpcSession;
+        connected = YES;
+    }
+    
+    if (!connected || !session) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:feedAuthor];
+            }
+        });
+        return;
+    }
+
     __block NSInteger replicatedCount = 0;
-    int32_t reqID = [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
+    int32_t reqID = [session sendRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
             NSLog(@"[Client] Feed replication error for %@: %@", feedAuthor, error.localizedDescription);
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -885,7 +964,8 @@ static os_log_t ssb_room_log;
         return;
     }
     
-    NSDictionary *args = @{@"portal": [self localPublicID], @"target": targetPeerId};
+    NSString *portalId = [NSString stringWithFormat:@"@%@.ed25519", [self.serverPubKey base64EncodedStringWithOptions:0]];
+    NSDictionary *args = @{@"portal": portalId, @"target": targetPeerId};
     
     __weak typeof(self) weakSelf = self;
     __block int32_t reqID = 0;

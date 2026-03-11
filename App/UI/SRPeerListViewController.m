@@ -240,6 +240,17 @@
     
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.tableView reloadData];
+        
+        // TEMPORARY: Auto-select the first peer for testing
+        if (self.peers.count > 0 && self.delegate) {
+            static BOOL autoselected = NO;
+            if (!autoselected) {
+                autoselected = YES;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    [self.delegate peerListViewController:self didSelectPeer:self.peers.firstObject];
+                });
+            }
+        }
     });
 }
 
