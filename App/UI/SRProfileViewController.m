@@ -142,12 +142,12 @@
     }
     
     SSBLogInfo(SSBLogCategoryUI, @"   Publishing contact: %@", !currentlyFollowing ? @"Follow" : @"Unfollow");
-    [self.client publishContact:self.peerID following:!currentlyFollowing completion:^(NSError *error, id result) {
+    [self.client publishContact:self.peerID following:!currentlyFollowing completion:^(id _Nullable response, NSError * _Nullable error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error) {
                 SSBLogError(SSBLogCategoryUI, @"   ❌ publishContact error: %@", error.localizedDescription);
-            } else if (result) {
-                SSBLogInfo(SSBLogCategoryUI, @"   ✅ publishContact succeeded");
+            } else if (response) {
+                SSBLogInfo(SSBLogCategoryUI, @"   ✅ publishContact succeeded: %@", response);
             } else {
                 SSBLogWarning(SSBLogCategoryUI, @"   ⏳ publishContact queued (feed not synced)");
             }
@@ -157,10 +157,19 @@
 }
 
 - (void)blockAction:(id)sender {
+    SSBLogInfo(SSBLogCategoryUI, @"🚫 Block button clicked for: %@", [self.peerID substringToIndex:MIN(8, self.peerID.length)]);
+    
     BOOL currentlyBlocked = [[SSBFeedStore sharedStore] isBlocked:self.peerID];
     if (self.client) {
-        [self.client publishBlock:self.peerID blocking:!currentlyBlocked completion:^(NSError *error, id result) {
+        [self.client publishBlock:self.peerID blocking:!currentlyBlocked completion:^(id _Nullable response, NSError * _Nullable error) {
             dispatch_async(dispatch_get_main_queue(), ^{
+                if (error) {
+                    SSBLogError(SSBLogCategoryUI, @"   ❌ publishBlock error: %@", error.localizedDescription);
+                } else if (response) {
+                    SSBLogInfo(SSBLogCategoryUI, @"   ✅ publishBlock succeeded");
+                } else {
+                    SSBLogWarning(SSBLogCategoryUI, @"   ⏳ publishBlock queued (feed not synced)");
+                }
                 [self updateFollowButton];
             });
         }];
