@@ -82,6 +82,7 @@
 		CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */ = {isa = PBXBuildFile; fileRef = 6AD82430655F17B68BA5E2AB /* randombytes.c */; };
 		D97AD8F1257F35250658ABE9 /* SSBMuxRPCFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 190288FEB12E8B92A41A5E81 /* SSBMuxRPCFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		DB5E9556BA12D6B15E4F8D1E /* SRMarkdownParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */; };
 		DC4E9D2F01B23F9B6992C1B7 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 1FED1D5E48F454E382FCABAA /* main.m */; };
 		E2B98592E789745288819A91 /* SSBTangle.h in Headers */ = {isa = PBXBuildFile; fileRef = 2EA1EE9798EA1AC943C4251F /* SSBTangle.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		E3B51FD2F5CD35960B8ABB96 /* SSBFramerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 51CC92772DB3FD3C04DDA282 /* SSBFramerTests.m */; };
@@ -157,6 +158,7 @@
 		2629C83B9CB946F64342468E /* SRProfileHeaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRProfileHeaderView.h; sourceTree = "<group>"; };
 		271691BC4736F87E224B180D /* SSBSecurityFramer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecurityFramer.h; sourceTree = "<group>"; };
 		29B7AD9AB28A5B0C4A35BA2E /* SSBBoxStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBoxStream.h; sourceTree = "<group>"; };
+		2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRMarkdownParser.m; sourceTree = "<group>"; };
 		2EA1EE9798EA1AC943C4251F /* SSBTangle.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBTangle.h; sourceTree = "<group>"; };
 		2EEB58E082F32B862D68560F /* SRPreferencesWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPreferencesWindowController.m; sourceTree = "<group>"; };
 		31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBNetwork.h; sourceTree = "<group>"; };
@@ -208,6 +210,7 @@
 		B73C35617F300D1233DB2B83 /* SSBMuxRPC.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMuxRPC.h; sourceTree = "<group>"; };
 		B9413A93F0266D34DC142DBD /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		B9BB92B839045329BFED6CF9 /* SSBHTTPInviteServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBHTTPInviteServer.h; sourceTree = "<group>"; };
+		BB72906EAF25B9DA66BDBAAB /* SRMarkdownParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRMarkdownParser.h; sourceTree = "<group>"; };
 		C1A462699B0111EAFF4B4C1F /* SRRoomManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRRoomManager.m; sourceTree = "<group>"; };
 		C26D5FEF667D2BE1B5845280 /* SRThreadViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRThreadViewController.h; sourceTree = "<group>"; };
 		C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStore.m; sourceTree = "<group>"; };
@@ -305,6 +308,8 @@
 				E266A73C95FBF47F2BC5EFBA /* SRFeedViewController.m */,
 				969F8B514AB914D7BB203E1E /* SRMainSplitViewController.h */,
 				428F1B4C408A48CBF9C725A2 /* SRMainSplitViewController.m */,
+				BB72906EAF25B9DA66BDBAAB /* SRMarkdownParser.h */,
+				2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */,
 				839EDB7A1CAA03E678271BF0 /* SRPeerListViewController.h */,
 				EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */,
 				50481BCA3C2F9B78D616F83E /* SRPreferencesViewController.h */,
@@ -620,6 +625,7 @@
 				2C54FA73EF2F1B21DB48083C /* SRFeedItem.m in Sources */,
 				706E3AF480C628B95630B19E /* SRFeedViewController.m in Sources */,
 				24005D7EB7CC698C3084BF8E /* SRMainSplitViewController.m in Sources */,
+				DB5E9556BA12D6B15E4F8D1E /* SRMarkdownParser.m in Sources */,
 				CCFEEE91364F05EBE5D0CFCF /* SRPeerListViewController.m in Sources */,
 				F40816AF8689B701A17C3F1F /* SRPreferencesViewController.m in Sources */,
 				541DC074CDE3AA758914DB84 /* SRPreferencesWindowController.m in Sources */,

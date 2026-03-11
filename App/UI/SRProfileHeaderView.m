@@ -1,5 +1,6 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
+#import <SSBNetwork/SSBKeychain.h>
 
 @interface SRProfileHeaderView ()
 @property (nonatomic, strong) NSView *avatarView;
@@ -80,7 +81,7 @@
 }
 
 - (void)loadLocalIdentity {
-    NSData *savedIdentity = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
     if (savedIdentity && savedIdentity.length >= 64) {
         NSData *pkData = [savedIdentity subdataWithRange:NSMakeRange(32, 32)];
         NSString *feedId = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];

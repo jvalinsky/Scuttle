@@ -1,4 +1,5 @@
 #import "SRFeedItem.h"
+#import "SRMarkdownParser.h"
 
 @implementation SRFeedItem
 
@@ -40,6 +41,7 @@
     _contentLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _contentLabel.maximumNumberOfLines = 0;
     _contentLabel.cell.lineBreakMode = NSLineBreakByWordWrapping;
+    _contentLabel.cell.truncatesLastVisibleLine = NO;
     [self.view addSubview:_contentLabel];
     
     _replyButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"arrowshape.turn.up.left" accessibilityDescription:@"Reply"] target:self action:@selector(replyAction:)];
@@ -106,7 +108,9 @@
             self.cwLabel.hidden = YES;
             self.showCWButton.hidden = YES;
             self.contentLabel.hidden = NO;
-            self.contentLabel.stringValue = msg.content[@"text"] ?: @"(No text)";
+            NSString *text = msg.content[@"text"] ?: @"(No text)";
+            NSAttributedString *attrText = [SRMarkdownParser attributedStringFromMarkdown:text];
+            [self.contentLabel setAttributedStringValue:attrText];
         }
         
         NSUInteger hash = [msg.author hash];
@@ -127,7 +131,9 @@
 
 - (void)toggleCW:(id)sender {
     SSBMessage *msg = (SSBMessage *)self.representedObject;
-    self.contentLabel.stringValue = msg.content[@"text"] ?: @"(No text)";
+    NSString *text = msg.content[@"text"] ?: @"(No text)";
+    NSAttributedString *attrText = [SRMarkdownParser attributedStringFromMarkdown:text];
+    [self.contentLabel setAttributedStringValue:attrText];
     self.contentLabel.hidden = NO;
     self.showCWButton.hidden = YES;
 }

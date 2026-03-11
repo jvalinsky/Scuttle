@@ -2,6 +2,7 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
 #import <SSBNetwork/SSBNetwork.h>
+#import <SSBNetwork/SSBKeychain.h>
 #import <SSBNetwork/SSBRoomClient.h>
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/SSBFeedStore.h>
@@ -91,7 +92,7 @@
 }
 
 - (void)loadIdentity {
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
     if (localSecret && localSecret.length >= 64) {
         NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
         NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
