@@ -1,6 +1,14 @@
+#import "SRMainSplitViewController.h"
 #import "SRChannelBrowserViewController.h"
 #import "SRPreferencesWindowController.h"
 #import "SRErrorBannerView.h"
+#import "SRPeerListViewController.h"
+#import "SRFeedViewController.h"
+#import "SRThreadViewController.h"
+#import "SRProfileViewController.h"
+#import "SRComposeViewController.h"
+#import "SRSidebarViewController.h"
+#import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMessageCodec.h"
 
@@ -179,10 +187,7 @@
     
     NSDictionary *content;
     if (replyTo) {
-        // Simple reply: root = branch = the message we reply to
-        // In a real thread, branch should be the immediate parent, but root stays the same.
-        // For now we'll assume the message we clicked to reply to is the branch.
-        content = [SSBMessageCodec rootPostContentWithText:text root:replyTo branch:replyTo channel:nil contentWarning:cw mentions:nil recps:nil];
+        content = [SSBMessageCodec replyContentWithText:text root:replyTo branch:replyTo channel:nil contentWarning:cw mentions:nil recps:nil];
     } else {
         content = [SSBMessageCodec rootPostContentWithText:text channel:nil contentWarning:cw mentions:nil recps:nil];
     }
@@ -273,22 +278,22 @@
 - (void)peerListViewController:(SRPeerListViewController *)vc didRequestFollow:(NSString *)peerID {
     SSBRoomClient *client = [self currentClient];
     if (client) {
-        NSError *error = nil;
-        [client publishLocalContact:peerID following:YES error:&error];
-        if (!error) {
-            [self.peerListVC updatePeers:self.peerListVC.peers]; // Refresh list (shows dot)
-        }
+        [client publishContact:peerID following:YES completion:^(NSError *error, id result) {
+            if (!error) {
+                [self.peerListVC updatePeers:self.peerListVC.peers];
+            }
+        }];
     }
 }
 
 - (void)peerListViewController:(SRPeerListViewController *)vc didRequestUnfollow:(NSString *)peerID {
     SSBRoomClient *client = [self currentClient];
     if (client) {
-        NSError *error = nil;
-        [client publishLocalContact:peerID following:NO error:&error];
-        if (!error) {
-            [self.peerListVC updatePeers:self.peerListVC.peers]; // Refresh list
-        }
+        [client publishContact:peerID following:NO completion:^(NSError *error, id result) {
+            if (!error) {
+                [self.peerListVC updatePeers:self.peerListVC.peers];
+            }
+        }];
     }
 }
 
@@ -345,7 +350,10 @@
 }
 
 - (void)threadViewController:(SRThreadViewController *)vc didReplyToMessage:(SSBMessage *)message {
-    // Show reply UI inside thread?
+    self.composeVC.replyToKey = message.key;
+    [self.view.window makeFirstResponder:self.composeVC.view];
+    // Maybe also scroll compose view into view if it was hidden?
+    // In our case it's always at the bottom of the feed container.
 }
 
 #pragma mark - Helpers
@@ -368,7 +376,7 @@
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.label = @"Compose";
         item.paletteLabel = @"Compose";
-        item.image = [NSImage imageWithSystemSymbolName:@"square.and.pencil" accessibilityDescription:nil];
+        item.image = [NSImage imageNamed:NSImageNameAddTemplate];
         item.target = self;
         item.action = @selector(toolbarCompose:);
         return item;
@@ -376,19 +384,20 @@
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.label = @"Refresh";
         item.paletteLabel = @"Refresh";
-        item.image = [NSImage imageWithSystemSymbolName:@"arrow.clockwise" accessibilityDescription:nil];
+        item.image = [NSImage imageNamed:NSImageNameRefreshTemplate];
         item.target = self;
         item.action = @selector(toolbarRefresh:);
         return item;
     } else if ([itemIdentifier isEqualToString:@"ToggleFeed"]) {
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
-        item.label = @"Toggle Feed";
+        NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithLabels:@[@"Timeline", @"Global"] trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(toolbarToggleFeed:)];
+        control.selectedSegment = (self.feedVC.feedType == SRFeedTypeTimeline) ? 0 : 1;
+        item.view = control;
+        item.label = @"Feed Type";
         item.paletteLabel = @"Toggle Feed Type";
-        item.image = [NSImage imageWithSystemSymbolName:@"line.3.horizontal.decrease.circle" accessibilityDescription:nil];
-        item.target = self;
-        item.action = @selector(toolbarToggleFeed:);
         return item;
     } else if ([itemIdentifier isEqualToString:@"Search"]) {
+    if (@available(macOS 11.0, *)) {
         NSSearchToolbarItem *searchItem = [[NSSearchToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         searchItem.label = @"Search";
         searchItem.paletteLabel = @"Search Messages";
@@ -396,6 +405,17 @@
         searchItem.action = @selector(toolbarSearch:);
         searchItem.target = self;
         return searchItem;
+    } else {
+        NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        item.label = @"Search";
+        item.paletteLabel = @"Search Messages";
+        NSSearchField *searchField = [[NSSearchField alloc] initWithFrame:NSMakeRect(0, 0, 150, 22)];
+        searchField.delegate = (id<NSSearchFieldDelegate>)self;
+        searchField.action = @selector(toolbarSearch:);
+        searchField.target = self;
+        item.view = searchField;
+        return item;
+    }
     }
     return nil;
 }
@@ -409,22 +429,39 @@
 }
 
 - (void)toolbarSearch:(id)sender {
-    NSSearchToolbarItem *searchItem = (NSSearchToolbarItem *)sender;
-    NSString *query = searchItem.searchField.stringValue;
+    NSString *query = @"";
+    if (@available(macOS 11.0, *)) {
+        if ([sender isKindOfClass:[NSSearchToolbarItem class]]) {
+            query = ((NSSearchToolbarItem *)sender).searchField.stringValue;
+        }
+    } else {
+        if ([sender isKindOfClass:[NSToolbarItem class]]) {
+            NSToolbarItem *item = (NSToolbarItem *)sender;
+            if ([item.view isKindOfClass:[NSSearchField class]]) {
+                query = ((NSSearchField *)item.view).stringValue;
+            }
+        }
+    }
     
-    if (self.threadVC || self.profileVC || self.channelBrowserVC) {
-        [self threadViewControllerDidRequestBack:nil];
-        [self profileViewControllerDidRequestBack:nil];
-        [self channelBrowserDidRequestBack:nil];
+    if (self.threadVC.view.superview) {
+        [self threadViewControllerDidRequestBack:self.threadVC];
+    }
+    if (self.profileVC.view.superview) {
+        [self profileViewControllerDidRequestBack:self.profileVC];
+    }
+    if (self.channelBrowserVC.view.superview) {
+        [self channelBrowserDidRequestBack:self.channelBrowserVC];
     }
     
     [self.feedVC loadFeedWithSearch:query];
 }
 
 - (void)toolbarCompose:(id)sender {
-    if (self.threadVC || self.profileVC) {
-        [self threadViewControllerDidRequestBack:nil];
-        [self profileViewControllerDidRequestBack:nil];
+    if (self.threadVC.view.superview) {
+        [self threadViewControllerDidRequestBack:self.threadVC];
+    }
+    if (self.profileVC.view.superview) {
+        [self profileViewControllerDidRequestBack:self.profileVC];
     }
     [self.composeVC.view.window makeFirstResponder:self.composeVC.view];
 }
@@ -434,12 +471,11 @@
 }
 
 - (void)toolbarToggleFeed:(id)sender {
-    if (self.feedVC.feedType == SRFeedTypeTimeline) {
-        self.feedVC.feedType = SRFeedTypeGlobal;
-        NSLog(@"[MainVC] Switched to Global feed");
-    } else {
+    NSSegmentedControl *control = (NSSegmentedControl *)sender;
+    if (control.selectedSegment == 0) {
         self.feedVC.feedType = SRFeedTypeTimeline;
-        NSLog(@"[MainVC] Switched to Timeline feed");
+    } else {
+        self.feedVC.feedType = SRFeedTypeGlobal;
     }
     [self.feedVC refreshFeed];
 }

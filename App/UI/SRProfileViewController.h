@@ -1,3 +1,8 @@
+#import <Cocoa/Cocoa.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+@class SSBRoomClient;
 @class SRProfileViewController;
 
 @protocol SRProfileViewControllerDelegate <NSObject>

@@ -1,3 +1,8 @@
+#import <Cocoa/Cocoa.h>
+#import <SSBNetwork/SSBFeedStore.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
 @class SRThreadViewController;
 
 @protocol SRThreadViewControllerDelegate <NSObject>

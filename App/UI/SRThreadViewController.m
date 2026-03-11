@@ -1,5 +1,7 @@
 #import "SRThreadViewController.h"
-#import "SRFeedViewController.h" // For SRFeedItem
+#import "SRFeedViewController.h"
+#import "SRFeedItem.h"
+#import <SSBNetwork/SSBThread.h>
 
 @interface SRThreadViewController ()
 @property (nonatomic, strong) NSCollectionView *collectionView;
@@ -27,7 +29,7 @@
     self.scrollView.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:self.scrollView];
     
-    self.backButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"chevron.left" accessibilityDescription:@"Back"] target:self action:@selector(backAction:)];
+    self.backButton = [NSButton buttonWithImage:[NSImage imageNamed:NSImageNameTouchBarGoBackTemplate] target:self action:@selector(backAction:)];
     self.backButton.bezelStyle = NSBezelStyleTexturedRounded;
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:self.backButton];

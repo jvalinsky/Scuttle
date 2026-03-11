@@ -1,4 +1,5 @@
-make #import "SRPeerListViewController.h"
+#import "SRPeerListViewController.h"
+#import "SSBFeedStore.h"
 
 @interface SRPeerCell : NSTableCellView
 @property (nonatomic, strong) NSView *avatarView;
@@ -49,9 +50,11 @@ make #import "SRPeerListViewController.h"
 }
 @end
 
+@interface SRPeerListViewController ()
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, copy) NSArray<NSString *> *peers;
+@property (nonatomic, strong) NSTextField *headerLabel;
 @property (nonatomic, strong) NSTextField *emptyLabel;
 @property (nonatomic, strong) NSProgressIndicator *progressIndicator;
 @end
@@ -63,6 +66,12 @@ make #import "SRPeerListViewController.h"
     view.wantsLayer = YES;
     view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
     
+    self.headerLabel = [NSTextField labelWithString:@"PEERS"];
+    self.headerLabel.font = [NSFont boldSystemFontOfSize:11];
+    self.headerLabel.textColor = [NSColor secondaryLabelColor];
+    self.headerLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [view addSubview:self.headerLabel];
+
     self.scrollView = [[NSScrollView alloc] init];
     self.scrollView.hasVerticalScroller = YES;
     self.scrollView.drawsBackground = NO;
@@ -70,7 +79,11 @@ make #import "SRPeerListViewController.h"
     [view addSubview:self.scrollView];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.scrollView.topAnchor constraintEqualToAnchor:view.topAnchor],
+        [self.headerLabel.topAnchor constraintEqualToAnchor:view.topAnchor constant:40],
+        [self.headerLabel.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:12],
+        [self.headerLabel.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-12],
+
+        [self.scrollView.topAnchor constraintEqualToAnchor:self.headerLabel.bottomAnchor constant:8],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:view.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:view.bottomAnchor]
@@ -189,7 +202,7 @@ make #import "SRPeerListViewController.h"
     if (row < self.peers.count) {
         NSString *peerID = self.peers[row];
         NSLog(@"[PeerList] Rendering row %ld: %@", (long)row, peerID);
-        cell.idLabel.stringValue = peerID;
+        cell.idLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:peerID];
         
         NSUInteger hash = [peerID hash];
         cell.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;

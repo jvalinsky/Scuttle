@@ -78,7 +78,11 @@
 
 - (void)setupStatusItem {
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
+    if (@available(macOS 11.0, *)) {
     self.statusItem.button.image = [NSImage imageWithSystemSymbolName:@"network" accessibilityDescription:@"ScuttleKit"];
+  } else {
+    self.statusItem.button.image = [NSImage imageNamed:NSImageNameNetwork];
+  }
     
     [self updateStatusMenu];
     

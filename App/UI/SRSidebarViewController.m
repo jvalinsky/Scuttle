@@ -1,8 +1,11 @@
 #import "SRSidebarViewController.h"
+#import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
+#import "SRMainSplitViewController.h"
 
 @interface SRSidebarViewController ()
 @property (nonatomic, strong) NSVisualEffectView *effectView;
+@property (nonatomic, strong) SRProfileHeaderView *profileHeader;
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSButton *joinButton;
@@ -31,6 +34,17 @@
                                              selector:@selector(statusDidUpdate:) 
                                                  name:SRRoomManagerConnectionStatusChangedNotification 
                                                object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(endpointsDidUpdate:) 
+                                                 name:SRRoomManagerDidUpdateEndpointsNotification 
+                                               object:nil];
+}
+
+- (void)endpointsDidUpdate:(NSNotification *)notification {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.tableView reloadData];
+    });
 }
 
 - (void)statusDidUpdate:(NSNotification *)notification {
@@ -55,6 +69,10 @@
     self.scrollView.hasVerticalScroller = YES;
     self.scrollView.drawsBackground = NO;
     self.scrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.profileHeader = [[SRProfileHeaderView alloc] initWithFrame:NSZeroRect];
+    self.profileHeader.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.profileHeader];
+
     [self.view addSubview:self.scrollView];
     
     self.tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
@@ -62,7 +80,6 @@
     self.tableView.backgroundColor = [NSColor clearColor];
     self.tableView.rowHeight = 44;
     
-    // In macOS 12+, we should set the style.
     if (@available(macOS 11.0, *)) {
         self.tableView.style = NSTableViewStyleSourceList;
     }
@@ -85,7 +102,11 @@
     [self.view addSubview:self.joinButton];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40],
+        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:40],
+        [self.profileHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.profileHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+
+        [self.scrollView.topAnchor constraintEqualToAnchor:self.profileHeader.bottomAnchor constant:4],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:self.joinButton.topAnchor constant:-12],

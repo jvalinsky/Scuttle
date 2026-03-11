@@ -132,6 +132,11 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         "    following INTEGER NOT NULL,"
         "    sequence INTEGER NOT NULL"
         ");"
+        "CREATE TABLE IF NOT EXISTS profiles ("
+        "    author TEXT PRIMARY KEY,"
+        "    display_name TEXT,"
+        "    image_link TEXT"
+        ");"
         "CREATE TABLE IF NOT EXISTS quarantine ("
         "    author TEXT NOT NULL,"
         "    sequence INTEGER NOT NULL,"
@@ -195,6 +200,16 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
             if (success) {
                 [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key];
                 [self _drainQuarantineForKey:message.key author:message.author];
+                
+                // If it's an about message, update profile
+                if ([message.contentType isEqualToString:@"about"] && message.content[@"about"]) {
+                    NSString *target = message.content[@"about"];
+                    NSString *name = message.content[@"name"];
+                    NSString *image = message.content[@"image"];
+                    if ([target isEqualToString:message.author]) {
+                        [self setDisplayName:name image:image forAuthor:target];
+                    }
+                }
             }
         }
     });
@@ -682,6 +697,43 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
         }
     });
     return count;
+}
+
+#pragma mark - Profiles
+
+- (void)setDisplayName:(nullable NSString *)name image:(nullable NSString *)image forAuthor:(NSString *)author {
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "INSERT INTO profiles (author, display_name, image_link) VALUES (?, ?, ?) "
+                          "ON CONFLICT(author) DO UPDATE SET display_name = COALESCE(excluded.display_name, display_name), "
+                          "image_link = COALESCE(excluded.image_link, image_link)";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            if (name) sqlite3_bind_text(stmt, 2, name.UTF8String, -1, SQLITE_TRANSIENT);
+            else sqlite3_bind_null(stmt, 2);
+            if (image) sqlite3_bind_text(stmt, 3, image.UTF8String, -1, SQLITE_TRANSIENT);
+            else sqlite3_bind_null(stmt, 3);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
+    });
+}
+
+- (NSString *)displayNameForAuthor:(NSString *)author {
+    __block NSString *name = author;
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT display_name FROM profiles WHERE author = ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *n = (const char *)sqlite3_column_text(stmt, 0);
+                if (n) name = [NSString stringWithUTF8String:n];
+            }
+            sqlite3_finalize(stmt);
+        }
+    });
+    return name;
 }
 
 @end

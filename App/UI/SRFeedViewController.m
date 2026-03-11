@@ -221,8 +221,8 @@
                                      options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
                                   attributes:@{NSFontAttributeName: [NSFont systemFontOfSize:13]}];
     
-    CGFloat height = ceil(rect.size.height) + 80; // Padding for avatar, buttons, etc.
-    if (height < 100) height = 100;
+    CGFloat height = ceil(rect.size.height) + 100; // More padding for avatar, buttons, and display name
+    if (height < 120) height = 120;
     
     return NSMakeSize(collectionView.bounds.size.width - 40, height);
 }

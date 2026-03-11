@@ -1,6 +1,10 @@
 #import "SRPreferencesViewController.h"
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
+#import <SSBNetwork/SSBNetwork.h>
+#import <SSBNetwork/SSBRoomClient.h>
+#import <SSBNetwork/SSBMessageCodec.h>
+#import <SSBNetwork/SSBFeedStore.h>
 
 @interface SRPreferencesViewController ()
 @property (nonatomic, strong) SRProfileHeaderView *headerView;
@@ -72,16 +76,22 @@
     if (name.length == 0) return;
     
     NSLog(@"[Prefs] Saving profile name: %@", name);
-    // TODO: Publish 'about' message through first available client
+    
+    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    if (!localSecret || localSecret.length < 64) return;
+    
+    NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
+    NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+    
     SSBRoomClient *client = [SRRoomManager sharedManager].clients.allValues.firstObject;
     if (client) {
-        NSDictionary *content = @{
-            @"type": @"about",
-            @"about": client.feedStore.followedAuthors.firstObject ?: @"", // This is wrong, should be local ID
-            @"name": name
-        };
-        // We need local ID in SSBMessageCodec or SSBRoomClient
-        // For now, let's look at how AppDelegate handles it
+        NSDictionary *content = [SSBMessageCodec aboutContentForFeed:pubkey name:name description:nil];
+        NSError *error = nil;
+        [client publishLocalMessageWithContent:content error:&error];
+        if (!error) {
+            [self.headerView updateWithIdentity:pubkey name:name];
+            [[SSBFeedStore sharedStore] setDisplayName:name image:nil forAuthor:pubkey];
+        }
     }
 }
 

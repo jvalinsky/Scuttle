@@ -13,6 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface SRPeerListViewController : NSViewController <NSTableViewDelegate, NSTableViewDataSource>
 @property (nonatomic, weak) id<SRPeerListDelegate> delegate;
+@property (nonatomic, copy, readonly) NSArray<NSString *> *peers;
+@property (nonatomic, strong, readonly) NSProgressIndicator *progressIndicator;
 - (void)updatePeers:(NSArray<NSString *> *)peers;
 
 @end

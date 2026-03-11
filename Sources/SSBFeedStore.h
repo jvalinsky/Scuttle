@@ -85,6 +85,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the total number of stored messages.
 - (NSInteger)totalMessageCount;
 
+#pragma mark - Profiles
+
+/// Updates the display name and/or image for a given feed ID.
+- (void)setDisplayName:(nullable NSString *)name image:(nullable NSString *)image forAuthor:(NSString *)author;
+
+/// Returns the display name for a given author, or the author ID if none set.
+- (NSString *)displayNameForAuthor:(NSString *)author;
+
 @end
 
 NS_ASSUME_NONNULL_END

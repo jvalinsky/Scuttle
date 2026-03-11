@@ -42,12 +42,12 @@
     _contentLabel.cell.lineBreakMode = NSLineBreakByWordWrapping;
     [self.view addSubview:_contentLabel];
     
-    _replyButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"arrowshape.turn.up.left" accessibilityDescription:@"Reply"] target:self action:@selector(replyAction:)];
+    _replyButton = [NSButton buttonWithImage:[NSImage imageNamed:NSImageNameActionTemplate] target:self action:@selector(replyAction:)];
     _replyButton.bordered = NO;
     _replyButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_replyButton];
     
-    _likeButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"heart" accessibilityDescription:@"Like"] target:self action:@selector(likeAction:)];
+    _likeButton = [NSButton buttonWithImage:[NSImage imageNamed:NSImageNameAddTemplate] target:self action:@selector(likeAction:)];
     _likeButton.bordered = NO;
     _likeButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_likeButton];
@@ -94,7 +94,7 @@
     [super setRepresentedObject:representedObject];
     if ([representedObject isKindOfClass:[SSBMessage class]]) {
         SSBMessage *msg = (SSBMessage *)representedObject;
-        self.authorLabel.stringValue = msg.author;
+        self.authorLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:msg.author];
         
         NSString *cw = msg.content[@"contentWarning"];
         if (cw.length > 0) {
