@@ -70,10 +70,13 @@
 		B8E2C63792A054D04318C035 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C9F05C00F76929DB237EAFC5 /* Assets.xcassets */; };
 		B9B3A56D14EB967B9E3FB310 /* SSBQueryEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 7C93ABCE1C93673360D9CB98 /* SSBQueryEngine.m */; };
 		BB914624C7A198AC3B984E87 /* SSBIndexFeed.h in Headers */ = {isa = PBXBuildFile; fileRef = 90204CE2735F70BB02436E71 /* SSBIndexFeed.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BBD2AB9A9E031D4C2E07D613 /* SSBKeychain.m in Sources */ = {isa = PBXBuildFile; fileRef = F5C9D1E696A68A38B9DFD64D /* SSBKeychain.m */; };
 		BC9EB0722B867B85252E9258 /* SSBMessageCodec.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C70C0A06B11C1312D125C45 /* SSBMessageCodec.m */; };
 		BE9A8D2A4973E05F75341AB6 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 067EE91BF3BEDCAEEB1CA111 /* libsqlite3.tbd */; };
 		C111B6D99CDCCCFD9546C012 /* SSBConnectionFSM.m in Sources */ = {isa = PBXBuildFile; fileRef = ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */; };
 		C675DBFEC6E02324C36C7FF1 /* SSBURI.h in Headers */ = {isa = PBXBuildFile; fileRef = 53D2EEA4027CFD4A5B573A70 /* SSBURI.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		CBEF7CBFE2DE25620C747933 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C584688A6B7BEBBD054A0AF0 /* Security.framework */; };
+		CC0997F533C27140C2C02528 /* SSBKeychain.h in Headers */ = {isa = PBXBuildFile; fileRef = E1F073D53D1470D7FA4928F0 /* SSBKeychain.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CCFEEE91364F05EBE5D0CFCF /* SRPeerListViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */; };
 		CD38B433F28833FDB0A18450 /* RoomStorage.h in Headers */ = {isa = PBXBuildFile; fileRef = 8B1A74C0B6939BE415F1577B /* RoomStorage.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -208,6 +211,7 @@
 		C1A462699B0111EAFF4B4C1F /* SRRoomManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRRoomManager.m; sourceTree = "<group>"; };
 		C26D5FEF667D2BE1B5845280 /* SRThreadViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRThreadViewController.h; sourceTree = "<group>"; };
 		C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStore.m; sourceTree = "<group>"; };
+		C584688A6B7BEBBD054A0AF0 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		C6257FD22788A631802FCDA2 /* SSBMuxRPCSession.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMuxRPCSession.h; sourceTree = "<group>"; };
 		C716E64EB06334D09F2227F6 /* SSBHTTPAuth.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPAuth.m; sourceTree = "<group>"; };
 		C9373F921F75303BFCDC1BE6 /* SSBFeedStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedStore.h; sourceTree = "<group>"; };
@@ -217,6 +221,7 @@
 		DD4CD311AC4686C2B3588242 /* SSBQueryEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBQueryEngine.h; sourceTree = "<group>"; };
 		DEF75D13D452FFD12BF95D82 /* RoomStorage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomStorage.m; sourceTree = "<group>"; };
 		DF7FFFBA4AD282CE691A57A3 /* SRChannelBrowserViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRChannelBrowserViewController.m; sourceTree = "<group>"; };
+		E1F073D53D1470D7FA4928F0 /* SSBKeychain.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBKeychain.h; sourceTree = "<group>"; };
 		E266A73C95FBF47F2BC5EFBA /* SRFeedViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRFeedViewController.m; sourceTree = "<group>"; };
 		E559364C3B3E4B49DDCD57EC /* SRComposeViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRComposeViewController.h; sourceTree = "<group>"; };
 		E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButt.m; sourceTree = "<group>"; };
@@ -227,6 +232,7 @@
 		ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBConnectionFSM.m; sourceTree = "<group>"; };
 		EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPeerListViewController.m; sourceTree = "<group>"; };
 		F325B1D6582DD9CC76FC5697 /* SSBBIPF.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBIPF.m; sourceTree = "<group>"; };
+		F5C9D1E696A68A38B9DFD64D /* SSBKeychain.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBKeychain.m; sourceTree = "<group>"; };
 		F67FB0069C61716A718EFB48 /* SRDevPanelViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRDevPanelViewController.m; sourceTree = "<group>"; };
 		F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		F8500979B39EDBFE8CE1E707 /* SRThreadViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRThreadViewController.m; sourceTree = "<group>"; };
@@ -239,6 +245,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BE9A8D2A4973E05F75341AB6 /* libsqlite3.tbd in Frameworks */,
+				CBEF7CBFE2DE25620C747933 /* Security.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -276,6 +283,7 @@
 			isa = PBXGroup;
 			children = (
 				067EE91BF3BEDCAEEB1CA111 /* libsqlite3.tbd */,
+				C584688A6B7BEBBD054A0AF0 /* Security.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -369,6 +377,8 @@
 				0C8F057287283AD2B9906EF1 /* SSBIndexFeed.m */,
 				1D4673C2E6D3D51518ADF36A /* SSBIndexFeedGenerator.h */,
 				6FD11AF287BF3FFCE56C6979 /* SSBIndexFeedGenerator.m */,
+				E1F073D53D1470D7FA4928F0 /* SSBKeychain.h */,
+				F5C9D1E696A68A38B9DFD64D /* SSBKeychain.m */,
 				EBEB65F0F3E4B90137A01A1F /* SSBMessageCodec.h */,
 				3C70C0A06B11C1312D125C45 /* SSBMessageCodec.m */,
 				189BDF5A7F57785FA15BF879 /* SSBMetafeed.h */,
@@ -440,6 +450,7 @@
 				039B4FFDD41842731258C5A0 /* SSBHTTPInviteServer.h in Headers */,
 				BB914624C7A198AC3B984E87 /* SSBIndexFeed.h in Headers */,
 				B6C21C1D64317232C1A25CEB /* SSBIndexFeedGenerator.h in Headers */,
+				CC0997F533C27140C2C02528 /* SSBKeychain.h in Headers */,
 				04FBDC2110F3898DE17DD339 /* SSBMessageCodec.h in Headers */,
 				162F045D34358E23A6010CEC /* SSBMetafeed.h in Headers */,
 				9EA9951A01E1E1F883481100 /* SSBMuxRPC.h in Headers */,
@@ -579,6 +590,7 @@
 				FB9F2FA752CFEEFE9F389EDA /* SSBHTTPInviteServer.m in Sources */,
 				75A183A6BE3C707DBFF9802F /* SSBIndexFeed.m in Sources */,
 				1BA494467AE903078B414AA5 /* SSBIndexFeedGenerator.m in Sources */,
+				BBD2AB9A9E031D4C2E07D613 /* SSBKeychain.m in Sources */,
 				BC9EB0722B867B85252E9258 /* SSBMessageCodec.m in Sources */,
 				3B8D602C97E80D60B476E84C /* SSBMetafeed.m in Sources */,
 				585777B3264C53A370D9B1A9 /* SSBMuxRPC.m in Sources */,

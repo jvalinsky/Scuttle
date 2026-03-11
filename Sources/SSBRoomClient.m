@@ -6,6 +6,7 @@
 #import "SSBMuxRPCSession.h"
 #import "SSBQueryEngine.h"
 #import "SSBMuxRPC.h"
+#import "SSBKeychain.h"
 #import "tweetnacl.h"
 
 static os_log_t ssb_room_log;
@@ -27,6 +28,7 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong, nullable) NSString *inviteToken;
 @property (nonatomic, assign) BOOL usedHTTPInvite;
 @property (nonatomic, readwrite) BOOL isConnected;
+@property (nonatomic, assign) BOOL isFeedSynced;
 
 @property (nonatomic, strong) nw_connection_t connection;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
@@ -59,7 +61,7 @@ static os_log_t ssb_room_log;
         if (localIdentitySecret) {
             _localIdentitySecret = localIdentitySecret;
         } else {
-            NSData *saved = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+            NSData *saved = [SSBKeychain loadIdentitySecret];
             if (saved) {
                 _localIdentitySecret = saved;
             } else {
@@ -68,6 +70,7 @@ static os_log_t ssb_room_log;
         }
         
         _isConnected = NO;
+        _isFeedSynced = YES; // Assume synced until proven otherwise
         _clientQueue = dispatch_queue_create("com.ssbc.room.client", DISPATCH_QUEUE_SERIAL);
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
@@ -270,6 +273,18 @@ static os_log_t ssb_room_log;
 }
 
 - (nullable SSBMessage *)publishLocalMessageWithContent:(NSDictionary *)content error:(NSError **)error {
+    // Fork prevention: Don't publish if our feed hasn't fully synced
+    // This prevents creating forked feeds which can corrupt your identity
+    if (!self.isFeedSynced) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"SSB" code:100 userInfo:@{
+                NSLocalizedDescriptionKey: @"Cannot publish: Your feed is still syncing. Please wait for sync to complete."
+            }];
+        }
+        NSLog(@"[Client] Publish blocked: feed not synced");
+        return nil;
+    }
+    
     NSString *myId = [self localPublicID];
     SSBFeedState *state = [self.feedStore feedStateForAuthor:myId];
     NSInteger nextSeq = state ? state.maxSequence + 1 : 1;
@@ -565,8 +580,8 @@ static os_log_t ssb_room_log;
 }
 
 + (void)resetLocalIdentity {
-    [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"SSBLocalIdentity"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [SSBKeychain deleteIdentitySecret];
+    [SSBKeychain savePublishedMessageCount:0];
     NSLog(@"[Client] Local identity reset. A new one will be generated on next connection.");
 }
 
@@ -576,8 +591,7 @@ static os_log_t ssb_room_log;
     crypto_sign_keypair(pk, sk);
     NSData *secret = [NSData dataWithBytes:sk length:64];
     
-    [[NSUserDefaults standardUserDefaults] setObject:secret forKey:@"SSBLocalIdentity"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
+    [SSBKeychain saveIdentitySecret:secret];
     
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:@"SRLocalIdentityGeneratedNotification" object:nil];

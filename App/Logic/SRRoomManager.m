@@ -3,6 +3,7 @@
 #import <Cocoa/Cocoa.h>
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBRoomClient.h"
+#import <SSBNetwork/SSBKeychain.h>
 #import "RoomInviteHandler.h"
 #import <os/log.h>
 
