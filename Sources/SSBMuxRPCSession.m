@@ -26,7 +26,7 @@ static os_log_t rpc_log;
     return self;
 }
 
-- (void)sendRequest:(NSArray<NSString *> *)method
+- (int32_t)sendRequest:(NSArray<NSString *> *)method
                args:(NSArray<id> *)args
                type:(NSString *)type
          completion:(nullable SSBRPCCallback)completion {
@@ -47,7 +47,7 @@ static os_log_t rpc_log;
         if (completion) {
             completion(nil, jsonError);
         }
-        return;
+        return -1;
     }
     
     SSBMuxRPCFlags flags = SSBMuxRPCFlagTypeJSON;
@@ -66,6 +66,8 @@ static os_log_t rpc_log;
     if (self.sendMessageBlock) {
         self.sendMessageBlock(msg);
     }
+    
+    return reqNum;
 }
 
 - (void)handleIncomingMessage:(SSBMuxRPCMessage *)message {

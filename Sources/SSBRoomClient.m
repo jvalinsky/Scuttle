@@ -7,6 +7,7 @@
 #import "SSBQueryEngine.h"
 #import "SSBMuxRPC.h"
 #import "SSBKeychain.h"
+#import "SSBSecretHandshake.h"
 #import "tweetnacl.h"
 
 static os_log_t ssb_room_log;
@@ -15,6 +16,7 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) NSString *peerId;
 @property (nonatomic, assign) int32_t reqID;
 @property (nonatomic, assign) BOOL isEstablished;
+@property (nonatomic, strong) SSBSecretHandshake *shs;
 @end
 
 @implementation SSBTunnelState
@@ -552,14 +554,17 @@ static os_log_t ssb_room_log;
 
 - (void)handleAttendantsResponse:(id)response {
     NSLog(@"[Client] Received attendants response: %@", response);
+    // Legacy `tunnel.endpoints` (Room v1) returns a direct NSArray of peer IDs.
     if ([response isKindOfClass:[NSArray class]]) {
         [self.attendantsList removeAllObjects];
         [self.attendantsList addObjectsFromArray:response];
     } else if ([response isKindOfClass:[NSDictionary class]]) {
+        // Room v2 `room.attendants` returns dictionary events.
         NSDictionary *dict = (NSDictionary *)response;
         NSString *type = dict[@"type"];
         
         if ([type isEqualToString:@"state"]) {
+            // "state" has either a "peers" array or "ids" array.
             NSArray *ids = dict[@"ids"] ?: dict[@"peers"];
             if ([ids isKindOfClass:[NSArray class]]) {
                 [self.attendantsList removeAllObjects];
@@ -576,12 +581,8 @@ static os_log_t ssb_room_log;
                 [self.attendantsList removeObject:peerID];
             }
         }
-    }
-    
-    // Auto-sync from newly joined or state-updated peers
-    if ([response isKindOfClass:[NSDictionary class]]) {
-        NSDictionary *dict = (NSDictionary *)response;
-        NSString *type = dict[@"type"];
+        
+        // Auto-sync from newly joined or state-updated peers in Room v2
         NSString *peerID = dict[@"id"] ?: dict[@"key"];
         if (([type isEqualToString:@"joined"] || [type isEqualToString:@"state"]) && peerID) {
             [self replicateFromPeer:peerID viaRoom:self.host];
@@ -597,8 +598,36 @@ static os_log_t ssb_room_log;
 }
 
 - (void)connectToPeer:(NSString *)targetPeerId {
+    NSString *base64Key = nil;
+    if ([targetPeerId hasPrefix:@"@"] && [targetPeerId hasSuffix:@".ed25519"]) {
+        base64Key = [targetPeerId substringWithRange:NSMakeRange(1, targetPeerId.length - 9)];
+    }
+    
+    if (!base64Key) {
+        [self log:[NSString stringWithFormat:@"Invalid target peer ID: %@", targetPeerId]];
+        return;
+    }
+    
+    long paddingLength = (4 - (base64Key.length % 4)) % 4;
+    NSString *paddedKey = [base64Key stringByPaddingToLength:base64Key.length + paddingLength withString:@"=" startingAtIndex:0];
+    
+    NSData *remotePubKey = [[NSData alloc] initWithBase64EncodedString:paddedKey options:0];
+    if (!remotePubKey) {
+        [self log:[NSString stringWithFormat:@"Invalid base64 in peer ID: %@", targetPeerId]];
+        return;
+    }
+    
+    SSBSecretHandshake *shs = [[SSBSecretHandshake alloc] initWithRole:YES localIdentity:self.localIdentitySecret remotePublicKey:remotePubKey];
+    
+    SSBTunnelState *tunnel = [[SSBTunnelState alloc] init];
+    tunnel.peerId = targetPeerId;
+    tunnel.shs = shs;
+    
     NSDictionary *args = @{@"portal": [self localPublicID], @"target": targetPeerId};
-    [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[args] type:@"duplex" completion:nil];
+    int32_t reqID = [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[args] type:@"duplex" completion:nil];
+    tunnel.reqID = reqID;
+    
+    self.activeTunnels[targetPeerId] = tunnel;
 }
 
 - (void)disconnect {
@@ -612,8 +641,7 @@ static os_log_t ssb_room_log;
         return -1;
     }
     NSLog(@"[ROOM_DIAG] Client: sendRPCRequest: %@ type: %@", name, type);
-    [self.rpcSession sendRequest:name args:args type:type completion:completion];
-    return 0;
+    return [self.rpcSession sendRequest:name args:args type:type completion:completion];
 }
 
 - (void)getSubset:(NSDictionary<NSString *, id> *)query

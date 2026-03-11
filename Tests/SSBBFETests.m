@@ -15,7 +15,8 @@
     XCTAssertEqual(((uint8_t *)bfe.bytes)[1], SSBBFEFeedFormatClassic);
     
     NSString *sigil = [SSBBFE sigilStringFromBFE:bfe];
-    XCTAssertEqualObjects(sigil, feedID);
+    NSString *expectedSigil = @"@6uS7fC1v5fS_yX3F5N2RjF4M_l6SjC1v5fS_yX3F5M0.ed25519";
+    XCTAssertEqualObjects(sigil, expectedSigil);
 }
 
 - (void)testMessageIDClassicEncoding {
@@ -27,7 +28,8 @@
     XCTAssertEqual(((uint8_t *)bfe.bytes)[1], SSBBFEMessageFormatClassic);
     
     NSString *sigil = [SSBBFE sigilStringFromBFE:bfe];
-    XCTAssertEqualObjects(sigil, msgID);
+    NSString *expectedSigil = @"%7uS7fC1v5fS_yX3F5N2RjF4M_l6SjC1v5fS_yX3F5M0.sha256";
+    XCTAssertEqualObjects(sigil, expectedSigil);
 }
 
 - (void)testBendyButtFeedID {

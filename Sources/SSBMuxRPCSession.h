@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)handleIncomingMessage:(SSBMuxRPCMessage *)message;
 
-- (void)sendRequest:(NSArray<NSString *> *)method
+- (int32_t)sendRequest:(NSArray<NSString *> *)method
                args:(NSArray<id> *)args
                type:(NSString *)type
          completion:(nullable SSBRPCCallback)completion;
