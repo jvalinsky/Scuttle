@@ -178,10 +178,13 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     
     [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
     
+    // Generate new identity immediately
+    [SSBRoomClient generateLocalIdentity];
+    
     dispatch_async(dispatch_get_main_queue(), ^{
         NSAlert *alert = [[NSAlert alloc] init];
         alert.messageText = @"Account Reset";
-        alert.informativeText = @"Identity and Database have been wiped. Please restart the app for full effect.";
+        alert.informativeText = @"Identity and Database have been wiped. A new identity has been generated and the UI has been updated.";
         [alert runModal];
     });
 }

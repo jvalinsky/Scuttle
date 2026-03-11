@@ -63,13 +63,7 @@ static os_log_t ssb_room_log;
             if (saved) {
                 _localIdentitySecret = saved;
             } else {
-                unsigned char pk[32];
-                unsigned char sk[64];
-                crypto_sign_keypair(pk, sk);
-                _localIdentitySecret = [NSData dataWithBytes:sk length:64];
-                [[NSUserDefaults standardUserDefaults] setObject:_localIdentitySecret forKey:@"SSBLocalIdentity"];
-                [[NSUserDefaults standardUserDefaults] synchronize];
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"SRLocalIdentityGeneratedNotification" object:nil];
+                _localIdentitySecret = [SSBRoomClient generateLocalIdentity];
             }
         }
         
@@ -574,6 +568,23 @@ static os_log_t ssb_room_log;
     [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"SSBLocalIdentity"];
     [[NSUserDefaults standardUserDefaults] synchronize];
     NSLog(@"[Client] Local identity reset. A new one will be generated on next connection.");
+}
+
++ (NSData *)generateLocalIdentity {
+    unsigned char pk[32];
+    unsigned char sk[64];
+    crypto_sign_keypair(pk, sk);
+    NSData *secret = [NSData dataWithBytes:sk length:64];
+    
+    [[NSUserDefaults standardUserDefaults] setObject:secret forKey:@"SSBLocalIdentity"];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRLocalIdentityGeneratedNotification" object:nil];
+    });
+    
+    NSLog(@"[Client] New local identity generated.");
+    return secret;
 }
 
 @end

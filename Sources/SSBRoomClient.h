@@ -114,6 +114,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Resets the local identity secret in NSUserDefaults.
 + (void)resetLocalIdentity;
 
+/// Generates a new local identity and saves it to NSUserDefaults.
++ (NSData *)generateLocalIdentity;
+
 /// Disconnects from the room.
 - (void)disconnect;
 

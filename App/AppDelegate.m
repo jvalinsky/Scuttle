@@ -56,6 +56,8 @@
     NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"App"];
     [appMenu addItemWithTitle:@"Preferences..." action:@selector(showPreferences:) keyEquivalent:@","];
     [appMenu addItem:[NSMenuItem separatorItem]];
+    [appMenu addItemWithTitle:@"Reset Identity..." action:@selector(resetIdentity:) keyEquivalent:@""];
+    [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"Quit" action:@selector(terminate:) keyEquivalent:@"q"];
     [mainMenu setSubmenu:appMenu forItem:appMenuItem];
     
@@ -73,6 +75,19 @@
 - (void)showPreferences:(id)sender {
     if ([self.mainVC respondsToSelector:@selector(showPreferences)]) {
         [self.mainVC performSelector:@selector(showPreferences)];
+    }
+}
+
+- (void)resetIdentity:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Reset Identity?";
+    alert.informativeText = @"This will permanently delete your SSB identity, all messages, and disconnect from all rooms. This cannot be undone.";
+    [alert addButtonWithTitle:@"Reset"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleCritical;
+    
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        [[SRRoomManager sharedManager] resetAccount];
     }
 }
 

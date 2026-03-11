@@ -46,7 +46,6 @@
     [self.view addSubview:self.saveButton];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:20],
         [self.headerView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
         [self.headerView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
         [self.headerView.heightAnchor constraintEqualToConstant:80],
@@ -70,6 +69,8 @@
         [self.devButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:20],
         [self.devButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
     ]];
+    
+    [self.headerView.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:20].active = YES;
     
     self.wipeButton = [NSButton buttonWithTitle:@"Wipe Database" target:self action:@selector(wipeAction:)];
     self.wipeButton.bezelStyle = NSBezelStyleRounded;
