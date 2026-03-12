@@ -134,7 +134,8 @@ static os_log_t ssb_room_log;
     nw_protocol_stack_t stack = nw_parameters_copy_default_protocol_stack(params);
     
     nw_protocol_stack_prepend_application_protocol(stack, [SSBSecurityFramer createOptionsWithLocalSecretKey:self.localIdentitySecret 
-                                                                                               remotePublicKey:self.serverPubKey]);
+                                                                                               remotePublicKey:self.serverPubKey
+                                                                                                      asClient:YES]);
     nw_protocol_stack_prepend_application_protocol(stack, [SSBMuxRPCFramer createOptions]);
     
     self.connection = nw_connection_create(endpoint, params);
@@ -237,14 +238,16 @@ static os_log_t ssb_room_log;
             weakSelf.roomFeatures = response[@"features"];
             weakSelf.isInternalUser = [response[@"membership"] boolValue];
             [weakSelf log:[NSString stringWithFormat:@"Room features: %@, internal: %d", weakSelf.roomFeatures, weakSelf.isInternalUser]];
-            [weakSelf announce];
-            [weakSelf subscribeToEndpoints];
-            [weakSelf syncLocalFeed];
+            [weakSelf announceWithCompletion:^{
+                [weakSelf subscribeToEndpoints];
+                [weakSelf syncLocalFeed];
+            }];
         } else {
             [weakSelf log:@"No room metadata found, trying legacy flow"];
-            [weakSelf announce];
-            [weakSelf subscribeToEndpoints];
-            [weakSelf syncLocalFeed];
+            [weakSelf announceWithCompletion:^{
+                [weakSelf subscribeToEndpoints];
+                [weakSelf syncLocalFeed];
+            }];
         }
     }];
     
@@ -253,9 +256,10 @@ static os_log_t ssb_room_log;
         if (!metadataFinished) {
             [weakSelf log:@"room.metadata TIMEOUT, falling back to legacy flow"];
             metadataFinished = YES;
-            [weakSelf announce];
-            [weakSelf subscribeToEndpoints];
-            [weakSelf syncLocalFeed];
+            [weakSelf announceWithCompletion:^{
+                [weakSelf subscribeToEndpoints];
+                [weakSelf syncLocalFeed];
+            }];
         }
     });
     
@@ -697,11 +701,15 @@ static os_log_t ssb_room_log;
             weakSelf.isEBTRunning = NO;
             return;
         }
-        [weakSelf handleEBTMessage:response];
+        [weakSelf handleEBTMessage:response requestID:0 flags:0];
     };
     
     NSLog(@"[EBT] Sending ebt.replicate request over session %p... callback=%p", session, (__bridge void *)ebtCallback);
     self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
+    
+    session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
+        [weakSelf handleEBTMessage:payload requestID:requestID flags:flags];
+    };
     
     self.isEBTRunning = YES;
     self.remoteClock = [NSMutableDictionary dictionary];
@@ -715,27 +723,52 @@ static os_log_t ssb_room_log;
     [self startEBTReplicationWithSession:self.rpcSession];
 }
 
-- (void)handleEBTMessage:(id)message {
-    NSLog(@"[EBT] handleEBTMessage: type=%@ body=%@", [message class], message);
+- (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags {
+    if (reqID != 0) {
+        NSLog(@"[EBT] handleEBTMessage: REMOTE REQUEST req=%d flags=%u type=%@ body=%@", reqID, flags, [message class], message);
+    } else {
+        NSLog(@"[EBT] handleEBTMessage: RESPONSE type=%@ body=%@", [message class], message);
+    }
+
     if ([message isKindOfClass:[NSDictionary class]]) {
         NSDictionary *dict = (NSDictionary *)message;
+        
+        // Check if this is an RPC request rather than an EBT payload
+        if (dict[@"name"] && dict[@"args"]) {
+            NSArray *name = dict[@"name"];
+            NSLog(@"[EBT]   Ignoring non-EBT RPC request: %@", name);
+            // If it was ebt.replicate, we should handle it bilaterally, but for now we just skip to avoid clock corruption
+            return;
+        }
+        
         if (dict[@"key"] && dict[@"value"]) {
             [self processIncomingMessage:dict];
         } else {
             [self handleRemoteClockUpdate:dict];
         }
     } else if ([message isKindOfClass:[NSData class]]) {
-        NSLog(@"[EBT] Received message data (%lu bytes)", (unsigned long)[(NSData *)message length]);
-        [self processIncomingMessage:message];
+        NSData *data = (NSData *)message;
+        NSLog(@"[EBT] Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
+        // Try to parse as JSON first in case it's a clock update in binary form
+        NSError *jsonError = nil;
+        id parsed = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&jsonError];
+        if (!jsonError && [parsed isKindOfClass:[NSDictionary class]]) {
+             NSLog(@"[EBT]   Successfully parsed binary data as JSON dictionary");
+             [self handleEBTMessage:parsed requestID:reqID flags:flags];
+        } else {
+             [self processIncomingMessage:data];
+        }
     }
 }
 
 - (void)handleRemoteClockUpdate:(NSDictionary *)update {
-    NSLog(@"[EBT] Received clock update with %lu entries", (unsigned long)update.count);
-    [update enumerateKeysAndObjectsUsingBlock:^(id author, id seqVal, BOOL *stop) {
-        if ([author isKindOfClass:[NSString class]] && [seqVal isKindOfClass:[NSNumber class]]) {
-            NSInteger seq = [seqVal integerValue];
-            NSLog(@"[EBT]   Clock for %@ is %ld", author, (long)seq);
+    NSLog(@"[EBT] Received clock update with %lu entries: %@", (unsigned long)update.count, update);
+    [update enumerateKeysAndObjectsUsingBlock:^(id key, id val, BOOL *stop) {
+        NSLog(@"[EBT]   Processing entry: keyType=%@ valType=%@ key=%@ val=%@", [key class], [val class], key, val);
+        if ([key isKindOfClass:[NSString class]] && [val isKindOfClass:[NSNumber class]]) {
+            NSString *author = (NSString *)key;
+            NSInteger seq = [val integerValue];
+            NSLog(@"[EBT]   Valid clock for %@ is %ld", author, (long)seq);
             self.remoteClock[author] = @(ABS(seq));
             [self updateSyncProgressForAuthor:author];
         }
@@ -929,12 +962,19 @@ static os_log_t ssb_room_log;
 }
 
 - (void)announce {
+    [self announceWithCompletion:nil];
+}
+
+- (void)announceWithCompletion:(void(^ _Nullable)(void))completion {
     __weak typeof(self) weakSelf = self;
     [self sendRPCRequest:@[@"tunnel", @"announce"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (!error) {
             [weakSelf log:@"Announce success"];
+            if (completion) completion();
         } else {
             [weakSelf log:[NSString stringWithFormat:@"Announce failed: %@", error.localizedDescription]];
+            // Still proceed? some servers might return error if already announced
+            if (completion) completion();
         }
         // Always subscribe to endpoints regardless of announce status
         [weakSelf subscribeToEndpoints];
@@ -974,6 +1014,9 @@ static os_log_t ssb_room_log;
     if ([response isKindOfClass:[NSArray class]]) {
         [self.attendantsList removeAllObjects];
         [self.attendantsList addObjectsFromArray:response];
+        for (NSString *peerID in response) {
+            [self replicateFromPeer:peerID viaRoom:self.host];
+        }
     } else if ([response isKindOfClass:[NSDictionary class]]) {
         // Room v2 `room.attendants` returns dictionary events.
         NSDictionary *dict = (NSDictionary *)response;
@@ -1061,7 +1104,8 @@ static os_log_t ssb_room_log;
                                                               peerPublicKey:remotePubKey
                                                               localIdentity:self.localIdentitySecret
                                                                 roomSession:self.rpcSession
-                                                                tunnelReqID:reqID];
+                                                                tunnelReqID:reqID
+                                                                   isServer:NO];
     
     __weak typeof(self) weakSelfOuter = self;
     tunnel.onConnectionStateReady = ^{
@@ -1118,13 +1162,33 @@ static os_log_t ssb_room_log;
 }
 
 - (void)handleServerInitiatedRequest:(id)payload requestID:(int32_t)reqID flags:(uint8_t)flags {
-    os_log_debug(ssb_room_log, "Server req: %@", payload);
+    os_log_debug(ssb_room_log, "Server initiated message: ID=%d flags=%u", reqID, flags);
+    
+    // Check if this belongs to an active tunnel (Server-initiated duplex stream)
+    for (SSBTunnelConnection *tunnel in self.activeTunnels.allValues) {
+        if ([tunnel valueForKey:@"tunnelReqID"] != nil && [[tunnel valueForKey:@"tunnelReqID"] intValue] == reqID) {
+            NSData *data = nil;
+            if ([payload isKindOfClass:[NSData class]]) {
+                data = (NSData *)payload;
+            } else if ([payload isKindOfClass:[NSString class]]) {
+                data = [(NSString *)payload dataUsingEncoding:NSUTF8StringEncoding];
+            }
+            
+            if (data) {
+                [tunnel receiveTunnelData:data];
+                return;
+            }
+        }
+    }
     
     if ([payload isKindOfClass:[NSDictionary class]]) {
         NSDictionary *req = (NSDictionary *)payload;
         NSArray *name = req[@"name"];
         if ([name isKindOfClass:[NSArray class]] && [name.firstObject isEqualToString:@"getSubset"]) {
             [self handleGetSubset:req requestID:reqID];
+        } else if ([name isKindOfClass:[NSArray class]] && name.count >= 2 && 
+                   [name[0] isEqualToString:@"tunnel"] && [name[1] isEqualToString:@"connect"]) {
+            [self handleTunnelConnect:req requestID:reqID];
         }
     }
 }
@@ -1153,6 +1217,62 @@ static os_log_t ssb_room_log;
     }
     
     [self sendRPCResponse:@YES requestID:reqID flags:SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagEndErr | SSBMuxRPCFlagStream];
+}
+
+- (void)handleTunnelConnect:(NSDictionary *)req requestID:(int32_t)reqID {
+    NSArray *argsArr = req[@"args"];
+    if (![argsArr isKindOfClass:[NSArray class]] || argsArr.count == 0) {
+        [self sendRPCResponse:@{@"name": @"Error", @"message": @"Missing args"} requestID:reqID flags:SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagEndErr];
+        return;
+    }
+    
+    NSDictionary *args = argsArr.firstObject;
+    NSString *portal = args[@"portal"];
+    NSString *target = args[@"target"];
+    
+    if (![target isEqualToString:[self localPublicID]]) {
+        [self sendRPCResponse:@{@"name": @"Error", @"message": @"Target mismatch"} requestID:reqID flags:SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagEndErr];
+        return;
+    }
+    
+    NSString *originPeerId = args[@"origin"] ?: portal;
+    
+    NSData *remotePubKey = [self publicKeyFromPeerID:originPeerId];
+    if (!remotePubKey) {
+        [self sendRPCResponse:@{@"name": @"Error", @"message": @"Invalid origin peer ID"} requestID:reqID flags:SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagEndErr];
+        return;
+    }
+    
+    os_log_info(ssb_room_log, "Accepting tunnel connection from %@", originPeerId);
+    
+    SSBTunnelConnection *tunnel = [[SSBTunnelConnection alloc] initWithPeerId:originPeerId
+                                                               peerPublicKey:remotePubKey
+                                                               localIdentity:self.localIdentitySecret
+                                                                 roomSession:self.rpcSession
+                                                                 tunnelReqID:reqID
+                                                                    isServer:YES];
+    
+    __weak typeof(self) weakSelf = self;
+    tunnel.onConnectionStateReady = ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (strongSelf) {
+            os_log_info(ssb_room_log, "Incoming tunnel from %@ is ready!", originPeerId);
+            [strongSelf replicateFromPeer:originPeerId viaRoom:strongSelf.host];
+        }
+    };
+    
+    [tunnel start];
+    self.activeTunnels[originPeerId] = tunnel;
+}
+
+- (NSData *)publicKeyFromPeerID:(NSString *)peerID {
+    if ([peerID hasPrefix:@"@"] && [peerID hasSuffix:@".ed25519"]) {
+        NSString *base64Key = [peerID substringWithRange:NSMakeRange(1, peerID.length - 9)];
+        long paddingLength = (4 - (base64Key.length % 4)) % 4;
+        NSString *paddedKey = [base64Key stringByPaddingToLength:base64Key.length + paddingLength withString:@"=" startingAtIndex:0];
+        return [[NSData alloc] initWithBase64EncodedString:paddedKey options:0];
+    }
+    return nil;
 }
 
 - (void)sendRPCResponse:(id)payload requestID:(int32_t)reqID flags:(SSBMuxRPCFlags)flags {

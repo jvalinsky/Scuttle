@@ -5,6 +5,9 @@
 #import <SSBNetwork/SSBBoxStream.h>
 #import <CommonCrypto/CommonHMAC.h>
 #import <objc/runtime.h>
+#import "../Sources/SSBTunnelConnection.h"
+#import "../Sources/SSBMuxRPCSession.h"
+#import "../Sources/tweetnacl.h"
 
 /**
  * Bug Condition Exploration Tests for SSB Room Protocol Compliance
@@ -27,9 +30,13 @@
 @interface SSBRoomClient (TestAccess)
 - (void)handleDecryptedMuxRPCData:(NSData *)data;
 - (void)handleAttendantsResponse:(id)response;
+@property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, strong) NSMutableData *rpcBuffer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallState *> *pendingRequests;
 @property (nonatomic, assign) int32_t nextRequestID;
+@property (nonatomic, strong, readonly) NSMutableDictionary<NSString *, SSBTunnelConnection *> *activeTunnels;
+- (NSString *)localPublicID;
+- (void)handleTunnelConnect:(NSDictionary *)req requestID:(int32_t)reqID;
 @end
 
 @implementation SSBRoomClient (TestAccess)
@@ -47,28 +54,6 @@
     objc_setAssociatedObject(self, @selector(rpcBuffer), rpcBuffer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-- (NSMutableDictionary<NSNumber *, SSBRPCCallState *> *)pendingRequests {
-    NSMutableDictionary *dict = objc_getAssociatedObject(self, @selector(pendingRequests));
-    if (!dict) {
-        dict = [NSMutableDictionary dictionary];
-        objc_setAssociatedObject(self, @selector(pendingRequests), dict, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    return dict;
-}
-
-- (void)setPendingRequests:(NSMutableDictionary<NSNumber *, SSBRPCCallState *> *)pendingRequests {
-    objc_setAssociatedObject(self, @selector(pendingRequests), pendingRequests, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
-- (int32_t)nextRequestID {
-    NSNumber *val = objc_getAssociatedObject(self, @selector(nextRequestID));
-    return val ? [val intValue] : 0;
-}
-
-- (void)setNextRequestID:(int32_t)nextRequestID {
-    objc_setAssociatedObject(self, @selector(nextRequestID), @(nextRequestID), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-}
-
 - (void)handleDecryptedMuxRPCData:(NSData *)data {
     SSBMuxRPCFlags flags;
     int32_t reqNum;
@@ -76,31 +61,8 @@
     if (data.length < 9 + bodyLen) return;
     
     NSData *body = [data subdataWithRange:NSMakeRange(9, bodyLen)];
-    
-    id parsedBody = nil;
-    if ((flags & SSBMuxRPCFlagTypeJSON) && body.length > 0) {
-        parsedBody = [NSJSONSerialization JSONObjectWithData:body options:NSJSONReadingAllowFragments error:nil];
-    } else if ((flags & SSBMuxRPCFlagTypeString) && body.length > 0) {
-        parsedBody = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
-    } else {
-        parsedBody = body;
-    }
-    
-    int32_t targetReqNum = reqNum < 0 ? -reqNum : reqNum;
-    SSBRPCCallState *state = self.pendingRequests[@(targetReqNum)];
-    if (state && state.callback) {
-        BOOL isEnd = (flags & SSBMuxRPCFlagEndErr) != 0;
-        NSError *error = nil;
-        if (isEnd && [parsedBody isKindOfClass:[NSDictionary class]] && parsedBody[@"name"] && [parsedBody[@"name"] containsString:@"Error"]) {
-            error = [NSError errorWithDomain:@"SSBMuxRPC" code:-1 userInfo:@{NSLocalizedDescriptionKey: parsedBody[@"message"] ?: @"Unknown RPC Error"}];
-        } else if (isEnd && [parsedBody isKindOfClass:[NSString class]]) {
-            NSString *strBody = (NSString *)parsedBody;
-            if ([strBody rangeOfString:@"Error" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-                error = [NSError errorWithDomain:@"SSBMuxRPC" code:-1 userInfo:@{NSLocalizedDescriptionKey: strBody}];
-            }
-        }
-        state.callback(parsedBody, isEnd, error);
-    }
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:reqNum body:body];
+    [self.rpcSession handleIncomingMessage:msg];
 }
 
 @end
@@ -879,11 +841,22 @@
     
     NSString *targetPeerId = @"@FCX/7DcST98o7fSJpEh936C291y61XwK7m0B3766xWk=.ed25519";
     
-    // We expect the client to:
-    // 1. Create a tunnel state
-    // 2. Initiate SHS hello over the tunnel
+    // Setup expectation for tunnel readiness
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Tunnel should be initialized"];
     
     [self.client connectToPeer:targetPeerId];
+    
+    // Polling to wait for tunnel creation and clientConnection initialization
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        NSMutableDictionary *activeTunnels = [self.client valueForKey:@"activeTunnels"];
+        id tunnel = activeTunnels[targetPeerId];
+        
+        if (tunnel && [tunnel valueForKey:@"clientConnection"] != nil) {
+            [expectation fulfill];
+        }
+    });
+    
+    [self waitForExpectations:@[expectation] timeout:2.0];
     
     NSMutableDictionary *activeTunnels = [self.client valueForKey:@"activeTunnels"];
     id tunnel = activeTunnels[targetPeerId];
@@ -901,44 +874,115 @@
  * This test documents the expected protocol flow for a complete tunneled connection
  * per SIP 7 section "Tunneled connection".
  */
-- (void)testTunneledConnectionExpectedProtocolFlow {
-    // Per SIP 7, the tunneled connection protocol should work as follows:
-    //
-    // 1. Client A connects to Room M via conventional Secret Handshake + Box Stream
-    // 2. Client B connects to Room M via conventional Secret Handshake + Box Stream
-    // 3. Client B calls tunnel.connect(targetPeerId: A) via MuxRPC
-    // 4. Room M receives the request and calls Client A with the tunnel stream
-    // 5. Client A accepts the tunnel stream (or rejects based on tunneled authentication)
-    // 6. Room M connects the two tunnel streams (A's end and B's end)
-    // 7. Client B performs Secret Handshake with Client A over the tunnel stream
-    // 8. After handshake succeeds, both clients establish Box Stream encryption
-    // 9. Now A and B have a full duplex encrypted connection through M
-    //
-    // The key insight: The tunnel is DOUBLE ENCRYPTED
-    // - Outer layer: A-M and B-M connections (conventional Secret Handshake + Box Stream)
-    // - Inner layer: A-B connection over tunnel (inner Secret Handshake + Box Stream)
-    //
-    // This means Room M cannot see the content of A-B communication, only that they
-    // are communicating and the bandwidth/timing metadata.
-    //
-    // The current implementation only performs step 3 (sends the MuxRPC request)
-    // but does not perform steps 7-8 (inner Secret Handshake and Box Stream).
+- (void)testBilateralTunneledHandshake {
+    NSLog(@"[TEST BILATERAL TUNNEL] Starting end-to-end handshake verification...");
     
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] Expected flow per SIP 7:");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 1. A connects to M (outer SHS + Box Stream)");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 2. B connects to M (outer SHS + Box Stream)");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 3. B calls tunnel.connect(A) via MuxRPC");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 4. M calls A with tunnel stream");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 5. A accepts tunnel stream");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 6. M connects A's and B's tunnel streams");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 7. B performs inner SHS with A over tunnel");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 8. A and B establish inner Box Stream");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] 9. Full duplex encrypted A-B connection ready");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL]");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] Current implementation: Only step 3 is performed");
-    NSLog(@"[TEST TUNNELED CONNECTION PROTOCOL] Missing: Steps 7-8 (inner SHS and Box Stream)");
+    // Setup Client A (Listener/Target)
+    unsigned char pkA[32], skA[64];
+    crypto_sign_ed25519_keypair(pkA, skA);
+    NSData *localIdentityA = [NSData dataWithBytes:skA length:64];
+    SSBRoomClient *clientA = [[SSBRoomClient alloc] initWithHost:@"test.room" port:8008 serverPubKey:[NSData dataWithBytes:(unsigned char[32]){0} length:32] localIdentity:localIdentityA];
+    [clientA setValue:@YES forKey:@"isConnected"];
+    NSString *peerIdA = [clientA localPublicID];
     
-    XCTAssertTrue(YES, @"Test documents the expected tunneled connection protocol flow per SIP 7");
+    // Setup Client B (Dialer/Origin)
+    unsigned char pkB[32], skB[64];
+    crypto_sign_ed25519_keypair(pkB, skB);
+    NSData *localIdentityB = [NSData dataWithBytes:skB length:64];
+    SSBRoomClient *clientB = [[SSBRoomClient alloc] initWithHost:@"test.room" port:8008 serverPubKey:[NSData dataWithBytes:(unsigned char[32]){0} length:32] localIdentity:localIdentityB];
+    [clientB setValue:@YES forKey:@"isConnected"];
+    NSString *peerIdB = [clientB localPublicID];
+    
+    XCTestExpectation *handshakeCompleteA = [self expectationWithDescription:@"Client A Handshake Complete"];
+    XCTestExpectation *handshakeCompleteB = [self expectationWithDescription:@"Client B Handshake Complete"];
+    
+    // Mock the Room's transport layer to bridge A and B
+    SSBMuxRPCSession *sessionA = [clientA valueForKey:@"rpcSession"];
+    SSBMuxRPCSession *sessionB = [clientB valueForKey:@"rpcSession"];
+    
+    __block int32_t tunnelReqID_B = 1; // Default for first request
+    __block int32_t tunnelReqID_A = 0;
+    
+    sessionB.sendMessageBlock = ^(SSBMuxRPCMessage *msg) {
+        int32_t reqNum = msg.requestNumber;
+        if (reqNum == tunnelReqID_B || reqNum == -tunnelReqID_B) {
+            NSLog(@"[MOCK ROOM] B -> A: %lu bytes (req=%d)", (unsigned long)msg.body.length, reqNum);
+            SSBTunnelConnection *tunnelA = clientA.activeTunnels[peerIdB];
+            if (tunnelA) {
+                [tunnelA receiveTunnelData:msg.body];
+            } else {
+                // This is the initial tunnel.connect request — INJECT origin as the Room would
+                NSMutableDictionary *body = [[NSJSONSerialization JSONObjectWithData:msg.body options:NSJSONReadingMutableContainers error:nil] mutableCopy];
+                if (body && body[@"name"] && [body[@"name"] containsObject:@"connect"]) {
+                    NSMutableArray *args = [body[@"args"] mutableCopy];
+                    NSMutableDictionary *arg0 = [args[0] mutableCopy];
+                    arg0[@"origin"] = peerIdB; 
+                    args[0] = arg0;
+                    body[@"args"] = args;
+                    NSData *newBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:nil];
+                    msg = [[SSBMuxRPCMessage alloc] initWithFlags:msg.flags requestNumber:msg.requestNumber body:newBody];
+                }
+                [clientA handleDecryptedMuxRPCData:[msg serialize]];
+            }
+        }
+    };
+    
+    sessionA.sendMessageBlock = ^(SSBMuxRPCMessage *msg) {
+        int32_t reqNum = msg.requestNumber;
+        // The room forwards back to B using B's original request ID
+        if (reqNum == tunnelReqID_A || reqNum == -tunnelReqID_A || reqNum == -tunnelReqID_B) {
+            NSLog(@"[MOCK ROOM] A -> B: %lu bytes (req=%d)", (unsigned long)msg.body.length, reqNum);
+            SSBTunnelConnection *tunnelB = clientB.activeTunnels[peerIdA];
+            if (tunnelB) {
+                [tunnelB receiveTunnelData:msg.body];
+            } else {
+                // If it's a response to B's request, send to B
+                [clientB handleDecryptedMuxRPCData:[msg serialize]];
+            }
+        }
+    };
+    
+    // Step 1: Client B initiates tunnel to A
+    [clientB connectToPeer:peerIdA];
+    
+    // Wait for B to create tunnel and update tunnelReqID_B if needed
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        SSBTunnelConnection *tunnelB = clientB.activeTunnels[peerIdA];
+        if (tunnelB) {
+            tunnelReqID_B = [[tunnelB valueForKey:@"tunnelReqID"] intValue];
+            NSLog(@"[TEST] Captured tunnelReqID_B = %d", tunnelReqID_B);
+            if (tunnelB.isConnected) {
+                [handshakeCompleteB fulfill];
+            } else {
+                tunnelB.onConnectionStateReady = ^{
+                    [handshakeCompleteB fulfill];
+                };
+            }
+        }
+    });
+    
+    // Polling to wait for Client A to create tunnel
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        SSBTunnelConnection *tunnelA = clientA.activeTunnels[peerIdB];
+        if (tunnelA) {
+            tunnelReqID_A = [[tunnelA valueForKey:@"tunnelReqID"] intValue];
+            NSLog(@"[TEST] Captured tunnelReqID_A = %d", tunnelReqID_A);
+            if (tunnelA.isConnected) {
+                [handshakeCompleteA fulfill];
+            } else {
+                tunnelA.onConnectionStateReady = ^{
+                    [handshakeCompleteA fulfill];
+                };
+            }
+        }
+    });
+
+    [self waitForExpectations:@[handshakeCompleteA, handshakeCompleteB] timeout:10.0];
+    
+    XCTAssertTrue(clientA.activeTunnels[peerIdB].isConnected, @"Client A tunnel should be connected");
+    XCTAssertTrue(clientB.activeTunnels[peerIdA].isConnected, @"Client B tunnel should be connected");
+    
+    NSLog(@"[TEST BILATERAL TUNNEL] ✓ End-to-end handshake SUCCESS!");
 }
 
 #pragma mark - Task 1.7: Test Room Version Detection

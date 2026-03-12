@@ -15,6 +15,7 @@
 @property (nonatomic, strong) NSData *localIdentity;
 @property (nonatomic, weak) SSBMuxRPCSession *roomSession;
 @property (nonatomic, assign) int32_t tunnelReqID;
+@property (nonatomic, assign) BOOL isServer;
 
 @property (nonatomic, strong) nw_listener_t listener;
 @property (nonatomic, strong) nw_connection_t serverConnection;
@@ -23,6 +24,7 @@
 @property (nonatomic, strong) os_log_t log;
 @property (nonatomic, assign) BOOL isHandshakeComplete;
 @property (nonatomic, strong) NSMutableArray<SSBMuxRPCMessage *> *pendingMessages;
+@property (nonatomic, strong) NSMutableArray<NSData *> *incomingBuffer;
 @end
 
 @implementation SSBTunnelConnection
@@ -31,7 +33,8 @@
                  peerPublicKey:(NSData *)peerPublicKey
                  localIdentity:(NSData *)localSecret
                    roomSession:(SSBMuxRPCSession *)roomSession
-                   tunnelReqID:(int32_t)tunnelReqID {
+                   tunnelReqID:(int32_t)tunnelReqID
+                      isServer:(BOOL)isServer {
     self = [super init];
     if (self) {
         _log = os_log_create("com.scuttlebutt.tunnel", "Connection");
@@ -40,8 +43,10 @@
         _localIdentity = localSecret;
         _roomSession = roomSession;
         _tunnelReqID = tunnelReqID;
+        _isServer = isServer;
         _tunnelQueue = dispatch_queue_create("com.scuttlebutt.tunnel.queue", DISPATCH_QUEUE_SERIAL);
         _pendingMessages = [NSMutableArray array];
+        _incomingBuffer = [NSMutableArray array];
         
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
@@ -60,9 +65,10 @@
                 if (!data) return;
                 
                 dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, strongSelf.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-                nw_connection_send(strongSelf.clientConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, ^(nw_error_t  _Nullable error) {
+                nw_connection_send(strongSelf.clientConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
                     if (error) {
                         os_log_error(strongSelf.log, "Failed to send MuxRPC message over tunnel: %{public}@", error);
+                        NSLog(@"[Tunnel %p] ERROR: Failed to send MuxRPC message: %@", strongSelf, error);
                     }
                 });
             }
@@ -97,6 +103,7 @@
             [weakSelf connectClient];
         } else if (state == nw_listener_state_failed) {
             os_log_error(weakSelf.log, "Tunnel listener failed: %{public}@", error);
+            NSLog(@"[Tunnel %p] ERROR: listener failed: %@", weakSelf, error);
         }
     });
     
@@ -113,7 +120,18 @@
             if (state == nw_connection_state_ready) {
                 NSLog(@"[Tunnel %p] serverConnection (accepted) ready, starting readFromServerConnection", strongSelf);
                 [weakSelf readFromServerConnection];
+                
+                // Flush buffered incoming tunnel data
+                for (NSData *buffered in strongSelf.incomingBuffer) {
+                    [strongSelf receiveTunnelData:buffered];
+                }
+                [strongSelf.incomingBuffer removeAllObjects];
             } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
+                if (state == nw_connection_state_failed) {
+                    NSLog(@"[Tunnel %p] ERROR: serverConnection FAILED: %@", strongSelf, error);
+                } else {
+                    NSLog(@"[Tunnel %p] serverConnection CANCELLED", strongSelf);
+                }
                 [weakSelf stop];
             }
         });
@@ -132,8 +150,10 @@
     nw_parameters_t params = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, NW_PARAMETERS_DEFAULT_CONFIGURATION);
     
     // Add the Secret Handshake and Box Stream protocol
-    nw_protocol_options_t secOptions = [SSBSecurityFramer createOptionsWithLocalSecretKey:self.localIdentity remotePublicKey:self.peerPublicKey];
-    NSLog(@"[Tunnel %p] SSBSecurityFramer options: %@", self, secOptions);
+    nw_protocol_options_t secOptions = [SSBSecurityFramer createOptionsWithLocalSecretKey:self.localIdentity 
+                                                                         remotePublicKey:self.peerPublicKey 
+                                                                                asClient:!self.isServer];
+    NSLog(@"[Tunnel %p] SSBSecurityFramer options: %@ (asClient=%d)", self, secOptions, !self.isServer);
     nw_protocol_stack_prepend_application_protocol(nw_parameters_copy_default_protocol_stack(params), secOptions);
     
     // Add the MuxRPC protocol
@@ -168,7 +188,12 @@
             // Now we can begin reading MuxRPC messages from the framer stack
             [weakSelf readFromClientConnection];
         } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
-            os_log_error(weakSelf.log, "Tunnel client connection failed: %{public}@", error);
+            if (state == nw_connection_state_failed) {
+                os_log_error(weakSelf.log, "Tunnel client connection failed: %{public}@", error);
+                NSLog(@"[Tunnel %p] ERROR: clientConnection FAILED: %@", weakSelf, error);
+            } else {
+                NSLog(@"[Tunnel %p] clientConnection CANCELLED", weakSelf);
+            }
             weakSelf.isConnected = NO;
             [weakSelf stop];
         }
@@ -178,16 +203,23 @@
 }
 
 - (void)receiveTunnelData:(NSData *)data {
-    static NSUInteger totalReceived = 0;
-    totalReceived += data.length;
-    NSLog(@"[Tunnel %p] receiveTunnelData: %lu bytes (total so far: %lu)", self, (unsigned long)data.length, (unsigned long)totalReceived);
-    if (!self.serverConnection) return;
-    
-    dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, self.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-    nw_connection_send(self.serverConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
-        if (error) {
-            os_log_error(self.log, "Failed to write incoming tunnel data to server socket: %{public}@", error);
+    dispatch_async(self.tunnelQueue, ^{
+        static NSUInteger totalReceived = 0;
+        totalReceived += data.length;
+        NSLog(@"[Tunnel %p] receiveTunnelData: %lu bytes (total so far: %lu)", self, (unsigned long)data.length, (unsigned long)totalReceived);
+        
+        if (!self.serverConnection) {
+            NSLog(@"[Tunnel %p] serverConnection NOT READY, buffering %lu bytes", self, (unsigned long)data.length);
+            [self.incomingBuffer addObject:data];
+            return;
         }
+        
+        dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, self.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+        nw_connection_send(self.serverConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
+            if (error) {
+                os_log_error(self.log, "Failed to write incoming tunnel data to server socket: %{public}@", error);
+            }
+        });
     });
 }
 
@@ -202,11 +234,13 @@
                 NSData *data = (NSData *)content;
                 NSLog(@"[Tunnel %p] readFromServerConnection: received %lu bytes from local socket, piping to room", strongSelf, (unsigned long)data.length);
                 if (data.length > 0) {
-                    [strongSelf.roomSession sendData:data forRequest:strongSelf.tunnelReqID isEnd:NO];
+                    int32_t transportID = self.isServer ? -self.tunnelReqID : self.tunnelReqID;
+                    [strongSelf.roomSession sendData:data forRequest:transportID isEnd:NO];
                 }
             }
         
-        if (is_complete || error) {
+        if (error || (is_complete && content == nil)) {
+            if (error) NSLog(@"[Tunnel %p] serverConnection read error: %@", strongSelf, error);
             [strongSelf stop];
         } else {
             [strongSelf readFromServerConnection];
@@ -249,7 +283,8 @@
             }
         }
         
-        if (is_complete || error) {
+        if (error || (is_complete && content == nil)) {
+            if (error) NSLog(@"[Tunnel %p] clientConnection read error: %@", strongSelf, error);
             [strongSelf stop];
         } else {
             [strongSelf readFromClientConnection];

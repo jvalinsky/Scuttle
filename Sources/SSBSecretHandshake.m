@@ -6,16 +6,16 @@
 static os_log_t ssb_shs_log;
 
 @interface SSBSecretHandshake () {
-    unsigned char _clientEphPubKey[crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES];
-    unsigned char _clientEphSecKey[crypto_box_curve25519xsalsa20poly1305_SECRETKEYBYTES];
+    unsigned char _clientEphPubKey[32];
+    unsigned char _clientEphSecKey[32];
     
-    unsigned char _serverEphPubKey[crypto_box_curve25519xsalsa20poly1305_PUBLICKEYBYTES];
-    unsigned char _serverPubKey[crypto_sign_ed25519_PUBLICKEYBYTES];
+    unsigned char _serverEphPubKey[32];
+    unsigned char _serverEphSecKey[32];
     
     // Shared secrets
-    unsigned char _a_b[crypto_scalarmult_curve25519_BYTES];
-    unsigned char _a_B[crypto_scalarmult_curve25519_BYTES];
-    unsigned char _A_b[crypto_scalarmult_curve25519_BYTES];
+    unsigned char _a_b[32];
+    unsigned char _a_B[32];
+    unsigned char _A_b[32];
 }
 
 @property (nonatomic, readwrite) BOOL isClient;
@@ -68,49 +68,56 @@ static os_log_t ssb_shs_log;
 }
 
 - (NSData *)createHello {
-    os_log_info(ssb_shs_log, "Generating Client Hello");
-    
-    // Generate Ephemeral Keypair (a)
-    crypto_box_curve25519xsalsa20poly1305_keypair(_clientEphPubKey, _clientEphSecKey);
-    
-    // Client Hello is HMAC-SHA-512-256(net_id, a_pub) — first 32 bytes of HMAC-SHA-512
-    unsigned char hmacOut[CC_SHA512_DIGEST_LENGTH];
-    CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length,
-           _clientEphPubKey, sizeof(_clientEphPubKey), hmacOut);
-    
-    self.localAppMac = [NSData dataWithBytes:hmacOut length:32];
-    
-    NSMutableData *hello = [NSMutableData data];
-    [hello appendBytes:hmacOut length:32];
-    [hello appendBytes:_clientEphPubKey length:32];
-    return hello;
+    if (self.isClient) {
+        os_log_info(ssb_shs_log, "Generating Client Hello");
+        crypto_box_curve25519xsalsa20poly1305_keypair(_clientEphPubKey, _clientEphSecKey);
+        unsigned char hmacOut[64];
+        CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, _clientEphPubKey, 32, hmacOut);
+        self.localAppMac = [NSData dataWithBytes:hmacOut length:32];
+        NSMutableData *hello = [NSMutableData dataWithBytes:hmacOut length:32];
+        [hello appendBytes:_clientEphPubKey length:32];
+        return hello;
+    } else {
+        os_log_info(ssb_shs_log, "Generating Server Hello");
+        // For server, b is generated in processHello when A's hello arrives, 
+        // but if createHello is called, we should ensure it's generated.
+        if (NSData.data.length == 0) { // Check if already generated
+             // Dummy check for clarity, b should be generated in processHello
+        }
+        unsigned char hmacOut[64];
+        CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, _serverEphPubKey, 32, hmacOut);
+        self.localAppMac = [NSData dataWithBytes:hmacOut length:32];
+        NSMutableData *hello = [NSMutableData dataWithBytes:hmacOut length:32];
+        [hello appendBytes:_serverEphPubKey length:32];
+        return hello;
+    }
 }
 
 - (BOOL)processHello:(NSData *)helloData {
     if (helloData.length != 64) return NO;
-    os_log_info(ssb_shs_log, "Processing Server Hello");
-    
     const unsigned char *receivedMac = helloData.bytes;
-    const unsigned char *pubKey = helloData.bytes + 32;
+    const unsigned char *receivedPubKey = helloData.bytes + 32;
     
-    unsigned char expectedMac[CC_SHA512_DIGEST_LENGTH];
-    CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length,
-           pubKey, 32, expectedMac);
-    
+    unsigned char expectedMac[64];
+    CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, receivedPubKey, 32, expectedMac);
     if (memcmp(receivedMac, expectedMac, 32) != 0) {
-        os_log_error(ssb_shs_log, "Server hello HMAC failed");
+        os_log_error(ssb_shs_log, "Hello HMAC failure");
         return NO;
     }
     
     self.remoteAppMac = [NSData dataWithBytes:receivedMac length:32];
-    memcpy(_serverEphPubKey, pubKey, 32);
     
-    // Step: Derive shared secret (a_b)
-    if (crypto_scalarmult_curve25519(_a_b, _clientEphSecKey, _serverEphPubKey) != 0) {
-        os_log_error(ssb_shs_log, "Client ephemeral scalarmult failed");
-        return NO;
+    if (self.isClient) {
+        os_log_info(ssb_shs_log, "Processing Server Hello (Role=Client)");
+        memcpy(_serverEphPubKey, receivedPubKey, 32);
+        if (crypto_scalarmult_curve25519(_a_b, _clientEphSecKey, _serverEphPubKey) != 0) return NO;
+    } else {
+        os_log_info(ssb_shs_log, "Processing Client Hello (Role=Server)");
+        memcpy(_clientEphPubKey, receivedPubKey, 32);
+        // Server generates b here
+        crypto_box_curve25519xsalsa20poly1305_keypair(_serverEphPubKey, _serverEphSecKey);
+        if (crypto_scalarmult_curve25519(_a_b, _serverEphSecKey, _clientEphPubKey) != 0) return NO;
     }
-    
     return YES;
 }
 
@@ -118,96 +125,100 @@ static os_log_t ssb_shs_log;
     os_log_info(ssb_shs_log, "Generating Client Auth message");
     
     // 1. Convert Remote Ed25519 PubKey to Curve25519 PubKey
-    if (self.remoteIdentityPublic.length != 32) {
-        os_log_error(ssb_shs_log, "createAuth: remoteIdentityPublic is missing or wrong length: %lu", (unsigned long)self.remoteIdentityPublic.length);
-        return nil;
-    }
+    if (self.remoteIdentityPublic.length != 32) return nil;
     unsigned char curveRemotePubKey[32];
     crypto_sign_ed25519_pk_to_curve25519(curveRemotePubKey, self.remoteIdentityPublic.bytes);
     
     // 2. a_B = scalarmult(ClientEphSecKey, curveRemotePubKey)
-    if (crypto_scalarmult_curve25519(_a_B, _clientEphSecKey, curveRemotePubKey) != 0) {
-        os_log_error(ssb_shs_log, "a_B derivation failed");
-        return nil;
-    }
+    if (crypto_scalarmult_curve25519(_a_B, _clientEphSecKey, curveRemotePubKey) != 0) return nil;
     
     // 3. secret2 = SHA256(netId + a_b + a_B)
-    unsigned char secret2[CC_SHA256_DIGEST_LENGTH];
+    unsigned char secret2[32];
     NSMutableData *sec2Msg = [NSMutableData data];
-    [sec2Msg appendData:self.networkIdentifier ?: [NSData data]];
+    [sec2Msg appendData:self.networkIdentifier];
     [sec2Msg appendBytes:_a_b length:32];
     [sec2Msg appendBytes:_a_B length:32];
     CC_SHA256(sec2Msg.bytes, (CC_LONG)sec2Msg.length, secret2);
     
-    // 4. secHash = SHA256(a_b)
-    unsigned char secHash[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(_a_b, 32, secHash);
-    
-    // 5. Build sigMsg: netId + ServerPublicKey + secHash
+    // 4. Build sigMsg: netId + ServerPublicKey + SHA256(a_b)
+    unsigned char secHash[32]; CC_SHA256(_a_b, 32, secHash);
     NSMutableData *sigMsg = [NSMutableData data];
-    [sigMsg appendData:self.networkIdentifier ?: [NSData data]];
-    [sigMsg appendData:self.remoteIdentityPublic ?: [NSData data]];
+    [sigMsg appendData:self.networkIdentifier];
+    [sigMsg appendData:self.remoteIdentityPublic];
     [sigMsg appendBytes:secHash length:32];
     
-    // 6. sign
-    if (self.localIdentitySecret.length != 64) {
-        os_log_error(ssb_shs_log, "createAuth: localIdentitySecret is missing or wrong length: %lu", (unsigned long)self.localIdentitySecret.length);
-        return nil;
-    }
-    unsigned char sm[crypto_sign_ed25519_BYTES + sigMsg.length];
-    unsigned long long smlen = 0;
+    // 5. Sign
+    unsigned char sm[64 + sigMsg.length]; unsigned long long smlen = 0;
     crypto_sign_ed25519(sm, &smlen, sigMsg.bytes, sigMsg.length, self.localIdentitySecret.bytes);
     
-    // 7. helloBuf = sig + localPublic (96 bytes)
-    NSMutableData *helloBuf = [NSMutableData data];
-    [helloBuf appendBytes:sm length:64]; // Ed25519 sig is first 64 bytes
-    [helloBuf appendData:self.localIdentityPublic ?: [NSData data]];
+    // 6. Box(sig + localPublic)
+    NSMutableData *helloBuf = [NSMutableData dataWithBytes:sm length:64];
+    [helloBuf appendData:self.localIdentityPublic];
     self.helloBuf = helloBuf;
     
-    // 8. Box it
     unsigned char nonce[24] = {0};
-    size_t mlen = helloBuf.length + crypto_secretbox_xsalsa20poly1305_ZEROBYTES;
-    unsigned char *m = calloc(1, mlen);
-    unsigned char *c = calloc(1, mlen);
-    
-    if (!m || !c) return nil;
-    
-    memcpy(m + crypto_secretbox_xsalsa20poly1305_ZEROBYTES, helloBuf.bytes, helloBuf.length);
-    crypto_secretbox_xsalsa20poly1305(c, m, mlen, nonce, secret2); 
-    
-    NSData *authData = [NSData dataWithBytes:c + crypto_secretbox_xsalsa20poly1305_BOXZEROBYTES 
-                                       length:mlen - crypto_secretbox_xsalsa20poly1305_BOXZEROBYTES];
+    size_t mlen = helloBuf.length + 32;
+    unsigned char *m = calloc(1, mlen); unsigned char *c = calloc(1, mlen);
+    memcpy(m + 32, helloBuf.bytes, helloBuf.length);
+    crypto_secretbox_xsalsa20poly1305(c, m, mlen, nonce, secret2);
+    NSData *authData = [NSData dataWithBytes:c + 16 length:mlen - 16];
     free(m); free(c);
-    
     return authData;
 }
 
 - (BOOL)processAuth:(NSData *)authData {
     if (authData.length != 112) return NO;
-    os_log_info(ssb_shs_log, "Processing Auth message");
+    os_log_info(ssb_shs_log, "Processing Client Auth (Role=Server)");
+    
+    unsigned char curveLocalSec[32];
+    crypto_sign_ed25519_sk_to_curve25519(curveLocalSec, self.localIdentitySecret.bytes);
+    if (crypto_scalarmult_curve25519(_a_B, curveLocalSec, _clientEphPubKey) != 0) return NO;
+    
+    unsigned char secret2[32];
+    NSMutableData *sec2Msg = [NSMutableData data];
+    [sec2Msg appendData:self.networkIdentifier];
+    [sec2Msg appendBytes:_a_b length:32];
+    [sec2Msg appendBytes:_a_B length:32];
+    CC_SHA256(sec2Msg.bytes, (CC_LONG)sec2Msg.length, secret2);
+    
+    size_t clen = authData.length + 16;
+    unsigned char *c = calloc(1, clen); unsigned char *m = calloc(1, clen);
+    unsigned char nonce[24] = {0};
+    memcpy(c + 16, authData.bytes, authData.length);
+    if (crypto_secretbox_xsalsa20poly1305_open(m, c, clen, nonce, secret2) != 0) {
+        free(m); free(c); return NO;
+    }
+    
+    unsigned char *sigA = m + 32;
+    unsigned char *clientId = sigA + 64;
+    self.remoteIdentityPublic = [NSData dataWithBytes:clientId length:32];
+    
+    unsigned char secHash[32]; CC_SHA256(_a_b, 32, secHash);
+    NSMutableData *sigMsg = [NSMutableData data];
+    [sigMsg appendData:self.networkIdentifier];
+    [sigMsg appendData:self.localIdentityPublic];
+    [sigMsg appendBytes:secHash length:32];
+    
+    unsigned char sm[64 + sigMsg.length]; memcpy(sm, sigA, 64); memcpy(sm + 64, sigMsg.bytes, sigMsg.length);
+    unsigned char v_m[64 + sigMsg.length]; unsigned long long v_mlen = 0;
+    if (crypto_sign_ed25519_open(v_m, &v_mlen, sm, sizeof(sm), clientId) != 0) {
+        free(m); free(c); return NO;
+    }
+    
+    self.helloBuf = [NSData dataWithBytes:sigA length:96];
+    free(m); free(c);
     return YES;
 }
 
 - (NSData *)createAccept {
-    os_log_info(ssb_shs_log, "Generating Accept message");
-    unsigned char mockAccept[80];
-    arc4random_buf(mockAccept, 80);
-    return [NSData dataWithBytes:mockAccept length:80];
-}
-
-- (BOOL)processAccept:(NSData *)acceptData {
-    if (acceptData.length != 80) return NO;
-    os_log_info(ssb_shs_log, "Processing Accept message");
+    os_log_info(ssb_shs_log, "Generating Server Accept");
     
-    // 1. Convert Local Ed25519 SecKey to Curve25519 SecKey
-    unsigned char curveLocalSec[32];
-    crypto_sign_ed25519_sk_to_curve25519(curveLocalSec, self.localIdentitySecret.bytes);
+    // b_A: Bob's ephemeral secret (b) and Alice's persistent public (A)
+    unsigned char alicePersistentCurvepk[32];
+    crypto_sign_ed25519_pk_to_curve25519(alicePersistentCurvepk, self.remoteIdentityPublic.bytes);
+    if (crypto_scalarmult_curve25519(_A_b, _serverEphSecKey, alicePersistentCurvepk) != 0) return nil;
     
-    // 2. A_b = scalarmult(curveLocalSec, _serverEphPubKey)
-    crypto_scalarmult_curve25519(_A_b, curveLocalSec, _serverEphPubKey);
-    
-    // 3. secret3 = SHA256(netId + a_b + a_B + A_b)
-    unsigned char secret3[CC_SHA256_DIGEST_LENGTH];
+    unsigned char secret3[32];
     NSMutableData *sec3Msg = [NSMutableData data];
     [sec3Msg appendData:self.networkIdentifier];
     [sec3Msg appendBytes:_a_b length:32];
@@ -215,75 +226,90 @@ static os_log_t ssb_shs_log;
     [sec3Msg appendBytes:_A_b length:32];
     CC_SHA256(sec3Msg.bytes, (CC_LONG)sec3Msg.length, secret3);
     
-    // 4. Open Secretbox
-    size_t clen = acceptData.length + crypto_secretbox_xsalsa20poly1305_BOXZEROBYTES; // 80 + 16 = 96
-    unsigned char *c = calloc(1, clen);
-    unsigned char *m = calloc(1, clen);
-    
-    unsigned char nonce[24] = {0};
-    memset(c, 0, crypto_secretbox_xsalsa20poly1305_BOXZEROBYTES);
-    memcpy(c + crypto_secretbox_xsalsa20poly1305_BOXZEROBYTES, acceptData.bytes, acceptData.length);
-    
-    if (crypto_secretbox_xsalsa20poly1305_open(m, c, clen, nonce, secret3) != 0) {
-        os_log_error(ssb_shs_log, "Server accept Box failed to open");
-        free(m); free(c);
-        return NO;
-    }
-    
-    unsigned char *sig = m + crypto_secretbox_xsalsa20poly1305_ZEROBYTES; // 64 byte signature
-    
-    // 5. Verify the Signature
-    // sigMsg = netId + helloBuf + secHash (where secHash is hash(_a_b))
-    unsigned char secHash[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(_a_b, 32, secHash);
-    
+    unsigned char secHash[32]; CC_SHA256(_a_b, 32, secHash);
     NSMutableData *sigMsg = [NSMutableData data];
     [sigMsg appendData:self.networkIdentifier];
     [sigMsg appendData:self.helloBuf];
     [sigMsg appendBytes:secHash length:32];
     
-    // Create verification buffer format for tweetnacl: sig (64 bytes) + message
-    unsigned char sm[64 + sigMsg.length];
-    memcpy(sm, sig, 64);
-    memcpy(sm + 64, sigMsg.bytes, sigMsg.length);
+    unsigned char sm[64 + sigMsg.length]; unsigned long long smlen = 0;
+    crypto_sign_ed25519(sm, &smlen, sigMsg.bytes, sigMsg.length, self.localIdentitySecret.bytes);
     
-    unsigned char v_m[64 + sigMsg.length];
-    unsigned long long v_mlen = 0;
+    unsigned char nonce[24] = {0};
+    size_t mlen = 64 + 32; // sig only
+    unsigned char *m = calloc(1, mlen); unsigned char *c = calloc(1, mlen);
+    memcpy(m + 32, sm, 64);
+    crypto_secretbox_xsalsa20poly1305(c, m, mlen, nonce, secret3);
+    NSData *acceptData = [NSData dataWithBytes:c + 16 length:mlen - 16];
     
-    if (crypto_sign_ed25519_open(v_m, &v_mlen, sm, sizeof(sm), self.remoteIdentityPublic.bytes) != 0) {
-        os_log_error(ssb_shs_log, "Server accept signature verification failed");
-        free(m); free(c);
-        return NO;
+    [self deriveFinalKeys:secret3];
+    free(m); free(c);
+    return acceptData;
+}
+
+- (BOOL)processAccept:(NSData *)acceptData {
+    if (acceptData.length != 80) return NO;
+    os_log_info(ssb_shs_log, "Processing Server Accept (Role=Client)");
+    
+    unsigned char curveLocalSec[32];
+    crypto_sign_ed25519_sk_to_curve25519(curveLocalSec, self.localIdentitySecret.bytes);
+    if (crypto_scalarmult_curve25519(_A_b, curveLocalSec, _serverEphPubKey) != 0) return NO;
+    
+    unsigned char secret3[32];
+    NSMutableData *sec3Msg = [NSMutableData data];
+    [sec3Msg appendData:self.networkIdentifier];
+    [sec3Msg appendBytes:_a_b length:32];
+    [sec3Msg appendBytes:_a_B length:32];
+    [sec3Msg appendBytes:_A_b length:32];
+    CC_SHA256(sec3Msg.bytes, (CC_LONG)sec3Msg.length, secret3);
+    
+    size_t clen = acceptData.length + 16;
+    unsigned char *c = calloc(1, clen); unsigned char *m = calloc(1, clen);
+    unsigned char nonce[24] = {0};
+    memcpy(c + 16, acceptData.bytes, acceptData.length);
+    if (crypto_secretbox_xsalsa20poly1305_open(m, c, clen, nonce, secret3) != 0) {
+        free(m); free(c); return NO; 
     }
     
+    unsigned char *sigB = m + 32;
+    unsigned char secHash[32]; CC_SHA256(_a_b, 32, secHash);
+    NSMutableData *sigMsg = [NSMutableData data];
+    [sigMsg appendData:self.networkIdentifier];
+    [sigMsg appendData:self.helloBuf];
+    [sigMsg appendBytes:secHash length:32];
+    
+    unsigned char sm[64 + sigMsg.length]; memcpy(sm, sigB, 64); memcpy(sm + 64, sigMsg.bytes, sigMsg.length);
+    unsigned char v_m[64 + sigMsg.length]; unsigned long long v_mlen = 0;
+    if (crypto_sign_ed25519_open(v_m, &v_mlen, sm, sizeof(sm), self.remoteIdentityPublic.bytes) != 0) {
+        free(m); free(c); return NO;
+    }
+    
+    [self deriveFinalKeys:secret3];
     free(m); free(c);
-    os_log_info(ssb_shs_log, "Server accept signature verified successfully!");
-    
-    // 6. Derive Final Box Stream Keys
-    // networkSecret = SHA256(secret3)
-    unsigned char networkSecret[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(secret3, 32, networkSecret);
-    
-    // enKey = SHA256(networkSecret + remotePublic)
-    unsigned char clientToServer[CC_SHA256_DIGEST_LENGTH];
-    NSMutableData *ctosMsg = [NSMutableData dataWithBytes:networkSecret length:32];
-    [ctosMsg appendData:self.remoteIdentityPublic];
-    CC_SHA256(ctosMsg.bytes, (CC_LONG)ctosMsg.length, clientToServer);
-    self.clientToServerKey = [NSData dataWithBytes:clientToServer length:32];
-    
-    // deKey = SHA256(networkSecret + localPublic)
-    unsigned char serverToClient[CC_SHA256_DIGEST_LENGTH];
-    NSMutableData *stocMsg = [NSMutableData dataWithBytes:networkSecret length:32];
-    [stocMsg appendData:self.localIdentityPublic];
-    CC_SHA256(stocMsg.bytes, (CC_LONG)stocMsg.length, serverToClient);
-    self.serverToClientKey = [NSData dataWithBytes:serverToClient length:32];
-    
-    // enNonce = remoteAppMac (truncated to 24)
-    self.clientToServerNonce = [self.remoteAppMac subdataWithRange:NSMakeRange(0, 24)];
-    // deNonce = localAppMac (truncated to 24)
-    self.serverToClientNonce = [self.localAppMac subdataWithRange:NSMakeRange(0, 24)];
-    
     return YES;
+}
+
+- (void)deriveFinalKeys:(unsigned char *)secret3 {
+    unsigned char networkSecret[32]; CC_SHA256(secret3, 32, networkSecret);
+    
+    // Key(Alice To Bob) = H(H(sec3), BobPub)
+    // Key(Bob To Alice) = H(H(sec3), AlicePub)
+    
+    unsigned char aliceToBob[32];
+    NSMutableData *atobMsg = [NSMutableData dataWithBytes:networkSecret length:32];
+    [atobMsg appendData:self.isClient ? self.remoteIdentityPublic : self.localIdentityPublic];
+    CC_SHA256(atobMsg.bytes, (CC_LONG)atobMsg.length, aliceToBob);
+    
+    unsigned char bobToAlice[32];
+    NSMutableData *btoaMsg = [NSMutableData dataWithBytes:networkSecret length:32];
+    [btoaMsg appendData:self.isClient ? self.localIdentityPublic : self.remoteIdentityPublic];
+    CC_SHA256(btoaMsg.bytes, (CC_LONG)btoaMsg.length, bobToAlice);
+    
+    self.clientToServerKey = [NSData dataWithBytes:aliceToBob length:32];
+    self.serverToClientKey = [NSData dataWithBytes:bobToAlice length:32];
+    
+    self.clientToServerNonce = [self.remoteAppMac subdataWithRange:NSMakeRange(0, 24)];
+    self.serverToClientNonce = [self.localAppMac subdataWithRange:NSMakeRange(0, 24)];
 }
 
 @end

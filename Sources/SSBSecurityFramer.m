@@ -6,10 +6,13 @@
 static const char *kSSBSecurityFramerName = "SSBSecurity";
 static const char *kSSBSecurityLocalKey = "LocalKey";
 static const char *kSSBSecurityRemoteKey = "RemoteKey";
+static const char *kSSBSecurityAsClient = "AsClient";
 static os_log_t ssb_sec_log;
 
 typedef NS_ENUM(NSInteger, SSBSecurityState) {
+    SSBSecurityStateHandshakeHelloWait, // New state for server
     SSBSecurityStateHandshakeHelloSent,
+    SSBSecurityStateHandshakeAuthWait,  // New state for server
     SSBSecurityStateHandshakeAcceptWait,
     SSBSecurityStateBoxHeader,
     SSBSecurityStateBoxBody
@@ -53,23 +56,29 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             
             NSData *localKey = nw_framer_options_copy_object_value(options, kSSBSecurityLocalKey);
             NSData *remoteKey = nw_framer_options_copy_object_value(options, kSSBSecurityRemoteKey);
+            NSNumber *asClientNum = nw_framer_options_copy_object_value(options, kSSBSecurityAsClient);
+            BOOL asClient = asClientNum ? [asClientNum boolValue] : YES; 
             
-            if (!localKey || !remoteKey) {
+            if (!localKey || (!remoteKey && asClient)) {
                 os_log_error(ssb_sec_log, "Missing keys in security framer options");
-                return nw_framer_start_result_ready; // Will likely fail later
+                return nw_framer_start_result_ready;
             }
             
-            context.handshake = [[SSBSecretHandshake alloc] initWithRole:YES
+            context.handshake = [[SSBSecretHandshake alloc] initWithRole:asClient
                                                            localIdentity:localKey
                                                          remotePublicKey:remoteKey];
             
-            // Send Client Hello (Step 1)
-            NSData *hello = [context.handshake createHello];
-            if (!hello) return nw_framer_start_result_ready;
-            
-            dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-            nw_framer_write_output_data(framer, helloData);
-            context.state = SSBSecurityStateHandshakeHelloSent;
+            if (asClient) {
+                // Send Client Hello (Step 1)
+                NSData *hello = [context.handshake createHello];
+                if (!hello) return nw_framer_start_result_ready;
+                
+                dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                nw_framer_write_output_data(framer, helloData);
+                context.state = SSBSecurityStateHandshakeHelloSent;
+            } else {
+                context.state = SSBSecurityStateHandshakeHelloWait;
+            }
             
             nw_framer_set_input_handler(framer, ^size_t(nw_framer_t inner_framer) {
                 return [self handleInput:inner_framer context:context];
@@ -88,6 +97,26 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
 + (size_t)handleInput:(nw_framer_t)framer context:(SSBSecurityContext *)context {
     NSLog(@"[SecurityFramer] handleInput called, state=%ld", (long)context.state);
     switch (context.state) {
+        case SSBSecurityStateHandshakeHelloWait: {
+            size_t req = 64; // Expect Client Hello
+            __block BOOL success = NO;
+            nw_framer_parse_input(framer, req, req, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
+                if (buffer_length >= req) {
+                    success = [context.handshake processHello:[NSData dataWithBytes:buffer length:req]];
+                    return req;
+                }
+                return 0;
+            });
+            if (success) {
+                NSLog(@"[SecurityFramer] Client Hello processed. Sending Server Hello.");
+                NSData *hello = [context.handshake createHello];
+                dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                nw_framer_write_output_data(framer, helloData);
+                context.state = SSBSecurityStateHandshakeAuthWait;
+                return 0;
+            }
+            return req;
+        }
         case SSBSecurityStateHandshakeHelloSent: {
             size_t req = 64; // Expect Server Hello
             __block BOOL success = NO;
@@ -108,6 +137,33 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             }
             return req;
         }
+        case SSBSecurityStateHandshakeAuthWait: {
+            size_t req = 112; // Expect Client Auth
+            __block BOOL success = NO;
+            nw_framer_parse_input(framer, req, req, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
+                if (buffer_length >= req) {
+                    success = [context.handshake processAuth:[NSData dataWithBytes:buffer length:req]];
+                    return req;
+                }
+                return 0;
+            });
+            if (success) {
+                NSLog(@"[SecurityFramer] Client Auth processed. Sending Server Accept.");
+                NSData *accept = [context.handshake createAccept];
+                dispatch_data_t acceptData = dispatch_data_create(accept.bytes, accept.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                nw_framer_write_output_data(framer, acceptData);
+                
+                context.boxStream = [[SSBBoxStream alloc] initWithClientToServerKey:context.handshake.clientToServerKey
+                                                                  serverToClientKey:context.handshake.serverToClientKey
+                                                                clientToServerNonce:context.handshake.clientToServerNonce
+                                                                serverToClientNonce:context.handshake.serverToClientNonce];
+                context.boxStream.isClient = context.handshake.isClient;
+                context.state = SSBSecurityStateBoxHeader;
+                nw_framer_mark_ready(framer);
+                return 0;
+            }
+            return req;
+        }
         case SSBSecurityStateHandshakeAcceptWait: {
             size_t req = 80; // Expect Server Accept
             __block BOOL success = NO;
@@ -124,6 +180,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                                                                   serverToClientKey:context.handshake.serverToClientKey
                                                                 clientToServerNonce:context.handshake.clientToServerNonce
                                                                 serverToClientNonce:context.handshake.serverToClientNonce];
+                context.boxStream.isClient = context.handshake.isClient;
                 context.state = SSBSecurityStateBoxHeader;
                 nw_framer_mark_ready(framer); // SHS DONE!
                 
@@ -237,10 +294,15 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
     });
 }
 
-+ (nw_protocol_options_t)createOptionsWithLocalSecretKey:(NSData *)localSecretKey remotePublicKey:(NSData *)remotePublicKey {
++ (nw_protocol_options_t)createOptionsWithLocalSecretKey:(NSData *)localSecretKey
+                                         remotePublicKey:(NSData *)remotePublicKey
+                                                asClient:(BOOL)asClient {
     nw_protocol_options_t options = nw_framer_create_options([self createDefinition]);
     nw_framer_options_set_object_value(options, kSSBSecurityLocalKey, localSecretKey);
-    nw_framer_options_set_object_value(options, kSSBSecurityRemoteKey, remotePublicKey);
+    if (remotePublicKey) {
+        nw_framer_options_set_object_value(options, kSSBSecurityRemoteKey, remotePublicKey);
+    }
+    nw_framer_options_set_object_value(options, kSSBSecurityAsClient, @(asClient));
     return options;
 }
 
