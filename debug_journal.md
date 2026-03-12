@@ -32,4 +32,24 @@ When adding session pointer and callback pointer logging:
 - **CRITICAL BUG FOUND**: `nw_connection_send` was using `is_complete: true`, likely sending a FIN packet after every chunk, causing the stream to close.
 - **SUCCESS**: Changing `is_complete` to `false` allowed the handshake to complete.
 - **SUCCESS**: EBT replication is now running over the tunnel session.
-- **NEXT STEP**: Implement EBT sync progress tracking and UI indication.
+
+## 2026-03-11T21:37:37-04:00
+
+### Progress: UI Polishing & Final Cleanup
+1.  **Notification Bridge**: Added `SRRoomSyncStatusChangedNotification` to `SSBRoomClient.m` so that UI views (Peer List, Profile) can react to background sync updates without manual polling.
+2.  **Granular States**: Implemented more specific lifecycle states:
+    - `Connecting...`: Tunnel initialization.
+    - `Handshaking...`: SHS session setup.
+    - `Receiving: X/Y`: Active message replication.
+    - `Ready`: Synchronization complete.
+3.  **Refactoring**: Extracted `reportSyncStatus:progress:author:` in `SSBRoomClient.m` to deduplicate notification logic and ensure consistency.
+4.  **Bug Fixes**: 
+    - Resolved `ebtCallback` uninitialized block warning.
+    - Fixed a retain cycle in `ebtCallback` logging by using a weak reference/simpler logging.
+
+### Final Result
+- Full EBT replication is functional over MuxRPC tunnels.
+- The UI (Peer List and Profile Header) now correctly reflects real-time synchronization progress.
+- Clean build with no warnings.
+
+**Session Concluded.**
