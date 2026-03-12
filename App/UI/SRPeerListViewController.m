@@ -181,6 +181,7 @@
     float progress = [userInfo[@"progress"] floatValue];
     
     if (author) {
+        NSLog(@"[PeerList] Sync status updated for %@: %@ (%f)", author, status, progress);
         self.peerSyncProgress[author] = @(progress);
         self.peerSyncStatus[author] = status;
         
@@ -291,11 +292,20 @@
         if (status) {
             cell.statusLabel.stringValue = status;
             cell.statusLabel.hidden = NO;
-            if (progress < 1.0) {
+            
+            // Show progress bar for Receiving and Sending states
+            BOOL isSyncing = [status containsString:@"Receiving"] || [status containsString:@"Sending"];
+            if (isSyncing && progress < 1.0) {
                 cell.syncProgressBar.hidden = NO;
                 cell.syncProgressBar.doubleValue = progress;
             } else {
                 cell.syncProgressBar.hidden = YES;
+            }
+            
+            if ([status isEqualToString:@"Ready"]) {
+                cell.statusLabel.textColor = [NSColor systemGreenColor];
+            } else {
+                cell.statusLabel.textColor = [NSColor tertiaryLabelColor];
             }
         } else {
             cell.statusLabel.hidden = YES;

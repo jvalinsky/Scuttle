@@ -38,6 +38,8 @@ static os_log_t ssb_room_log;
 @property (nonatomic, assign) NSInteger localFeedSeq;
 @property (nonatomic, assign) int32_t ebtRequestID;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *remoteClock;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *internalPeerSyncProgress;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *internalPeerSyncStates;
 @property (nonatomic, assign) BOOL isEBTRunning;
 @end
 
@@ -87,6 +89,8 @@ static os_log_t ssb_room_log;
         _feedStore = [SSBFeedStore sharedStore];
         _activeTunnels = [NSMutableDictionary dictionary];
         _pendingPublishQueue = [NSMutableArray array];
+        _internalPeerSyncProgress = [NSMutableDictionary dictionary];
+        _internalPeerSyncStates = [NSMutableDictionary dictionary];
         _isSyncingLocalFeed = NO;
         
         // Load local feed sequence from store
@@ -95,6 +99,14 @@ static os_log_t ssb_room_log;
         _localFeedSeq = state ? state.maxSequence : 0;
     }
     return self;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)peerSyncProgress {
+    return [self.internalPeerSyncProgress copy];
+}
+
+- (NSDictionary<NSString *, NSString *> *)peerSyncStates {
+    return [self.internalPeerSyncStates copy];
 }
 
 - (instancetype)initWithConfig:(RoomConfig *)config 
@@ -646,40 +658,54 @@ static os_log_t ssb_room_log;
 }
 
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost {
+    NSLog(@"[EBT] replicateFromPeer: %@ via room: %@", peerID, roomHost);
     SSBLogInfo(SSBLogCategoryReplication, @"🔄 replicateFromPeer: %@ via room: %@", [peerID substringToIndex:MIN(8, peerID.length)], roomHost);
     
     SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+    if (tunnel) {
+        NSLog(@"[EBT] Found existing tunnel for %@, isConnected=%d", peerID, tunnel.isConnected);
+    }
+    
     if (tunnel && tunnel.isConnected) {
+        NSLog(@"[EBT] Tunnel connected, starting EBT on tunnel session %p", tunnel.rpcSession);
         [self startEBTReplicationWithSession:tunnel.rpcSession];
     } else if (!tunnel) {
+        NSLog(@"[EBT] No tunnel for %@, initiating connectToPeer:", peerID);
         [self connectToPeer:peerID];
+    } else {
+        NSLog(@"[EBT] Tunnel exists but NOT connected yet for %@", peerID);
     }
 }
 
 #pragma mark - Replication (EBT)
 
 - (void)startEBTReplicationWithSession:(SSBMuxRPCSession *)session {
-    if (self.isEBTRunning) return;
+    NSLog(@"[EBT] startEBTReplicationWithSession called. Session=%p isEBTRunning=%d", session, self.isEBTRunning);
+    // if (self.isEBTRunning) return; // Temporarily disabled for multiple sessions
     
     NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
     NSDictionary *args = @{@"version": @3};
     
     __weak typeof(self) weakSelf = self;
-    self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+    SSBRPCCallback ebtCallback = ^(id _Nullable response, NSError * _Nullable error) {
+        NSLog(@"[EBT] Completion block called for session %p. Block=%p Error=%@", session, ebtCallback, error);
         if (error) {
             os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
             weakSelf.isEBTRunning = NO;
             return;
         }
         [weakSelf handleEBTMessage:response];
-    }];
+    };
+    
+    NSLog(@"[EBT] Sending ebt.replicate request over session %p... callback=%p", session, (__bridge void *)ebtCallback);
+    self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
     
     self.isEBTRunning = YES;
     self.remoteClock = [NSMutableDictionary dictionary];
     
     // Send initial clock
     [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
-    os_log_info(ssb_room_log, "EBT Started replication over tunnel with clock of %lu feeds", (unsigned long)clock.count);
+    NSLog(@"[EBT] Started replication over session %p with clock of %lu feeds", session, (unsigned long)clock.count);
 }
 
 - (void)startEBTReplication {
@@ -687,6 +713,7 @@ static os_log_t ssb_room_log;
 }
 
 - (void)handleEBTMessage:(id)message {
+    NSLog(@"[EBT] handleEBTMessage: type=%@ body=%@", [message class], message);
     if ([message isKindOfClass:[NSDictionary class]]) {
         NSDictionary *dict = (NSDictionary *)message;
         if (dict[@"key"] && dict[@"value"]) {
@@ -694,26 +721,40 @@ static os_log_t ssb_room_log;
         } else {
             [self handleRemoteClockUpdate:dict];
         }
+    } else if ([message isKindOfClass:[NSData class]]) {
+        NSLog(@"[EBT] Received message data (%lu bytes)", (unsigned long)[(NSData *)message length]);
+        [self processIncomingMessage:message];
     }
 }
 
 - (void)handleRemoteClockUpdate:(NSDictionary *)update {
+    NSLog(@"[EBT] Received clock update with %lu entries", (unsigned long)update.count);
     [update enumerateKeysAndObjectsUsingBlock:^(id author, id seqVal, BOOL *stop) {
         if ([author isKindOfClass:[NSString class]] && [seqVal isKindOfClass:[NSNumber class]]) {
-            // EBT notes: positive means "send from here", negative means "I have this, don't send".
-            // We store the absolute sequence as the known remote max.
             NSInteger seq = [seqVal integerValue];
+            NSLog(@"[EBT]   Clock for %@ is %ld", author, (long)seq);
             self.remoteClock[author] = @(ABS(seq));
             [self updateSyncProgressForAuthor:author];
         }
     }];
 }
 
-- (void)processIncomingMessage:(NSDictionary *)response {
-    NSDictionary *val = response[@"value"];
+- (void)processIncomingMessage:(id)response {
+    NSDictionary *dict = nil;
+    if ([response isKindOfClass:[NSData class]]) {
+        dict = [NSJSONSerialization JSONObjectWithData:(NSData *)response options:0 error:nil];
+    } else if ([response isKindOfClass:[NSDictionary class]]) {
+        dict = (NSDictionary *)response;
+    }
+    
+    if (!dict) return;
+    
+    NSDictionary *val = dict[@"value"] ?: dict;
+    NSString *key = dict[@"key"]; // Might be nil if it's just the value
+    
     if ([SSBMessageCodec verifyMessage:val]) {
         SSBMessage *msg = [[SSBMessage alloc] init];
-        msg.key = response[@"key"];
+        msg.key = key;
         msg.author = val[@"author"];
         msg.sequence = [val[@"sequence"] integerValue];
         msg.previousKey = val[@"previous"];
@@ -746,13 +787,33 @@ static os_log_t ssb_room_log;
         if (remoteSeq < 0) remoteSeq = ABS(remoteSeq);
         
         float progress = 1.0;
+        NSString *status = @"Ready";
+        
         if (remoteSeq > localSeq) {
+            // We are behind, receiving
             progress = (float)localSeq / (float)remoteSeq;
+            status = [NSString stringWithFormat:@"Receiving: %ld/%ld", (long)localSeq, (long)remoteSeq];
+        } else if (remoteSeq < localSeq) {
+            // We are ahead, possibly sending? or just remote hasn't asked yet.
+            // In EBT, we send until we reach localSeq.
+            // We don't necessarily know if the remote is currently fetching, 
+            // but we can show progress towards them being in sync.
+            progress = (float)remoteSeq / (float)localSeq;
+            status = [NSString stringWithFormat:@"Sending: %ld/%ld", (long)remoteSeq, (long)localSeq];
+        } else {
+            progress = 1.0;
+            status = @"Ready";
         }
         
+        self.internalPeerSyncProgress[author] = @(progress);
+        self.internalPeerSyncStates[author] = status;
+        
         dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification"
+                                                                object:self
+                                                              userInfo:@{@"author": author, @"status": status, @"progress": @(progress)}];
+            
             if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
-                NSString *status = (progress >= 1.0) ? @"Up to date" : @"Gossip Progress";
                 [self.delegate roomClient:self didUpdateSyncStatus:status progress:progress author:author];
             }
         });
@@ -945,6 +1006,7 @@ static os_log_t ssb_room_log;
 }
 
 - (void)connectToPeer:(NSString *)targetPeerId {
+    NSLog(@"[Tunnel] connectToPeer: %@", targetPeerId);
     NSString *base64Key = nil;
     if ([targetPeerId hasPrefix:@"@"] && [targetPeerId hasSuffix:@".ed25519"]) {
         base64Key = [targetPeerId substringWithRange:NSMakeRange(1, targetPeerId.length - 9)];

@@ -98,9 +98,11 @@
     
     // Trigger replication for preview
     if (self.client && self.client.host) {
+        NSLog(@"[UI] Triggering replication from peer %@ via room %@", self.peerID, self.client.host);
         SSBLogInfo(SSBLogCategoryUI, @"   Triggering replication from peer...");
         [self.client replicateFromPeer:self.peerID viaRoom:self.client.host];
     } else {
+        NSLog(@"[UI] Cannot replicate: client=%p host=%@", self.client, self.client.host);
         SSBLogWarning(SSBLogCategoryUI, @"   Cannot replicate: client=%@ host=%@", self.client ? @"yes" : @"no", self.client.host);
     }
     

@@ -40,6 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSInteger pendingMessagesCount;
 @property (nonatomic, assign) BOOL autoReconnect;
 
+@property (nonatomic, readonly) NSDictionary<NSString *, NSNumber *> *peerSyncProgress;
+@property (nonatomic, readonly) NSDictionary<NSString *, NSString *> *peerSyncStates;
+
 @property (nonatomic, readonly) NSString *host;
 @property (nonatomic, readonly) uint16_t port;
 @property (nonatomic, readonly) NSData *serverPubKey;

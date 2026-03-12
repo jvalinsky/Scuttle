@@ -4,6 +4,8 @@
 #import <os/log.h>
 #import <Network/Network.h>
 
+#define NW_MAX_FRAME_SIZE 65535
+
 @interface SSBTunnelConnection ()
 @property (nonatomic, assign, readwrite) BOOL isConnected;
 @property (nonatomic, strong, readwrite) NSString *peerId;
@@ -89,7 +91,9 @@
     __weak typeof(self) weakSelf = self;
     
     nw_listener_set_state_changed_handler(self.listener, ^(nw_listener_state_t state, nw_error_t error) {
+        NSLog(@"[Tunnel %p] listener state changed to %d", weakSelf, state);
         if (state == nw_listener_state_ready) {
+            NSLog(@"[Tunnel %p] listener ready on port %u", weakSelf, nw_listener_get_port(weakSelf.listener));
             [weakSelf connectClient];
         } else if (state == nw_listener_state_failed) {
             os_log_error(weakSelf.log, "Tunnel listener failed: %{public}@", error);
@@ -105,7 +109,9 @@
         nw_connection_set_queue(connection, strongSelf.tunnelQueue);
         
         nw_connection_set_state_changed_handler(connection, ^(nw_connection_state_t state, nw_error_t error) {
+            NSLog(@"[Tunnel %p] serverConnection state changed to %d", strongSelf, state);
             if (state == nw_connection_state_ready) {
+                NSLog(@"[Tunnel %p] serverConnection (accepted) ready, starting readFromServerConnection", strongSelf);
                 [weakSelf readFromServerConnection];
             } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
                 [weakSelf stop];
@@ -127,10 +133,12 @@
     
     // Add the Secret Handshake and Box Stream protocol
     nw_protocol_options_t secOptions = [SSBSecurityFramer createOptionsWithLocalSecretKey:self.localIdentity remotePublicKey:self.peerPublicKey];
+    NSLog(@"[Tunnel %p] SSBSecurityFramer options: %@", self, secOptions);
     nw_protocol_stack_prepend_application_protocol(nw_parameters_copy_default_protocol_stack(params), secOptions);
     
     // Add the MuxRPC protocol
     nw_protocol_options_t muxOptions = [SSBMuxRPCFramer createOptions];
+    NSLog(@"[Tunnel %p] SSBMuxRPCFramer options: %@", self, muxOptions);
     nw_protocol_stack_prepend_application_protocol(nw_parameters_copy_default_protocol_stack(params), muxOptions);
     
     self.clientConnection = nw_connection_create(connectEndpoint, params);
@@ -138,8 +146,10 @@
     
     __weak typeof(self) weakSelf = self;
     nw_connection_set_state_changed_handler(self.clientConnection, ^(nw_connection_state_t state, nw_error_t error) {
+        NSLog(@"[Tunnel %p] clientConnection state changed to %d", weakSelf, state);
         if (state == nw_connection_state_ready) {
             os_log_info(weakSelf.log, "Tunnel client connection (with framers) ready");
+            NSLog(@"[Tunnel %p] clientConnection (with framers) ready!", weakSelf);
             weakSelf.isConnected = YES;
             weakSelf.isHandshakeComplete = YES;
             
@@ -168,10 +178,13 @@
 }
 
 - (void)receiveTunnelData:(NSData *)data {
+    static NSUInteger totalReceived = 0;
+    totalReceived += data.length;
+    NSLog(@"[Tunnel %p] receiveTunnelData: %lu bytes (total so far: %lu)", self, (unsigned long)data.length, (unsigned long)totalReceived);
     if (!self.serverConnection) return;
     
     dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, self.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-    nw_connection_send(self.serverConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, ^(nw_error_t  _Nullable error) {
+    nw_connection_send(self.serverConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
         if (error) {
             os_log_error(self.log, "Failed to write incoming tunnel data to server socket: %{public}@", error);
         }
@@ -185,12 +198,13 @@
         if (!strongSelf) return;
         
         if (content) {
-            // Data successfully processed by the client framer stack, now encrypted/framed bytes to send to the real network (room)
-            NSData *data = (NSData *)content;
-            if (data.length > 0) {
-                [strongSelf.roomSession sendData:data forRequest:strongSelf.tunnelReqID isEnd:NO];
+                // Data successfully processed by the client framer stack, now encrypted/framed bytes to send to the real network (room)
+                NSData *data = (NSData *)content;
+                NSLog(@"[Tunnel %p] readFromServerConnection: received %lu bytes from local socket, piping to room", strongSelf, (unsigned long)data.length);
+                if (data.length > 0) {
+                    [strongSelf.roomSession sendData:data forRequest:strongSelf.tunnelReqID isEnd:NO];
+                }
             }
-        }
         
         if (is_complete || error) {
             [strongSelf stop];
@@ -202,16 +216,16 @@
 
 - (void)readFromClientConnection {
     __weak typeof(self) weakSelf = self;
-    nw_connection_receive_message(self.clientConnection, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
+    nw_connection_receive(self.clientConnection, 1, NW_MAX_FRAME_SIZE, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         
         if (content) {
-            // A fully framed MuxRPC message has been decrypted and extracted
-            NSData *data = (NSData *)content;
+            NSLog(@"[Tunnel %p] Client: received content of length %zu", strongSelf, dispatch_data_get_size(content));
             nw_protocol_metadata_t metadata = nw_content_context_copy_protocol_metadata(context, [SSBMuxRPCFramer createDefinition]);
             
             if (metadata) {
+                NSLog(@"[Tunnel] Found metadata for MuxRPC message");
                 uint8_t flags = 0;
                 int32_t reqNum = 0;
                 
@@ -223,10 +237,15 @@
                 if (flagsNum && reqNumNum) {
                     flags = [flagsNum unsignedCharValue];
                     reqNum = [reqNumNum intValue];
+                    NSLog(@"[Tunnel] Extracted flags=%u reqNum=%d", flags, reqNum);
                     
-                    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:reqNum body:data];
+                    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:reqNum body:(NSData *)content];
                     [strongSelf.rpcSession handleIncomingMessage:msg];
+                } else {
+                     NSLog(@"[Tunnel] FAILED to extract flags/reqNum from metadata");
                 }
+            } else {
+                NSLog(@"[Tunnel] NO METADATA found for message");
             }
         }
         

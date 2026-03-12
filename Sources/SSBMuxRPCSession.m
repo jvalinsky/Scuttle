@@ -103,36 +103,35 @@ static os_log_t rpc_log;
 }
 
 - (void)handleIncomingMessage:(SSBMuxRPCMessage *)message {
-    NSLog(@"[ROOM_DIAG] Session: handleIncomingMessage called: req=%d", message.requestNumber);
+    NSLog(@"[RPCSession %p] handleIncomingMessage called: req=%d flags=%u", self, message.requestNumber, message.flags);
     BOOL isStream = (message.flags & SSBMuxRPCFlagStream) != 0;
     BOOL isEndErr = (message.flags & SSBMuxRPCFlagEndErr) != 0;
     
-    if (message.requestNumber < 0) {
+    int32_t reqID = message.requestNumber;
+    __block SSBRPCCallback callback = nil;
+    dispatch_sync(self.accessQueue, ^{
+        callback = self.pendingRequests[@(reqID)];
+        if (!callback && reqID < 0) {
+            callback = self.pendingRequests[@(-reqID)];
+        }
+    });
+
+    if (callback) {
         // Response to our request
-        int32_t reqNum = -message.requestNumber;
-        NSLog(@"[ROOM_DIAG] Session: Handling RESPONSE for req=%d (raw=%d) flags=%u bodyLen=%lu", reqNum, message.requestNumber, message.flags, (unsigned long)message.body.length);
+        NSLog(@"[RPCSession %p] Handling RESPONSE for ID %d flags=%u (callback=%p)", self, reqID, message.flags, (__bridge void *)callback);
         
         id parsedBody = nil;
         if ((message.flags & SSBMuxRPCFlagTypeJSON) && message.body.length > 0) {
             NSError *err = nil;
             parsedBody = [NSJSONSerialization JSONObjectWithData:message.body options:NSJSONReadingAllowFragments error:&err];
-            if (err) NSLog(@"[ROOM_DIAG] Session ERROR: JSON parse failed: %@", err);
+            if (err) NSLog(@"[RPCSession] Session ERROR: JSON parse failed: %@", err);
         } else if ((message.flags & SSBMuxRPCFlagTypeString) && message.body.length > 0) {
             parsedBody = [[NSString alloc] initWithData:message.body encoding:NSUTF8StringEncoding];
         } else {
             parsedBody = message.body;
         }
         
-        NSLog(@"[ROOM_DIAG] Session: Parsed body: %@", parsedBody);
-        
-        __block SSBRPCCallback callback = nil;
-        dispatch_sync(self.accessQueue, ^{
-            callback = self.pendingRequests[@(reqNum)];
-        });
-
-        if (!callback) {
-            NSLog(@"[ROOM_DIAG] Session: NO CALLBACK FOUND for req=%d.", reqNum);
-        }
+        NSLog(@"[RPCSession %p] Parsed body: %@", self, parsedBody);
         
         if (isEndErr) {
             BOOL isError = NO;
@@ -150,27 +149,34 @@ static os_log_t rpc_log;
             
             if (callback) {
                 if (isError) {
+                    NSLog(@"[RPCSession %p] EXECUTING callback for ID %d (error) callback=%p", self, reqID, (__bridge void *)callback);
                     callback(nil, error);
+                    NSLog(@"[RPCSession %p] COMPLETED callback for ID %d (error)", self, reqID);
                 } else if (!isStream) {
+                    NSLog(@"[RPCSession %p] EXECUTING callback for ID %d (non-stream final value) callback=%p", self, reqID, (__bridge void *)callback);
                     callback(parsedBody, nil);
+                    NSLog(@"[RPCSession %p] COMPLETED callback for ID %d (non-stream final value)", self, reqID);
                 } else if (parsedBody && ![parsedBody isEqual:@YES]) {
                     // For legacy streams, the final value might come with EndErr: true
+                    NSLog(@"[RPCSession %p] EXECUTING callback for ID %d (stream final value with EndErr) callback=%p", self, reqID, (__bridge void *)callback);
                     callback(parsedBody, nil);
+                    NSLog(@"[RPCSession %p] COMPLETED callback for ID %d (stream final value with EndErr)", self, reqID);
                 }
             }
             
             // Only remove callback if this is NOT a stream, OR if it's the end of a stream
-            if (!isStream || isEndErr) {
-                dispatch_async(self.accessQueue, ^{
-                    [self.pendingRequests removeObjectForKey:@(reqNum)];
-                });
-            }
+            // (i.e., if it's a stream and not EndErr, we keep the callback for more data)
+            dispatch_async(self.accessQueue, ^{
+                [self.pendingRequests removeObjectForKey:@(reqID)];
+            });
         } else {
             if (callback) {
+                NSLog(@"[RPCSession %p] EXECUTING callback for ID %d (stream data) callback=%p", self, reqID, (__bridge void *)callback);
                 callback(parsedBody, nil);
+                NSLog(@"[RPCSession %p] COMPLETED callback for ID %d (stream data)", self, reqID);
                 if (!isStream) {
                     dispatch_async(self.accessQueue, ^{
-                        [self.pendingRequests removeObjectForKey:@(reqNum)];
+                        [self.pendingRequests removeObjectForKey:@(reqID)];
                     });
                 }
             }
@@ -180,7 +186,7 @@ static os_log_t rpc_log;
         id parsedBody = nil;
         if ((message.flags & SSBMuxRPCFlagTypeJSON) && message.body.length > 0) {
             parsedBody = [NSJSONSerialization JSONObjectWithData:message.body options:NSJSONReadingAllowFragments error:nil];
-            NSLog(@"[RPCSession] Parsed REMOTE REQUEST payload: %@", parsedBody);
+            NSLog(@"[RPCSession %p] Parsed REMOTE REQUEST payload: %@", self, parsedBody);
         } else if ((message.flags & SSBMuxRPCFlagTypeString) && message.body.length > 0) {
             parsedBody = [[NSString alloc] initWithData:message.body encoding:NSUTF8StringEncoding];
         } else {
@@ -188,7 +194,7 @@ static os_log_t rpc_log;
         }
         
         if (self.receiveRequestBlock) {
-            NSLog(@"[RPCSession] Dispatching REMOTE REQUEST: req=%d flags=%d", message.requestNumber, message.flags);
+            NSLog(@"[RPCSession %p] Dispatching REMOTE REQUEST: req=%d flags=%d", self, message.requestNumber, message.flags);
             self.receiveRequestBlock(parsedBody, message.requestNumber, message.flags);
         }
     }
