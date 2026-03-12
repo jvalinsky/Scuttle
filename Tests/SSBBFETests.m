@@ -7,7 +7,8 @@
 @implementation SSBBFETests
 
 - (void)testFeedIDClassicEncoding {
-    NSString *feedID = @"@6uS7fC1v5fS_yX3F5N2RjF4M_l6SjC1v5fS_yX3F5M0=.ed25519";
+    // Standard SSB feed ID with / and + (32 bytes base64 encoded)
+    NSString *feedID = @"@6uS7fC1v5fS/yX3F5N2RjF4M/l6SjC1v5fS/yX3F5M0=.ed25519";
     NSData *bfe = [SSBBFE encodeFeedID:feedID format:SSBBFEFeedFormatClassic];
     XCTAssertNotNil(bfe);
     XCTAssertEqual(bfe.length, 34);
@@ -15,12 +16,13 @@
     XCTAssertEqual(((uint8_t *)bfe.bytes)[1], SSBBFEFeedFormatClassic);
     
     NSString *sigil = [SSBBFE sigilStringFromBFE:bfe];
-    NSString *expectedSigil = @"@6uS7fC1v5fS_yX3F5N2RjF4M_l6SjC1v5fS_yX3F5M0.ed25519";
-    XCTAssertEqualObjects(sigil, expectedSigil);
+    // Sigil should match the standard input exactly
+    XCTAssertEqualObjects(sigil, feedID);
 }
 
 - (void)testMessageIDClassicEncoding {
-    NSString *msgID = @"%7uS7fC1v5fS_yX3F5N2RjF4M_l6SjC1v5fS_yX3F5M0=.sha256";
+    // Standard SSB message ID
+    NSString *msgID = @"%7uS7fC1v5fS/yX3F5N2RjF4M/l6SjC1v5fS/yX3F5M0=.sha256";
     NSData *bfe = [SSBBFE encodeMessageID:msgID format:SSBBFEMessageFormatClassic];
     XCTAssertNotNil(bfe);
     XCTAssertEqual(bfe.length, 34);
@@ -28,8 +30,8 @@
     XCTAssertEqual(((uint8_t *)bfe.bytes)[1], SSBBFEMessageFormatClassic);
     
     NSString *sigil = [SSBBFE sigilStringFromBFE:bfe];
-    NSString *expectedSigil = @"%7uS7fC1v5fS_yX3F5N2RjF4M_l6SjC1v5fS_yX3F5M0.sha256";
-    XCTAssertEqualObjects(sigil, expectedSigil);
+    // Sigil should match the standard input exactly
+    XCTAssertEqualObjects(sigil, msgID);
 }
 
 - (void)testBendyButtFeedID {

@@ -52,4 +52,29 @@ When adding session pointer and callback pointer logging:
 - The UI (Peer List and Profile Header) now correctly reflects real-time synchronization progress.
 - Clean build with no warnings.
 
-**Session Concluded.**
+## 2026-03-12T01:53:00-04:00
+
+### Current Issue: "Handshaking" Stall and "Stranger" Errors
+1.  **Premature Tunnel Closure**: Discovered that `nw_connection_receive`'s `is_complete` flag indicates a complete *message* when using a framer, not necessarily the end of the stream. This caused the tunnel to close after the first MuxRPC message.
+2.  **Room Race Condition**: Found that the Room server sometimes rejects `tunnel.connect` with `muxrpc CallError: Error - client is a stranger`. This happens if the tunnel is attempted before the `announce` request has been processed by the server.
+3.  **Discovery gaps**: Peer discovery via Room v1's `tunnel.endpoints` (array response) wasn't triggering auto-replication, unlike Room v2.
+4.  **EBT Logic Bug**: Accidentally removed the local clock sending during a previous refactor, causing EBT to stall.
+
+### Fixes Applied
+1.  **SSBTunnelConnection.m**: Modified receive loops to only `stop` if `is_complete` is true AND `content` is nil (FIN), or on error.
+2.  **SSBRoomClient.m**:
+    - Added auto-replicate loop for legacy `tunnel.endpoints` array response.
+    - Setup `receiveRequestBlock` on tunnel session to correctly handle remote requests.
+    - Refined `handleEBTMessage:` to filter out RPC control messages (like mirrored requests) from EBT parsing.
+    - Restored local clock sending in `startEBTReplicationWithSession:`.
+
+### Results (2026-03-12)
+1.  **Race Condition Fixed**: Refactored `SSBRoomClient.m` to chain `announce` -> `subscribeToEndpoints` -> `tunnel.connect`. This ensures the server always recognizes our public key before we request a tunnel, eliminating the "client is a stranger" errors.
+2.  **BFE Encoding Fixed**: Corrected `SSBBFE.m` to use standard base64 (with padding) for classic feed and message IDs in sigils. This aligns with the official SSB specification.
+3.  **Test Success**: `SSBBFETests` now pass with 100% success rate, asserting standard sigil formats.
+4.  **Sync Progress Stable**: Peers now reliably transition from "Connecting" to "Ready" or "Receiving" in the UI.
+
+### Next Plan
+- Proceed with Feature/UI Phase 1 polishing.
+- Monitor for any edge-case tunnel disconnects.
+

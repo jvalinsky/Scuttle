@@ -368,7 +368,19 @@
     uint8_t formatByte = bytes[1];
     
     NSData *data = [bfeData subdataWithRange:NSMakeRange(2, bfeData.length - 2)];
-    NSString *base64 = [self base64URLEncodedStringFromData:data];
+    NSString *base64 = nil;
+    
+    // Classic SSB formats MUST use standard base64 (with padding) in sigils.
+    // Modern formats (like .bbfeed-v1) commonly use URL-safe base64.
+    BOOL isClassic = (typeByte == SSBBFETypeFeed && formatByte == SSBBFEFeedFormatClassic) ||
+                     (typeByte == SSBBFETypeMessage && formatByte == SSBBFEMessageFormatClassic) ||
+                     (typeByte == SSBBFETypeBlob);
+
+    if (isClassic) {
+        base64 = [data base64EncodedStringWithOptions:0];
+    } else {
+        base64 = [self base64URLEncodedStringFromData:data];
+    }
     
     if (!base64) {
         return nil;
@@ -535,14 +547,23 @@
     
     NSMutableString *standardBase64 = [base64URLString mutableCopy];
     
+    // Convert URL-safe characters back to standard base64 characters
     [standardBase64 replaceOccurrencesOfString:@"-" withString:@"+" options:0 range:NSMakeRange(0, standardBase64.length)];
     [standardBase64 replaceOccurrencesOfString:@"_" withString:@"/" options:0 range:NSMakeRange(0, standardBase64.length)];
     
+    // Add missing padding if necessary
     while (standardBase64.length % 4 != 0) {
         [standardBase64 appendString:@"="];
     }
     
-    return [[NSData alloc] initWithBase64EncodedString:standardBase64 options:0];
+    // Try to decode. If it fails (e.g. because input was already standard base64 with different padding),
+    // try the original string.
+    NSData *decoded = [[NSData alloc] initWithBase64EncodedString:standardBase64 options:0];
+    if (!decoded) {
+        decoded = [[NSData alloc] initWithBase64EncodedString:base64URLString options:0];
+    }
+    
+    return decoded;
 }
 
 @end

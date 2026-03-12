@@ -21,15 +21,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Initialize a new tunnel connection
 /// @param peerId The ID of the target peer
-/// @param peerPublicKey The public key of the target peer to perform the handshake
+/// @param peerPublicKey The public key of the target peer
 /// @param localSecret Our local identity secret
-/// @param roomSession The room's outer MuxRPC session (used for message transport)
-/// @param tunnelReqID The MuxRPC request ID of the `tunnel.connect` duplex stream
+/// @param roomSession The room's outer MuxRPC session
+/// @param tunnelReqID The MuxRPC request ID
+/// @param isServer YES if we are receiving the tunnel request, NO if we are initiating it
 - (instancetype)initWithPeerId:(NSString *)peerId
                  peerPublicKey:(NSData *)peerPublicKey
                  localIdentity:(NSData *)localSecret
                    roomSession:(SSBMuxRPCSession *)roomSession
-                   tunnelReqID:(int32_t)tunnelReqID;
+                   tunnelReqID:(int32_t)tunnelReqID
+                      isServer:(BOOL)isServer;
 
 /// Starts the listener and connects the client endpoint to begin the Secret Handshake.
 - (void)start;
