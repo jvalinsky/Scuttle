@@ -671,9 +671,11 @@ static os_log_t ssb_room_log;
         [self startEBTReplicationWithSession:tunnel.rpcSession];
     } else if (!tunnel) {
         NSLog(@"[EBT] No tunnel for %@, initiating connectToPeer:", peerID);
+        [self reportSyncStatus:@"Connecting..." progress:0.0 author:peerID];
         [self connectToPeer:peerID];
     } else {
         NSLog(@"[EBT] Tunnel exists but NOT connected yet for %@", peerID);
+        [self reportSyncStatus:@"Handshaking..." progress:0.1 author:peerID];
     }
 }
 
@@ -687,8 +689,9 @@ static os_log_t ssb_room_log;
     NSDictionary *args = @{@"version": @3};
     
     __weak typeof(self) weakSelf = self;
-    SSBRPCCallback ebtCallback = ^(id _Nullable response, NSError * _Nullable error) {
-        NSLog(@"[EBT] Completion block called for session %p. Block=%p Error=%@", session, ebtCallback, error);
+    __block SSBRPCCallback ebtCallback;
+    ebtCallback = ^(id _Nullable response, NSError * _Nullable error) {
+        NSLog(@"[EBT] Completion block called for session %p. Error=%@", session, error);
         if (error) {
             os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
             weakSelf.isEBTRunning = NO;
@@ -805,19 +808,24 @@ static os_log_t ssb_room_log;
             status = @"Ready";
         }
         
-        self.internalPeerSyncProgress[author] = @(progress);
-        self.internalPeerSyncStates[author] = status;
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification"
-                                                                object:self
-                                                              userInfo:@{@"author": author, @"status": status, @"progress": @(progress)}];
-            
-            if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
-                [self.delegate roomClient:self didUpdateSyncStatus:status progress:progress author:author];
-            }
-        });
+        [self reportSyncStatus:status progress:progress author:author];
     }
+}
+
+- (void)reportSyncStatus:(NSString *)status progress:(float)progress author:(NSString *)author {
+    if (!author) return;
+    self.internalPeerSyncProgress[author] = @(progress);
+    self.internalPeerSyncStates[author] = status;
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification"
+                                                            object:self
+                                                          userInfo:@{@"author": author, @"status": status, @"progress": @(progress)}];
+        
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+            [self.delegate roomClient:self didUpdateSyncStatus:status progress:progress author:author];
+        }
+    });
 }
 
 - (void)replicateFeed:(NSString *)feedAuthor fromPeer:(NSString *)peerID {
