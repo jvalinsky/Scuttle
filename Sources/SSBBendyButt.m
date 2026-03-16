@@ -1,4 +1,5 @@
 #import "SSBBendyButt.h"
+#import "SSBFeedCodecRegistry.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
 #import <CommonCrypto/CommonCrypto.h>
@@ -19,6 +20,77 @@ static const NSUInteger kMaxMessageSize = 8192;
 @end
 
 @implementation SSBBendyButt
+
+#pragma mark - SSBFeedCodec Registration
+
++ (void)load {
+    [[SSBFeedCodecRegistry sharedRegistry] registerCodec:[self sharedCodec]];
+}
+
++ (instancetype)sharedCodec {
+    static SSBBendyButt *instance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[SSBBendyButt alloc] init];
+    });
+    return instance;
+}
+
+#pragma mark - SSBFeedCodec Protocol
+
+- (SSBBFEFeedFormat)feedFormat {
+    return SSBBFEFeedFormatBendybuttV1;
+}
+
+- (SSBBFEMessageFormat)messageFormat {
+    return SSBBFEMessageFormatBendybuttV1;
+}
+
+- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
+    BOOL valid = [SSBBendyButt validateMessage:messageData];
+    if (!valid && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
+                                userInfo:@{NSLocalizedDescriptionKey: @"BendyButt message invalid or signature mismatch"}];
+    }
+    return valid;
+}
+
+- (nullable NSData *)computeMessageKeyFromData:(NSData *)messageData error:(NSError **)error {
+    NSData *key = [SSBBendyButt computeMessageKey:messageData];
+    if (!key && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:2
+                                userInfo:@{NSLocalizedDescriptionKey: @"Failed to compute BendyButt message key"}];
+    }
+    return key;
+}
+
+#pragma mark - Bencode pass-throughs (delegates to SSBBencode)
+
++ (nullable NSData *)encodeBencodeInteger:(NSInteger)value {
+    return [SSBBencode encodeInteger:value];
+}
+
++ (nullable NSData *)encodeBencodeString:(NSString *)string {
+    return [SSBBencode encodeString:string];
+}
+
++ (nullable NSData *)encodeBencodeData:(NSData *)data {
+    return [SSBBencode encodeData:data];
+}
+
++ (nullable NSData *)encodeBencodeList:(NSArray *)list {
+    return [SSBBencode encodeList:list];
+}
+
++ (nullable NSData *)encodeBencodeDict:(NSDictionary *)dict {
+    return [SSBBencode encodeDict:dict];
+}
+
++ (nullable id)decodeBencode:(NSData *)data offset:(NSUInteger *)offset {
+    return [SSBBencode decode:data offset:offset];
+}
+
+#pragma mark - Initializer
 
 - (instancetype)initWithAuthor:(NSData *)author
                       sequence:(NSInteger)sequence
@@ -453,194 +525,5 @@ static const NSUInteger kMaxMessageSize = 8192;
     return bfeData;
 }
 
-#pragma mark - Bencode Encoding
-
-+ (nullable NSData *)encodeBencodeInteger:(NSInteger)value {
-    NSString *intStr = [NSString stringWithFormat:@"i%lde", (long)value];
-    return [intStr dataUsingEncoding:NSUTF8StringEncoding];
-}
-
-+ (nullable NSData *)encodeBencodeString:(NSString *)string {
-    NSData *stringData = [string dataUsingEncoding:NSUTF8StringEncoding];
-    if (!stringData) {
-        return nil;
-    }
-    NSString *lenStr = [NSString stringWithFormat:@"%lu:", (unsigned long)stringData.length];
-    NSMutableData *result = [[lenStr dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
-    [result appendData:stringData];
-    return result;
-}
-
-+ (nullable NSData *)encodeBencodeData:(NSData *)data {
-    if (!data) {
-        return nil;
-    }
-    NSString *lenStr = [NSString stringWithFormat:@"%lu:", (unsigned long)data.length];
-    NSMutableData *result = [[lenStr dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
-    [result appendData:data];
-    return result;
-}
-
-+ (nullable NSData *)encodeBencodeList:(NSArray *)list {
-    if (!list) {
-        return nil;
-    }
-
-    NSMutableData *result = [NSMutableData dataWithBytes:"l" length:1];
-
-    for (id item in list) {
-        NSData *encoded = [self encodeBencodeItem:item];
-        if (!encoded) {
-            return nil;
-        }
-        [result appendData:encoded];
-    }
-
-    [result appendBytes:"e" length:1];
-    return result;
-}
-
-+ (nullable NSData *)encodeBencodeDict:(NSDictionary *)dict {
-    if (!dict) {
-        return nil;
-    }
-
-    NSArray *sortedKeys = [[dict allKeys] sortedArrayUsingSelector:@selector(compare:)];
-    NSMutableData *result = [NSMutableData dataWithBytes:"d" length:1];
-
-    for (NSString *key in sortedKeys) {
-        NSData *keyData = [self encodeBencodeString:key];
-        if (!keyData) {
-            return nil;
-        }
-        [result appendData:keyData];
-
-        id value = dict[key];
-        NSData *valueData = [self encodeBencodeItem:value];
-        if (!valueData) {
-            return nil;
-        }
-        [result appendData:valueData];
-    }
-
-    [result appendBytes:"e" length:1];
-    return result;
-}
-
-+ (nullable NSData *)encodeBencodeItem:(id)item {
-    if ([item isKindOfClass:[NSData class]]) {
-        return [self encodeBencodeData:item];
-    } else if ([item isKindOfClass:[NSString class]]) {
-        return [self encodeBencodeString:item];
-    } else if ([item isKindOfClass:[NSNumber class]]) {
-        NSNumber *num = (NSNumber *)item;
-        if (strcmp([num objCType], @encode(NSInteger)) == 0 ||
-            strcmp([num objCType], @encode(long)) == 0 ||
-            strcmp([num objCType], @encode(int)) == 0) {
-            return [self encodeBencodeInteger:num.integerValue];
-        }
-        return [self encodeBencodeString:[num stringValue]];
-    } else if ([item isKindOfClass:[NSArray class]]) {
-        return [self encodeBencodeList:item];
-    } else if ([item isKindOfClass:[NSDictionary class]]) {
-        return [self encodeBencodeDict:item];
-    } else if ([item isKindOfClass:[NSNull class]]) {
-        return [@"0:" dataUsingEncoding:NSUTF8StringEncoding];
-    }
-    return nil;
-}
-
-#pragma mark - Bencode Decoding
-
-+ (nullable id)decodeBencode:(NSData *)data offset:(NSUInteger *)offset {
-    if (!data || !offset || *offset >= data.length) {
-        return nil;
-    }
-
-    const uint8_t *bytes = data.bytes;
-    NSUInteger len = data.length;
-    uint8_t ch = bytes[*offset];
-
-    if (ch == 'i') {
-        (*offset)++;
-        NSInteger value = 0;
-        BOOL negative = NO;
-        if (*offset < len && bytes[*offset] == '-') {
-            negative = YES;
-            (*offset)++;
-        }
-        while (*offset < len && bytes[*offset] >= '0' && bytes[*offset] <= '9') {
-            value = value * 10 + (bytes[*offset] - '0');
-            (*offset)++;
-        }
-        if (*offset >= len || bytes[*offset] != 'e') {
-            return nil;
-        }
-        (*offset)++;
-        return @(negative ? -value : value);
-    }
-    else if (ch >= '0' && ch <= '9') {
-        NSUInteger strLen = 0;
-        while (*offset < len && bytes[*offset] >= '0' && bytes[*offset] <= '9') {
-            strLen = strLen * 10 + (bytes[*offset] - '0');
-            (*offset)++;
-        }
-        if (*offset >= len || bytes[*offset] != ':') {
-            return nil;
-        }
-        (*offset)++;
-        if (*offset + strLen > len) {
-            return nil;
-        }
-        NSData *strData = [data subdataWithRange:NSMakeRange(*offset, strLen)];
-        (*offset) += strLen;
-        return strData;
-    }
-    else if (ch == 'l') {
-        (*offset)++;
-        NSMutableArray *list = [NSMutableArray array];
-        while (*offset < len && bytes[*offset] != 'e') {
-            id item = [self decodeBencode:data offset:offset];
-            if (!item) {
-                return nil;
-            }
-            [list addObject:item];
-        }
-        if (*offset >= len || bytes[*offset] != 'e') {
-            return nil;
-        }
-        (*offset)++;
-        return list;
-    }
-    else if (ch == 'd') {
-        (*offset)++;
-        NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-        while (*offset < len && bytes[*offset] != 'e') {
-            NSData *keyData = [self decodeBencode:data offset:offset];
-            if (!keyData || ![keyData isKindOfClass:[NSData class]]) {
-                return nil;
-            }
-            NSString *key = [[NSString alloc] initWithData:keyData encoding:NSUTF8StringEncoding];
-            if (!key) {
-                return nil;
-            }
-            id value = [self decodeBencode:data offset:offset];
-            if (!value) {
-                return nil;
-            }
-            dict[key] = value;
-        }
-        if (*offset >= len || bytes[*offset] != 'e') {
-            return nil;
-        }
-        (*offset)++;
-        return dict;
-    }
-    else if (ch == 'e') {
-        return @[];
-    }
-
-    return nil;
-}
 
 @end

@@ -1,4 +1,5 @@
 #import "SSBMessageCodec.h"
+#import "SSBFeedCodecRegistry.h"
 #import "tweetnacl.h"
 #import <CommonCrypto/CommonDigest.h>
 #import <os/log.h>
@@ -27,6 +28,61 @@ static os_log_t codecLog(void) {
 }
 
 @implementation SSBMessageCodec
+
+#pragma mark - SSBFeedCodec Registration
+
++ (void)load {
+    [[SSBFeedCodecRegistry sharedRegistry] registerCodec:[self sharedCodec]];
+}
+
++ (instancetype)sharedCodec {
+    static SSBMessageCodec *instance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[SSBMessageCodec alloc] init];
+    });
+    return instance;
+}
+
+#pragma mark - SSBFeedCodec Protocol
+
+- (SSBBFEFeedFormat)feedFormat {
+    return SSBBFEFeedFormatClassic;
+}
+
+- (SSBBFEMessageFormat)messageFormat {
+    return SSBBFEMessageFormatClassic;
+}
+
+- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
+    NSError *jsonError = nil;
+    NSDictionary *value = [NSJSONSerialization JSONObjectWithData:messageData
+                                                         options:0
+                                                           error:&jsonError];
+    if (!value) {
+        if (error) *error = jsonError;
+        return NO;
+    }
+    BOOL valid = [SSBMessageCodec verifyMessage:value];
+    if (!valid && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
+                                userInfo:@{NSLocalizedDescriptionKey: @"Classic message signature invalid"}];
+    }
+    return valid;
+}
+
+- (nullable NSData *)computeMessageKeyFromData:(NSData *)messageData error:(NSError **)error {
+    if (!messageData.length) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"SSBFeedCodec" code:2
+                                    userInfo:@{NSLocalizedDescriptionKey: @"Empty message data"}];
+        }
+        return nil;
+    }
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(messageData.bytes, (CC_LONG)messageData.length, digest);
+    return [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
+}
 
 #pragma mark - JSON Encoding Helpers
 

@@ -1,8 +1,15 @@
 #import <Foundation/Foundation.h>
+#import "SSBFeedCodec.h"
+#import "SSBBencode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SSBBendyButt : NSObject
+/// Handles Bendy Butt (bbfeed-v1) message creation, validation, and key computation.
+/// Conforms to SSBFeedCodec so it can be dispatched from SSBFeedCodecRegistry.
+@interface SSBBendyButt : NSObject <SSBFeedCodec>
+
+/// Returns the shared codec instance registered in SSBFeedCodecRegistry.
++ (instancetype)sharedCodec;
 
 @property (nonatomic, readonly) NSData *author;
 @property (nonatomic, readonly) NSInteger sequence;
@@ -48,16 +55,12 @@ NS_ASSUME_NONNULL_BEGIN
                      onContent:(NSData *)content
                         author:(NSData *)author;
 
+/// @name Bencode helpers — delegate to SSBBencode; preserved for binary compatibility.
 + (nullable NSData *)encodeBencodeInteger:(NSInteger)value;
-
 + (nullable NSData *)encodeBencodeString:(NSString *)string;
-
 + (nullable NSData *)encodeBencodeData:(NSData *)data;
-
 + (nullable NSData *)encodeBencodeList:(NSArray<id> *)list;
-
 + (nullable NSData *)encodeBencodeDict:(NSDictionary<NSString *, id> *)dict;
-
 + (nullable id)decodeBencode:(NSData *)data offset:(NSUInteger *)offset;
 
 @end

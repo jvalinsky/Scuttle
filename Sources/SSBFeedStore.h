@@ -1,19 +1,22 @@
 #import <Foundation/Foundation.h>
+#import "SSBBFE.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Represents a single SSB message in the classic format.
+/// Represents a single SSB message in any supported feed format.
 @interface SSBMessage : NSObject
-@property (nonatomic, copy) NSString *key;           // %hash.sha256
-@property (nonatomic, copy) NSString *author;        // @pubkey.ed25519
+@property (nonatomic, copy) NSString *key;           // %hash.sha256 or %hash.bbmsg-v1, etc.
+@property (nonatomic, copy) NSString *author;        // @pubkey.ed25519, @pubkey.bbfeed-v1, etc.
 @property (nonatomic, assign) NSInteger sequence;
 @property (nonatomic, copy, nullable) NSString *previousKey;
 @property (nonatomic, assign) int64_t claimedTimestamp; // author's timestamp (ms)
 @property (nonatomic, assign) int64_t receivedAt;       // local store time (ms)
 @property (nonatomic, assign) BOOL isPrivate;
-@property (nonatomic, copy, nullable) NSString *contentType; // "post", "contact", etc
-@property (nonatomic, copy) NSData *valueJSON;          // canonical signed value bytes
+@property (nonatomic, copy, nullable) NSString *contentType; // "post", "contact", "metafeed/index", etc.
+@property (nonatomic, copy) NSData *valueJSON;          // canonical signed value bytes (wire format)
 @property (nonatomic, strong, nullable) NSDictionary<NSString *, id> *content; // parsed content dict
+/// Feed format for this message. Defaults to SSBBFEFeedFormatClassic (0).
+@property (nonatomic, assign) SSBBFEFeedFormat feedFormat;
 @end
 
 /// Represents the local state of a feed (for replication).
@@ -21,6 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *author;
 @property (nonatomic, assign) NSInteger maxSequence;
 @property (nonatomic, copy, nullable) NSString *maxKey;
+/// Feed format for this state entry. Defaults to SSBBFEFeedFormatClassic (0).
+@property (nonatomic, assign) SSBBFEFeedFormat feedFormat;
 @end
 
 /// Local SQLite-backed feed store for SSB messages.
@@ -59,6 +64,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Returns messages of a specific content type across all feeds.
 - (NSArray<SSBMessage *> *)messagesOfType:(NSString *)contentType limit:(NSInteger)limit;
+
+/// Returns the latest N messages stored for a given feed format (e.g. index or metafeed messages).
+- (NSArray<SSBMessage *> *)messagesForFeedFormat:(SSBBFEFeedFormat)format limit:(NSInteger)limit;
 
 #pragma mark - Subset Queries (SIP 3)
 

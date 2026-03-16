@@ -11,6 +11,11 @@
 		02B32B268B26D2DC78051FC6 /* SSBThread.h in Headers */ = {isa = PBXBuildFile; fileRef = 91B91E4D73FD27B4DB5709DA /* SSBThread.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		039B4FFDD41842731258C5A0 /* SSBHTTPInviteServer.h in Headers */ = {isa = PBXBuildFile; fileRef = B9BB92B839045329BFED6CF9 /* SSBHTTPInviteServer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		047DD05B99FEB5CF11CF4C60 /* SSBBendyButt.h in Headers */ = {isa = PBXBuildFile; fileRef = AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BF0001FC0001FC0001FC0001 /* SSBFeedCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = FC0001FC0001FC0001FC0001 /* SSBFeedCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BF0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h in Headers */ = {isa = PBXBuildFile; fileRef = FC0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BF0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = FC0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m */; };
+		BF0004FC0004FC0004FC0004 /* SSBBencode.h in Headers */ = {isa = PBXBuildFile; fileRef = FC0004FC0004FC0004FC0004 /* SSBBencode.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BF0005FC0005FC0005FC0005 /* SSBBencode.m in Sources */ = {isa = PBXBuildFile; fileRef = FC0005FC0005FC0005FC0005 /* SSBBencode.m */; };
 		04FBDC2110F3898DE17DD339 /* SSBMessageCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = EBEB65F0F3E4B90137A01A1F /* SSBMessageCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		056267448FB588E609991737 /* RoomStorage.m in Sources */ = {isa = PBXBuildFile; fileRef = DEF75D13D452FFD12BF95D82 /* RoomStorage.m */; };
 		09CFCF6DF67EF82A30B87E5B /* SRProfileViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = AF4343841D1F5AC58E8E750A /* SRProfileViewController.m */; };
@@ -230,6 +235,11 @@
 		AAAABBBB1111222233334447 /* SSBStateMachine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBStateMachine.m; sourceTree = "<group>"; };
 		ADF41D2BA8155CDF54C259CB /* tweetnacl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tweetnacl.h; sourceTree = "<group>"; };
 		AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBendyButt.h; sourceTree = "<group>"; };
+		FC0001FC0001FC0001FC0001 /* SSBFeedCodec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodec.h; sourceTree = "<group>"; };
+		FC0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodecRegistry.h; sourceTree = "<group>"; };
+		FC0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedCodecRegistry.m; sourceTree = "<group>"; };
+		FC0004FC0004FC0004FC0004 /* SSBBencode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBencode.h; sourceTree = "<group>"; };
+		FC0005FC0005FC0005FC0005 /* SSBBencode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBencode.m; sourceTree = "<group>"; };
 		AF4343841D1F5AC58E8E750A /* SRProfileViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRProfileViewController.m; sourceTree = "<group>"; };
 		AFE38E82BFCE0732285FBFD3 /* RoomInviteHandlerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomInviteHandlerTests.m; sourceTree = "<group>"; };
 		B3ED61B0C360E195DDE9E67F /* SSBMetafeed.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMetafeed.m; sourceTree = "<group>"; };
@@ -394,6 +404,8 @@
 				DEF75D13D452FFD12BF95D82 /* RoomStorage.m */,
 				AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */,
 				E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */,
+				FC0004FC0004FC0004FC0004 /* SSBBencode.h */,
+				FC0005FC0005FC0005FC0005 /* SSBBencode.m */,
 				883B75B6F77728C6B18E47AA /* SSBBFE.h */,
 				5FD97ACAFE931445D4CEBA24 /* SSBBFE.m */,
 				7CBAE6D51037FC4AB336DDB3 /* SSBBIPF.h */,
@@ -406,6 +418,9 @@
 				9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */,
 				3D0A5DD1CF76AFF24492A78E /* SSBConnectionFSM.h */,
 				ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */,
+				FC0001FC0001FC0001FC0001 /* SSBFeedCodec.h */,
+				FC0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h */,
+				FC0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m */,
 				C9373F921F75303BFCDC1BE6 /* SSBFeedStore.h */,
 				C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */,
 				A5572FAB9C13EDB3AA6AC7E0 /* SSBHTTPAuth.h */,
@@ -493,6 +508,9 @@
 				F242D9204257ADEF9BE27519 /* SSBBFE.h in Headers */,
 				7ADF4D7E4394304A4282236A /* SSBBIPF.h in Headers */,
 				047DD05B99FEB5CF11CF4C60 /* SSBBendyButt.h in Headers */,
+				BF0004FC0004FC0004FC0004 /* SSBBencode.h in Headers */,
+				BF0001FC0001FC0001FC0001 /* SSBFeedCodec.h in Headers */,
+				BF0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h in Headers */,
 				74600C44417F9C6494E12588 /* SSBBitset.h in Headers */,
 				75C687E3FE12F6444A6B9BBF /* SSBBlobStore.h in Headers */,
 				AAAAAAAA1111222233334444 /* SSBLogger.h in Headers */,
@@ -635,6 +653,8 @@
 				7F22700F8DF227408F500E85 /* SSBBFE.m in Sources */,
 				B873CA366A39AA08B15ABA9B /* SSBBIPF.m in Sources */,
 				85E97634B5B4504389199501 /* SSBBendyButt.m in Sources */,
+				BF0005FC0005FC0005FC0005 /* SSBBencode.m in Sources */,
+				BF0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m in Sources */,
 				39F00E94391FC93614BF28A9 /* SSBBitset.m in Sources */,
 				657E50EA694DAFFDDAFDE668 /* SSBBlobStore.m in Sources */,
 				AAAAAAAA1111222233334445 /* SSBLogger.m in Sources */,
