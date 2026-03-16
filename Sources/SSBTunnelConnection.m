@@ -68,7 +68,7 @@
                 nw_connection_send(strongSelf.clientConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
                     if (error) {
                         os_log_error(strongSelf.log, "Failed to send MuxRPC message over tunnel: %{public}@", error);
-                        NSLog(@"[Tunnel %p] ERROR: Failed to send MuxRPC message: %@", strongSelf, error);
+                        os_log_error(strongSelf.log, "Failed to send MuxRPC message: %{public}@", error);
                     }
                 });
             }
@@ -97,13 +97,13 @@
     __weak typeof(self) weakSelf = self;
     
     nw_listener_set_state_changed_handler(self.listener, ^(nw_listener_state_t state, nw_error_t error) {
-        NSLog(@"[Tunnel %p] listener state changed to %d", weakSelf, state);
+        os_log_debug(weakSelf.log, "Listener state changed to %d", state);
         if (state == nw_listener_state_ready) {
-            NSLog(@"[Tunnel %p] listener ready on port %u", weakSelf, nw_listener_get_port(weakSelf.listener));
+            os_log_info(weakSelf.log, "Listener ready on port %u", nw_listener_get_port(weakSelf.listener));
             [weakSelf connectClient];
         } else if (state == nw_listener_state_failed) {
             os_log_error(weakSelf.log, "Tunnel listener failed: %{public}@", error);
-            NSLog(@"[Tunnel %p] ERROR: listener failed: %@", weakSelf, error);
+            os_log_error(weakSelf.log, "Listener failed: %{public}@", error);
         }
     });
     
@@ -116,7 +116,7 @@
         nw_connection_set_queue(connection, strongSelf.tunnelQueue);
         
         nw_connection_set_state_changed_handler(connection, ^(nw_connection_state_t state, nw_error_t error) {
-            NSLog(@"[Tunnel %p] serverConnection state changed to %d", strongSelf, state);
+            os_log_debug(strongSelf.log, "serverConnection state changed to %d", state);
             if (state == nw_connection_state_ready) {
                 NSLog(@"[Tunnel %p] serverConnection (accepted) ready, starting readFromServerConnection", strongSelf);
                 [weakSelf readFromServerConnection];
