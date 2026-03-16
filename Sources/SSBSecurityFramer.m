@@ -266,7 +266,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
 
 + (void)handleOutput:(nw_framer_t)framer message:(nw_framer_message_t)message messageLength:(size_t)messageLength context:(SSBSecurityContext *)context {
     if (context.state < SSBSecurityStateBoxHeader) {
-        NSLog(@"[SecurityFramer] handleOutput BUFFERING message because state is %ld (len=%zu)", (long)context.state, messageLength);
+        os_log_debug(ssb_sec_log, "handleOutput BUFFERING message because state is %ld (len=%zu)", (long)context.state, messageLength);
         __block NSData *bufferedData = nil;
         nw_framer_parse_output(framer, messageLength, messageLength, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
             if (buffer_length >= messageLength) {
@@ -286,10 +286,10 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
         if (encrypted) {
             dispatch_data_t encryptedData = dispatch_data_create(encrypted.bytes, encrypted.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
             nw_framer_write_output_data(framer, encryptedData);
-            NSLog(@"[SecurityFramer] Sent encrypted frame of length %lu (original %lu)", (unsigned long)encrypted.length, (unsigned long)buffer_length);
+            os_log_debug(ssb_sec_log, "Sent encrypted frame of length %lu (original %lu)", (unsigned long)encrypted.length, (unsigned long)buffer_length);
             return buffer_length;
         }
-        NSLog(@"[SecurityFramer] Encryption FAILED for payload of length %lu", (unsigned long)buffer_length);
+        os_log_error(ssb_sec_log, "Encryption FAILED for payload of length %lu", (unsigned long)buffer_length);
         return 0;
     });
 }
