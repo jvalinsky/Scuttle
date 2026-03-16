@@ -12,8 +12,13 @@
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMessageCodec.h"
 #import "../../Sources/SSBLogger.h"
+#import "../../Sources/SSBKeychain.h"
+#import "../Logic/SRNotificationNames.h"
+#import <os/log.h>
 
-@interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate, NSToolbarDelegate>
+static os_log_t split_log;
+
+@interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate>
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
 @property (nonatomic, strong) SRProfileHeaderView *headerView;
 @property (nonatomic, strong) SRFeedViewController *feedVC;
@@ -30,6 +35,12 @@
 @end
 
 @implementation SRMainSplitViewController
+
++ (void)initialize {
+    if (self == [SRMainSplitViewController class]) {
+        split_log = os_log_create("com.scuttlebutt.app", "MainSplitVC");
+    }
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -64,12 +75,10 @@
     self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
     
     __weak typeof(self) weakSelf = self;
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
-    if (localSecret && localSecret.length >= 64) {
-        NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
-        NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    if (pubkey) {
         [self.headerView updateWithIdentity:pubkey name:nil];
-        
         [[SRRoomManager sharedManager] resolveDisplayNameForAuthor:pubkey completion:^(NSString *name) {
             [weakSelf.headerView updateWithIdentity:pubkey name:name];
         }];
@@ -122,17 +131,26 @@
     
     self.splitView.dividerStyle = NSSplitViewDividerStyleThin;
     
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:@"SRRoomSelectedNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusDidUpdate:) name:SRRoomManagerConnectionStatusChangedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(endpointsDidUpdate:) name:SRRoomManagerDidUpdateEndpointsNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:@"SRLocalIdentityGeneratedNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:SRLocalIdentityGeneratedNotification object:nil];
+
+    // Pull initial room state now that observers are registered
+    NSArray<RoomConfig *> *existingRooms = [SRRoomManager sharedManager].rooms;
+    if (existingRooms.count > 0) {
+        RoomConfig *first = existingRooms.firstObject;
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
+                                                            object:nil
+                                                          userInfo:@{SRRoomManagerRoomSelectedKey: first}];
+    }
 }
 
 - (void)identityDidGenerate:(NSNotification *)notification {
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
-    if (localSecret && localSecret.length >= 64) {
-        NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
-        NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    if (pubkey) {
         [self.headerView updateWithIdentity:pubkey name:nil];
     }
 }
@@ -163,9 +181,9 @@
 }
 
 - (void)roomSelected:(NSNotification *)notification {
-    RoomConfig *room = notification.object;
+    RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
     self.selectedRoom = room;
-    NSLog(@"[MainVC] SELECTED ROOM: %@ (name: %@)", room.host, room.name);
+    os_log_info(split_log, "Selected room: %{public}@ (name: %{public}@)", room.host, room.name);
     
     [self.headerView updateWithIdentity:room.host name:room.name];
     
@@ -181,15 +199,15 @@
 
 - (void)endpointsDidUpdate:(NSNotification *)notification {
     SSBRoomClient *client = notification.object;
-    NSLog(@"[MainVC] DEBUG: Endpoints notification received from %@ (Current selected: %@)", client.host, self.selectedRoom.host);
+    os_log_debug(split_log, "Endpoints notification received from %{public}@ (current selected: %{public}@)", client.host, self.selectedRoom.host);
     if (!self.selectedRoom || [client.host isEqualToString:self.selectedRoom.host]) {
         if (!self.selectedRoom) {
-            NSLog(@"[MainVC] DEBUG: No room selected, auto-selecting %@", client.host);
+            os_log_debug(split_log, "No room selected, auto-selecting %{public}@", client.host);
             self.selectedRoom = [[SRRoomManager sharedManager].rooms firstObject];
         }
         [self updatePeerList];
     } else {
-        NSLog(@"[MainVC] DEBUG: Notification ignored (host mismatch)");
+        os_log_debug(split_log, "Endpoint notification ignored (host mismatch)");
     }
 }
 
@@ -199,12 +217,12 @@
 
 - (void)updatePeerList {
     if (!self.selectedRoom) {
-        NSLog(@"[MainVC] DEBUG: updatePeerList called but no room selected");
+        os_log_debug(split_log, "updatePeerList called but no room selected");
         [self.peerListVC updatePeers:@[]];
         return;
     }
     NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[self.selectedRoom.host];
-    NSLog(@"[MainVC] DEBUG: updatePeerList for %@ - found %lu peers in Manager", self.selectedRoom.host, (unsigned long)peers.count);
+    os_log_debug(split_log, "updatePeerList for %{public}@ - found %lu peers", self.selectedRoom.host, (unsigned long)peers.count);
     [self.peerListVC updatePeers:peers ?: @[]];
 }
 
@@ -222,7 +240,7 @@
     NSError *error = nil;
     SSBMessage *msg = [client publishLocalMessageWithContent:content error:&error];
     if (msg) {
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRNewMessageNotification" object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRNewMessageNotification object:nil];
     }
 }
 

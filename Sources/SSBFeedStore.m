@@ -7,6 +7,7 @@
 static os_log_t ssb_feedstore_log;
 
 static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
+static const NSInteger kCurrentSchemaVersion = 3;
 
 @implementation SSBMessage
 @end
@@ -75,55 +76,50 @@ static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
     return self;
 }
 
-- (void)migrateSchema {
-    // Check if is_private column exists
-    const char *checkSQL = "PRAGMA table_info(messages)";
+- (NSInteger)currentSchemaVersion {
+    int version = 0;
     sqlite3_stmt *stmt = NULL;
-    BOOL hasIsPrivate = NO;
-    if (sqlite3_prepare_v2(_db, checkSQL, -1, &stmt, NULL) == SQLITE_OK) {
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const char *name = (const char *)sqlite3_column_text(stmt, 1);
-            if (name && strcmp(name, "is_private") == 0) {
-                hasIsPrivate = YES;
-                break;
-            }
+    if (sqlite3_prepare_v2(_db, "PRAGMA user_version", -1, &stmt, NULL) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            version = sqlite3_column_int(stmt, 0);
         }
         sqlite3_finalize(stmt);
     }
-    
-    if (!hasIsPrivate) {
-        os_log_info(ssb_feedstore_log, "Migrating database: adding is_private column");
-        const char *alterSQL = "ALTER TABLE messages ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0";
+    return (NSInteger)version;
+}
+
+- (void)setSchemaVersion:(NSInteger)version {
+    char sql[64];
+    snprintf(sql, sizeof(sql), "PRAGMA user_version = %ld", (long)version);
+    sqlite3_exec(_db, sql, NULL, NULL, NULL);
+}
+
+- (void)migrateSchema {
+    NSInteger version = [self currentSchemaVersion];
+    os_log_info(ssb_feedstore_log, "Schema version: %ld (target: %ld)", (long)version, (long)kCurrentSchemaVersion);
+
+    if (version < 2) {
+        os_log_info(ssb_feedstore_log, "Migrating to version 2: adding is_private column");
+        const char *sql = "ALTER TABLE messages ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0";
         char *errMsg = NULL;
-        if (sqlite3_exec(_db, alterSQL, NULL, NULL, &errMsg) != SQLITE_OK) {
-            os_log_error(ssb_feedstore_log, "Migration failed: %s", errMsg);
+        if (sqlite3_exec(_db, sql, NULL, NULL, &errMsg) != SQLITE_OK) {
+            os_log_error(ssb_feedstore_log, "v2 migration failed: %s", errMsg);
             sqlite3_free(errMsg);
         }
     }
-    
-    // Check if we need to migrate contacts table for 'blocking'
-    BOOL hasBlocking = NO;
-    const char *contactsInfoSQL = "PRAGMA table_info(contacts)";
-    sqlite3_stmt *contactsStmt = NULL;
-    if (sqlite3_prepare_v2(_db, contactsInfoSQL, -1, &contactsStmt, NULL) == SQLITE_OK) {
-        while (sqlite3_step(contactsStmt) == SQLITE_ROW) {
-            const char *name = (const char *)sqlite3_column_text(contactsStmt, 1);
-            if (name && strcmp(name, "blocking") == 0) {
-                hasBlocking = YES;
-                break;
-            }
-        }
-        sqlite3_finalize(contactsStmt);
-    }
-    
-    if (!hasBlocking) {
-        os_log_info(ssb_feedstore_log, "Migrating database: adding blocking column to contacts");
-        const char *alterSQL = "ALTER TABLE contacts ADD COLUMN blocking INTEGER NOT NULL DEFAULT 0";
+
+    if (version < 3) {
+        os_log_info(ssb_feedstore_log, "Migrating to version 3: adding blocking column to contacts");
+        const char *sql = "ALTER TABLE contacts ADD COLUMN blocking INTEGER NOT NULL DEFAULT 0";
         char *errMsg = NULL;
-        if (sqlite3_exec(_db, alterSQL, NULL, NULL, &errMsg) != SQLITE_OK) {
-            os_log_error(ssb_feedstore_log, "Migration failed: %s", errMsg);
+        if (sqlite3_exec(_db, sql, NULL, NULL, &errMsg) != SQLITE_OK) {
+            os_log_error(ssb_feedstore_log, "v3 migration failed: %s", errMsg);
             sqlite3_free(errMsg);
         }
+    }
+
+    if (version < kCurrentSchemaVersion) {
+        [self setSchemaVersion:kCurrentSchemaVersion];
     }
 }
 

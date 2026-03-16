@@ -3,6 +3,7 @@
 #import "../../Sources/SSBLogger.h"
 #import "../../Sources/SSBNetwork.h"
 #import <SSBNetwork/SSBBlobStore.h>
+#import "../Logic/SRNotificationNames.h"
 
 @interface SRFeedViewController () <NSCollectionViewDelegateFlowLayout>
 @property (nonatomic, strong) NSCollectionView *collectionView;
@@ -85,36 +86,48 @@
     
     [self refreshFeed];
     
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshFeed) name:@"SRNewMessageNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshFeed) name:SRNewMessageNotification object:nil];
 }
 
 - (void)refreshFeed {
-    NSMutableArray *newMessages = [NSMutableArray array];
-    
-    if (self.filterAuthor) {
-        [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] feedForAuthor:self.filterAuthor limit:50]];
-        self.backButton.hidden = self.hidesBackButton;
-    } else if (self.filterChannel) {
-        NSDictionary *query = @{@"path": @[@"content", @"channel"], @"op": @"eq", @"value": self.filterChannel};
-        [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] querySubset:query options:@{@"descending": @YES, @"pageSize": @100}]];
-        self.backButton.hidden = self.hidesBackButton;
-    } else if (self.filterSearch) {
-        [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] searchMessages:self.filterSearch limit:100]];
-        self.backButton.hidden = self.hidesBackButton;
-    } else {
-        if (self.feedType == SRFeedTypeTimeline) {
-            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] timelineWithLimit:50]];
+    NSString *filterAuthor = self.filterAuthor;
+    NSString *filterChannel = self.filterChannel;
+    NSString *filterSearch = self.filterSearch;
+    SRFeedType feedType = self.feedType;
+    BOOL hidesBackButton = self.hidesBackButton;
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray *newMessages = [NSMutableArray array];
+        BOOL showBackButton = NO;
+
+        if (filterAuthor) {
+            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] feedForAuthor:filterAuthor limit:50]];
+            showBackButton = !hidesBackButton;
+        } else if (filterChannel) {
+            NSDictionary *query = @{@"path": @[@"content", @"channel"], @"op": @"eq", @"value": filterChannel};
+            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] querySubset:query options:@{@"descending": @YES, @"pageSize": @100}]];
+            showBackButton = !hidesBackButton;
+        } else if (filterSearch) {
+            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] searchMessages:filterSearch limit:100]];
+            showBackButton = !hidesBackButton;
         } else {
-            [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] recentMessagesWithLimit:50]];
+            if (feedType == SRFeedTypeTimeline) {
+                [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] timelineWithLimit:50]];
+            } else {
+                [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] recentMessagesWithLimit:50]];
+            }
         }
-        self.backButton.hidden = YES;
-    }
-    
-    self.messages = newMessages;
-    self.emptyLabel.hidden = (newMessages.count > 0);
-    
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.collectionView reloadData];
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            strongSelf.messages = newMessages;
+            strongSelf.emptyLabel.hidden = (newMessages.count > 0);
+            strongSelf.backButton.hidden = !showBackButton;
+            [strongSelf.collectionView reloadData];
+            [strongSelf.progressIndicator stopAnimation:nil];
+        });
     });
 }
 

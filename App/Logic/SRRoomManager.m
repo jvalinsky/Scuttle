@@ -1,11 +1,14 @@
 #import "SRRoomManager.h"
 #import "RoomStorage.h"
+#import "SRNotificationNames.h"
 #import <Cocoa/Cocoa.h>
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBRoomClient.h"
 #import <SSBNetwork/SSBKeychain.h>
 #import "RoomInviteHandler.h"
 #import <os/log.h>
+
+static os_log_t ssb_room_log;
 
 NSString * const SRRoomManagerDidUpdateRoomsNotification = @"SRRoomManagerDidUpdateRoomsNotification";
 NSString * const SRRoomManagerDidUpdateEndpointsNotification = @"SRRoomManagerDidUpdateEndpointsNotification";
@@ -15,9 +18,16 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 @property (nonatomic, strong) NSMutableArray<RoomConfig *> *internalRooms;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBRoomClient *> *internalClients;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray<NSString *> *> *internalRoomEndpoints;
+@property (nonatomic, strong) dispatch_queue_t managerQueue;
 @end
 
 @implementation SRRoomManager
+
++ (void)initialize {
+    if (self == [SRRoomManager class]) {
+        ssb_room_log = os_log_create("com.scuttlebutt.room", "RoomManager");
+    }
+}
 
 + (instancetype)sharedManager {
     static SRRoomManager *shared;
@@ -34,44 +44,41 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
         _internalRooms = [[RoomStorage listRooms] mutableCopy];
         _internalClients = [NSMutableDictionary dictionary];
         _internalRoomEndpoints = [NSMutableDictionary dictionary];
+        _managerQueue = dispatch_queue_create("com.scuttlebutt.roommanager", DISPATCH_QUEUE_SERIAL);
         
         // Auto-connect to saved rooms
         for (RoomConfig *config in _internalRooms) {
             [self connectToRoom:config];
         }
         
-        // Notify after a short delay to allow UI to setup and listen
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            NSLog(@"[RoomManager] Delayed notification of rooms: %lu", (unsigned long)self.internalRooms.count);
-            [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
-            if (self.internalRooms.count > 0) {
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSelectedNotification" object:self.internalRooms.firstObject];
-            }
-        });
+        // UI is notified via viewDidLoad pulling state after observers are registered
     }
     return self;
 }
 
 - (NSArray<RoomConfig *> *)rooms {
-    return [self.internalRooms copy];
+    __block NSArray *copy;
+    dispatch_sync(self.managerQueue, ^{ copy = [self.internalRooms copy]; });
+    return copy;
 }
 
 - (NSDictionary<NSString *, SSBRoomClient *> *)clients {
-    return [self.internalClients copy];
+    __block NSDictionary *copy;
+    dispatch_sync(self.managerQueue, ^{ copy = [self.internalClients copy]; });
+    return copy;
 }
 
 - (NSDictionary<NSString *, NSArray<NSString *> *> *)roomEndpoints {
-    return [self.internalRoomEndpoints copy];
+    __block NSDictionary *copy;
+    dispatch_sync(self.managerQueue, ^{ copy = [self.internalRoomEndpoints copy]; });
+    return copy;
 }
 
 - (void)joinRoomWithInvite:(NSString *)invite completion:(void (^)(BOOL success, NSError * _Nullable error))completion {
     if ([invite hasPrefix:@"http"]) {
         NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
-        NSString *myId;
-        if (savedIdentity && savedIdentity.length >= 64) {
-            NSData *pkData = [savedIdentity subdataWithRange:NSMakeRange(32, 32)];
-            myId = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
-        } else {
+        NSString *myId = [SSBKeychain publicIDFromSecret:savedIdentity];
+        if (!myId) {
             if (completion) completion(NO, [NSError errorWithDomain:@"SRRoomManager" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"No identity found. Please reset and create a new identity."}]);
             return;
         }
@@ -97,7 +104,9 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 
 - (void)handleJoinWithConfig:(RoomConfig *)config {
     [RoomStorage saveRoom:config];
-    [self.internalRooms addObject:config];
+    dispatch_sync(self.managerQueue, ^{
+        [self.internalRooms addObject:config];
+    });
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
     });
@@ -105,41 +114,49 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 }
 
 - (void)connectToRoom:(RoomConfig *)config {
-    if (self.internalClients[config.host]) {
-        NSLog(@"[RoomManager] Already have a client for %@", config.host);
+    __block BOOL alreadyExists = NO;
+    dispatch_sync(self.managerQueue, ^{
+        alreadyExists = (self.internalClients[config.host] != nil);
+    });
+    if (alreadyExists) {
+        os_log_info(ssb_room_log, "Already have a client for %{public}@", config.host);
         return;
     }
-    
+
     NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
-    NSLog(@"[RoomManager] Creating client for %@ (identity present: %d)", config.host, savedIdentity != nil);
-    
+    os_log_info(ssb_room_log, "Creating client for %{public}@ (identity present: %d)", config.host, savedIdentity != nil);
+
     SSBRoomClient *client = [[SSBRoomClient alloc] initWithConfig:config localIdentity:savedIdentity];
     client.delegate = self;
     client.autoReconnect = YES;
-    self.internalClients[config.host] = client;
+
+    dispatch_sync(self.managerQueue, ^{
+        self.internalClients[config.host] = client;
+    });
     [client connect];
 }
 
 #pragma mark - SSBRoomClientDelegate
 
 - (void)roomClientDidConnect:(SSBRoomClient *)client {
-    NSLog(@"[RoomManager] SUCCESS: Client connected to %@", client.host);
+    os_log_info(ssb_room_log, "Client connected to %{public}@", client.host);
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification object:client];
     });
 }
 
 - (void)roomClient:(SSBRoomClient *)client didUpdateEndpoints:(NSArray<NSString *> *)endpoints {
-    NSLog(@"[RoomManager] Client %@ updated endpoints: %lu peers", client.host, (unsigned long)endpoints.count);
-    self.internalRoomEndpoints[client.host] = endpoints;
+    os_log_info(ssb_room_log, "Client %{public}@ updated endpoints: %lu peers", client.host, (unsigned long)endpoints.count);
+    dispatch_async(self.managerQueue, ^{
+        self.internalRoomEndpoints[client.host] = endpoints;
+    });
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateEndpointsNotification object:client];
-        NSLog(@"[RoomManager] DEBUG: Sent notification for %@", client.host);
     });
 }
 
 - (void)roomClient:(SSBRoomClient *)client didEncounterError:(NSError *)error {
-    NSLog(@"[RoomManager] ERROR: Client %@ encountered error: %@", client.host, error.localizedDescription);
+    os_log_error(ssb_room_log, "Client %{public}@ encountered error: %{public}@", client.host, error.localizedDescription);
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification object:client];
     });
@@ -149,9 +166,9 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     dispatch_async(dispatch_get_main_queue(), ^{
         NSMutableDictionary *userInfo = [@{@"status": status, @"progress": @(progress)} mutableCopy];
         if (author) userInfo[@"author"] = author;
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification" 
-                                                            object:client 
-                                                           userInfo:[userInfo copy]];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomSyncStatusChangedNotification
+                                                            object:client
+                                                          userInfo:[userInfo copy]];
     });
 }
 
@@ -161,30 +178,34 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 }
 
 - (void)resetAccount {
-    NSLog(@"[RoomManager] RESETTING ACCOUNT...");
-    
-    // Disconnect everything
-    for (SSBRoomClient *client in self.internalClients.allValues) {
+    os_log_info(ssb_room_log, "Resetting account");
+
+    NSArray *clientsSnapshot;
+    dispatch_sync(self.managerQueue, ^{
+        clientsSnapshot = self.internalClients.allValues;
+        [self.internalClients removeAllObjects];
+        [self.internalRooms removeAllObjects];
+        [self.internalRoomEndpoints removeAllObjects];
+    });
+
+    for (SSBRoomClient *client in clientsSnapshot) {
         [client disconnect];
     }
-    [self.internalClients removeAllObjects];
-    
+
     // Clear credentials and DB
     [SSBRoomClient resetLocalIdentity];
     [[SSBFeedStore sharedStore] wipeDatabase];
-    
+
     // Clear all saved rooms
-    for (RoomConfig *config in [self.internalRooms copy]) {
+    for (RoomConfig *config in [[RoomStorage listRooms] copy]) {
         [RoomStorage removeRoom:config];
     }
-    [self.internalRooms removeAllObjects];
-    [self.internalRoomEndpoints removeAllObjects];
-    
+
     [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
-    
+
     // Generate new identity immediately
     [SSBRoomClient generateLocalIdentity];
-    
+
     dispatch_async(dispatch_get_main_queue(), ^{
         NSAlert *alert = [[NSAlert alloc] init];
         alert.messageText = @"Account Reset";
@@ -196,9 +217,11 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 - (void)removeRoom:(RoomConfig *)config {
     [RoomStorage removeRoom:config];
     [self disconnectFromRoom:config.host];
-    [self.internalClients removeObjectForKey:config.host];
-    [self.internalRooms removeObject:config];
-    [self.internalRoomEndpoints removeObjectForKey:config.host];
+    dispatch_sync(self.managerQueue, ^{
+        [self.internalClients removeObjectForKey:config.host];
+        [self.internalRooms removeObject:config];
+        [self.internalRoomEndpoints removeObjectForKey:config.host];
+    });
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
     });
@@ -243,7 +266,9 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 }
 
 - (nullable SSBRoomClient *)clientForHost:(NSString *)host {
-    return self.internalClients[host];
+    __block SSBRoomClient *client;
+    dispatch_sync(self.managerQueue, ^{ client = self.internalClients[host]; });
+    return client;
 }
 
 @end

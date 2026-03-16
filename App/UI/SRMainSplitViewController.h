@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SRMainSplitViewController : NSSplitViewController
+@interface SRMainSplitViewController : NSSplitViewController <NSToolbarDelegate>
 
 - (void)showChannelBrowser;
 - (void)showPreferences;

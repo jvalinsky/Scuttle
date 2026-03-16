@@ -1,5 +1,6 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
+#import "../Logic/SRNotificationNames.h"
 #import <SSBNetwork/SSBKeychain.h>
 
 @interface SRProfileHeaderView ()
@@ -22,7 +23,7 @@
         
         [[NSNotificationCenter defaultCenter] addObserver:self 
                                                  selector:@selector(loadLocalIdentity) 
-                                                     name:@"SRLocalIdentityGeneratedNotification" 
+                                                     name:SRLocalIdentityGeneratedNotification
                                                    object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleProfileUpdated:)

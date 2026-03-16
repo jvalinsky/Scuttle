@@ -5,6 +5,7 @@
 #import <SSBNetwork/SSBNetwork.h>
 #import <SSBNetwork/SSBRoomClient.h>
 #import "SRProfileHeaderView.h"
+#import "../Logic/SRNotificationNames.h"
 
 @interface SRProfileViewController () <SRFeedViewControllerDelegate>
 @property (nonatomic, strong) SRProfileHeaderView *headerView;
@@ -89,7 +90,7 @@
         [self.feedVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
     ]];
     
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:@"SRRoomSyncStatusChangedNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:SRRoomSyncStatusChangedNotification object:nil];
     
     [self.headerView updateWithIdentity:self.peerID name:nil];
     

@@ -1,5 +1,9 @@
 #import "SRPeerListViewController.h"
 #import "SSBFeedStore.h"
+#import "../Logic/SRNotificationNames.h"
+#import <os/log.h>
+
+static os_log_t peer_list_log;
 
 @interface SRPeerCell : NSTableCellView
 @property (nonatomic, strong) NSView *avatarView;
@@ -89,6 +93,12 @@
 
 @implementation SRPeerListViewController
 
++ (void)initialize {
+    if (self == [SRPeerListViewController class]) {
+        peer_list_log = os_log_create("com.scuttlebutt.app", "PeerList");
+    }
+}
+
 - (void)loadView {
     NSView *view = [[NSView alloc] init];
     view.wantsLayer = YES;
@@ -171,7 +181,7 @@
     self.peerSyncProgress = [NSMutableDictionary dictionary];
     self.peerSyncStatus = [NSMutableDictionary dictionary];
     
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:@"SRRoomSyncStatusChangedNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:SRRoomSyncStatusChangedNotification object:nil];
 }
 
 - (void)syncStatusChanged:(NSNotification *)notification {
@@ -181,7 +191,7 @@
     float progress = [userInfo[@"progress"] floatValue];
     
     if (author) {
-        NSLog(@"[PeerList] Sync status updated for %@: %@ (%f)", author, status, progress);
+        os_log_debug(peer_list_log, "Sync status updated for %{public}@: %{public}@ (%f)", author, status, progress);
         self.peerSyncProgress[author] = @(progress);
         self.peerSyncStatus[author] = status;
         
@@ -234,7 +244,7 @@
 }
 
 - (void)updatePeers:(NSArray<NSString *> *)peers {
-    NSLog(@"[PeerList] Updating with %lu peers: %@", (unsigned long)peers.count, peers);
+    os_log_info(peer_list_log, "Updating with %lu peers: %{public}@", (unsigned long)peers.count, peers);
     self.peers = [peers copy];
     self.emptyLabel.hidden = (peers.count > 0);
     [self.progressIndicator stopAnimation:nil];
@@ -258,7 +268,7 @@
 #pragma mark - NSTableViewDataSource
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    NSLog(@"[PeerList] DEBUG: numberOfRowsInTableView called - returning %lu", (unsigned long)self.peers.count);
+    os_log_debug(peer_list_log, "numberOfRowsInTableView called - returning %lu", (unsigned long)self.peers.count);
     return self.peers.count;
 }
 
@@ -273,7 +283,7 @@
     
     if (row < self.peers.count) {
         NSString *peerID = self.peers[row];
-        NSLog(@"[PeerList] Rendering row %ld: %@", (long)row, peerID);
+        os_log_debug(peer_list_log, "Rendering row %ld: %{public}@", (long)row, peerID);
         cell.idLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:peerID];
         
         NSUInteger hash = [peerID hash];
@@ -320,7 +330,7 @@
     NSInteger row = self.tableView.selectedRow;
     if (row >= 0 && (NSUInteger)row < self.peers.count) {
         NSString *peerID = self.peers[row];
-        NSLog(@"[PeerList] Peer selected: %@", peerID);
+        os_log_info(peer_list_log, "Peer selected: %{public}@", peerID);
         if ([self.delegate respondsToSelector:@selector(peerListViewController:didSelectPeer:)]) {
             [self.delegate peerListViewController:self didSelectPeer:peerID];
         }

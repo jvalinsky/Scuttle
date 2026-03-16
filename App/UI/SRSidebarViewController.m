@@ -1,7 +1,11 @@
 #import "SRSidebarViewController.h"
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
+#import "../Logic/SRNotificationNames.h"
 #import "SRMainSplitViewController.h"
+#import <os/log.h>
+
+static os_log_t sidebar_log;
 
 @interface SRSidebarViewController ()
 @property (nonatomic, strong) NSVisualEffectView *effectView;
@@ -15,6 +19,12 @@
 @end
 
 @implementation SRSidebarViewController
+
++ (void)initialize {
+    if (self == [SRSidebarViewController class]) {
+        sidebar_log = os_log_create("com.scuttlebutt.app", "Sidebar");
+    }
+}
 
 - (void)loadView {
     self.effectView = [[NSVisualEffectView alloc] init];
@@ -45,7 +55,7 @@
     
     [[NSNotificationCenter defaultCenter] addObserver:self 
                                              selector:@selector(syncStatusDidUpdate:) 
-                                                 name:@"SRRoomSyncStatusChangedNotification" 
+                                                 name:SRRoomSyncStatusChangedNotification
                                                object:nil];
 }
 
@@ -84,11 +94,11 @@
 }
 
 - (void)roomsDidUpdate:(NSNotification *)notification {
-    NSLog(@"[Sidebar] Rooms updated notification received");
+    os_log_info(sidebar_log, "Rooms updated notification received");
     dispatch_async(dispatch_get_main_queue(), ^{
         [self.tableView reloadData];
         if (self.tableView.selectedRow < 0 && [SRRoomManager sharedManager].rooms.count > 0) {
-            NSLog(@"[Sidebar] Auto-selecting first room");
+            os_log_info(sidebar_log, "Auto-selecting first room");
             [self.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
         }
     });
@@ -239,8 +249,10 @@
     NSInteger roomCount = [SRRoomManager sharedManager].rooms.count;
     if (row <= roomCount) {
         RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
-        NSLog(@"[Sidebar] Notifying room selected: %@", room.host);
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSelectedNotification" object:room];
+        os_log_info(sidebar_log, "Notifying room selected: %{public}@", room.host);
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
+                                                            object:nil
+                                                          userInfo:@{SRRoomManagerRoomSelectedKey: room}];
     } else if (row == roomCount + 1) {
         // Discovery Header
         return;
