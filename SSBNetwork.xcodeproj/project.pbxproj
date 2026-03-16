@@ -114,6 +114,10 @@
 		F40816AF8689B701A17C3F1F /* SRPreferencesViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 209EEB77C83197E44CF43F34 /* SRPreferencesViewController.m */; };
 		F9A1C76FE354013865997361 /* SSBPrefixIndex.h in Headers */ = {isa = PBXBuildFile; fileRef = 6D297EFF3464628DE46F32E4 /* SSBPrefixIndex.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		FB9F2FA752CFEEFE9F389EDA /* SSBHTTPInviteServer.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B43F65DF2F79CE330D39DB8 /* SSBHTTPInviteServer.m */; };
+		BB0001FC0001FC0001FC0001 /* SSBBamboo.h in Headers */ = {isa = PBXBuildFile; fileRef = BA0001FC0001FC0001FC0001 /* SSBBamboo.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BB0002FC0002FC0002FC0002 /* SSBBamboo.m in Sources */ = {isa = PBXBuildFile; fileRef = BA0002FC0002FC0002FC0002 /* SSBBamboo.m */; };
+		BV0001FC0001FC0001FC0001 /* SSBButtwoo.h in Headers */ = {isa = PBXBuildFile; fileRef = BU0001FC0001FC0001FC0001 /* SSBButtwoo.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BV0002FC0002FC0002FC0002 /* SSBButtwoo.m in Sources */ = {isa = PBXBuildFile; fileRef = BU0002FC0002FC0002FC0002 /* SSBButtwoo.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -284,6 +288,10 @@
 		F8500979B39EDBFE8CE1E707 /* SRThreadViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRThreadViewController.m; sourceTree = "<group>"; };
 		FAB5CB0BF6327B4EBBABD802 /* SSBLog.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBLog.h; sourceTree = "<group>"; };
 		FF643DB59B16753E557EAF57 /* SSBURI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBURI.m; sourceTree = "<group>"; };
+		BA0001FC0001FC0001FC0001 /* SSBBamboo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBamboo.h; sourceTree = "<group>"; };
+		BA0002FC0002FC0002FC0002 /* SSBBamboo.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBamboo.m; sourceTree = "<group>"; };
+		BU0001FC0001FC0001FC0001 /* SSBButtwoo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBButtwoo.h; sourceTree = "<group>"; };
+		BU0002FC0002FC0002FC0002 /* SSBButtwoo.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBButtwoo.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -408,6 +416,10 @@
 				DEF75D13D452FFD12BF95D82 /* RoomStorage.m */,
 				AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */,
 				E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */,
+				BA0001FC0001FC0001FC0001 /* SSBBamboo.h */,
+				BA0002FC0002FC0002FC0002 /* SSBBamboo.m */,
+				BU0001FC0001FC0001FC0001 /* SSBButtwoo.h */,
+				BU0002FC0002FC0002FC0002 /* SSBButtwoo.m */,
 				FC0004FC0004FC0004FC0004 /* SSBBencode.h */,
 				FC0005FC0005FC0005FC0005 /* SSBBencode.m */,
 				883B75B6F77728C6B18E47AA /* SSBBFE.h */,
@@ -514,6 +526,8 @@
 				F242D9204257ADEF9BE27519 /* SSBBFE.h in Headers */,
 				7ADF4D7E4394304A4282236A /* SSBBIPF.h in Headers */,
 				047DD05B99FEB5CF11CF4C60 /* SSBBendyButt.h in Headers */,
+				BB0001FC0001FC0001FC0001 /* SSBBamboo.h in Headers */,
+				BV0001FC0001FC0001FC0001 /* SSBButtwoo.h in Headers */,
 				BF0004FC0004FC0004FC0004 /* SSBBencode.h in Headers */,
 				BF0001FC0001FC0001FC0001 /* SSBFeedCodec.h in Headers */,
 				BF0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h in Headers */,
@@ -660,6 +674,8 @@
 				7F22700F8DF227408F500E85 /* SSBBFE.m in Sources */,
 				B873CA366A39AA08B15ABA9B /* SSBBIPF.m in Sources */,
 				85E97634B5B4504389199501 /* SSBBendyButt.m in Sources */,
+				BB0002FC0002FC0002FC0002 /* SSBBamboo.m in Sources */,
+				BV0002FC0002FC0002FC0002 /* SSBButtwoo.m in Sources */,
 				BF0005FC0005FC0005FC0005 /* SSBBencode.m in Sources */,
 				BF0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m in Sources */,
 				GB0002FC0002FC0002FC0002 /* SSBGabbyGrove.m in Sources */,
