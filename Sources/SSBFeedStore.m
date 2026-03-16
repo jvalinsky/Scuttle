@@ -1,4 +1,5 @@
 #import "SSBFeedStore.h"
+#import "SSBFeedCodecRegistry.h"
 #import "SSBQueryEngine.h"
 #import "SSBTangle.h"
 #import <sqlite3.h>
@@ -7,7 +8,7 @@
 static os_log_t ssb_feedstore_log;
 
 static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
-static const NSInteger kCurrentSchemaVersion = 3;
+static const NSInteger kCurrentSchemaVersion = 4;
 
 @implementation SSBMessage
 @end
@@ -21,6 +22,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 @property (nonatomic, strong) dispatch_queue_t dbQueue;
 
 - (BOOL)_appendMessageToTable:(const char *)tableName message:(SSBMessage *)message error:(NSError **)error;
+- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key feedFormat:(SSBBFEFeedFormat)feedFormat;
 - (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key;
 - (void)_drainQuarantineForKey:(NSString *)satisfiedKey author:(NSString *)author;
 - (SSBMessage *)_getQuarantinedMessageByKey:(NSString *)key;
@@ -118,6 +120,23 @@ static const NSInteger kCurrentSchemaVersion = 3;
         }
     }
 
+    if (version < 4) {
+        os_log_info(ssb_feedstore_log, "Migrating to version 4: adding feed_format column to messages, feed_state, quarantine");
+        const char *sqls[] = {
+            "ALTER TABLE messages ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE feed_state ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE quarantine ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
+            NULL
+        };
+        for (int i = 0; sqls[i] != NULL; i++) {
+            char *errMsg = NULL;
+            if (sqlite3_exec(_db, sqls[i], NULL, NULL, &errMsg) != SQLITE_OK) {
+                os_log_error(ssb_feedstore_log, "v4 migration failed: %s", errMsg);
+                sqlite3_free(errMsg);
+            }
+        }
+    }
+
     if (version < kCurrentSchemaVersion) {
         [self setSchemaVersion:kCurrentSchemaVersion];
     }
@@ -143,12 +162,14 @@ static const NSInteger kCurrentSchemaVersion = 3;
         "    content_type TEXT,"
         "    value_json BLOB NOT NULL,"
         "    content_json TEXT,"
+        "    feed_format INTEGER NOT NULL DEFAULT 0,"
         "    PRIMARY KEY (author, sequence)"
         ");"
         "CREATE TABLE IF NOT EXISTS feed_state ("
         "    author TEXT PRIMARY KEY,"
         "    max_sequence INTEGER NOT NULL,"
-        "    max_key TEXT NOT NULL"
+        "    max_key TEXT NOT NULL,"
+        "    feed_format INTEGER NOT NULL DEFAULT 0"
         ");"
         "CREATE TABLE IF NOT EXISTS contacts ("
         "    target_author TEXT PRIMARY KEY,"
@@ -172,6 +193,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
         "    content_type TEXT,"
         "    value_json BLOB NOT NULL,"
         "    content_json TEXT,"
+        "    feed_format INTEGER NOT NULL DEFAULT 0,"
         "    PRIMARY KEY (author, sequence)"
         ");"
         "CREATE TABLE IF NOT EXISTS quarantine_dependencies ("
@@ -180,7 +202,8 @@ static const NSInteger kCurrentSchemaVersion = 3;
         "    FOREIGN KEY(message_key) REFERENCES quarantine(key) ON DELETE CASCADE"
         ");"
         "CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(content_type);"
-        "CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(claimed_timestamp);";
+        "CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(claimed_timestamp);"
+        "CREATE INDEX IF NOT EXISTS idx_messages_format ON messages(feed_format);";
 
     char *errMsg = NULL;
     int rc = sqlite3_exec(_db, sql, NULL, NULL, &errMsg);
@@ -193,6 +216,23 @@ static const NSInteger kCurrentSchemaVersion = 3;
 #pragma mark - Append
 
 - (BOOL)appendMessage:(SSBMessage *)message error:(NSError **)error {
+    // Phase 3: verify via codec registry before touching the DB
+    id<SSBFeedCodec> codec = [[SSBFeedCodecRegistry sharedRegistry] codecForFeedFormat:message.feedFormat];
+    if (codec) {
+        NSError *verifyError = nil;
+        if (![codec verifyMessageData:message.valueJSON error:&verifyError]) {
+            if (error) *error = verifyError;
+            return NO;
+        }
+    } else {
+        // No codec registered for this format
+        if (error) {
+            *error = [NSError errorWithDomain:SSBFeedStoreErrorDomain code:7
+                userInfo:@{NSLocalizedDescriptionKey: @"Unsupported feed format"}];
+        }
+        return NO;
+    }
+
     __block BOOL success = NO;
     __block NSError *blockError = nil;
 
@@ -222,7 +262,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
             // Appending to main messages
             success = [self _appendMessageToTable:"messages" message:message error:&blockError];
             if (success) {
-                [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key];
+                [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key feedFormat:message.feedFormat];
                 [self _drainQuarantineForKey:message.key author:message.author];
                 
                 // If it's an about message, update profile
@@ -269,10 +309,10 @@ static const NSInteger kCurrentSchemaVersion = 3;
     }
 
     char insertSQL[512];
-    snprintf(insertSQL, sizeof(insertSQL), 
+    snprintf(insertSQL, sizeof(insertSQL),
              "INSERT INTO %s (author, sequence, key, previous_key, claimed_timestamp, "
-             "received_at, is_private, content_type, value_json, content_json) "
-             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", tableName);
+             "received_at, is_private, content_type, value_json, content_json, feed_format) "
+             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", tableName);
 
     sqlite3_stmt *stmt = NULL;
     int rc = sqlite3_prepare_v2(_db, insertSQL, -1, &stmt, NULL);
@@ -305,6 +345,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
     } else {
         sqlite3_bind_null(stmt, 10);
     }
+    sqlite3_bind_int(stmt, 11, (int)message.feedFormat);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -319,10 +360,11 @@ static const NSInteger kCurrentSchemaVersion = 3;
     return YES;
 }
 
-- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key {
+- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key feedFormat:(SSBBFEFeedFormat)feedFormat {
     const char *upsertSQL =
-        "INSERT INTO feed_state (author, max_sequence, max_key) VALUES (?, ?, ?) "
-        "ON CONFLICT(author) DO UPDATE SET max_sequence = excluded.max_sequence, max_key = excluded.max_key";
+        "INSERT INTO feed_state (author, max_sequence, max_key, feed_format) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(author) DO UPDATE SET max_sequence = excluded.max_sequence, "
+        "max_key = excluded.max_key, feed_format = excluded.feed_format";
 
     sqlite3_stmt *stmt = NULL;
     int rc = sqlite3_prepare_v2(_db, upsertSQL, -1, &stmt, NULL);
@@ -330,9 +372,14 @@ static const NSInteger kCurrentSchemaVersion = 3;
         sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
         sqlite3_bind_int64(stmt, 2, sequence);
         sqlite3_bind_text(stmt, 3, key.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 4, (int)feedFormat);
         sqlite3_step(stmt);
         sqlite3_finalize(stmt);
     }
+}
+
+- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key {
+    [self _updateFeedStateForAuthor:author sequence:sequence key:key feedFormat:SSBBFEFeedFormatClassic];
 }
 
 - (NSArray<NSString *> *)_getMissingDependenciesForMessage:(SSBMessage *)message {
@@ -439,14 +486,14 @@ static const NSInteger kCurrentSchemaVersion = 3;
     if (message.sequence > 1 && ![message.previousKey isEqualToString:state.maxKey]) return;
     NSError *error = nil;
     if ([self _appendMessageToTable:"messages" message:message error:&error]) {
-        [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key];
+        [self _updateFeedStateForAuthor:message.author sequence:message.sequence key:message.key feedFormat:message.feedFormat];
         [self _removeMessageFromQuarantine:message];
         [self _drainQuarantineForKey:message.key author:message.author];
     }
 }
 
 - (SSBMessage *)_getQuarantinedMessageByKey:(NSString *)key {
-    const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM quarantine WHERE key = ?";
+    const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM quarantine WHERE key = ?";
     sqlite3_stmt *stmt = NULL;
     SSBMessage *msg = nil;
     if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
@@ -458,7 +505,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 }
 
 - (SSBMessage *)_getQuarantinedMessageForAuthor:(NSString *)author sequence:(NSInteger)sequence {
-    const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM quarantine WHERE author = ? AND sequence = ?";
+    const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM quarantine WHERE author = ? AND sequence = ?";
     sqlite3_stmt *stmt = NULL;
     SSBMessage *msg = nil;
     if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
@@ -512,7 +559,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 }
 
 - (nullable SSBFeedState *)_feedStateForAuthor:(NSString *)author {
-    const char *sql = "SELECT author, max_sequence, max_key FROM feed_state WHERE author = ?";
+    const char *sql = "SELECT author, max_sequence, max_key, feed_format FROM feed_state WHERE author = ?";
     sqlite3_stmt *stmt = NULL;
     if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return nil;
     sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
@@ -524,6 +571,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
         state.maxSequence = (NSInteger)sqlite3_column_int64(stmt, 1);
         const char *maxKey = (const char *)sqlite3_column_text(stmt, 2);
         if (maxKey) state.maxKey = [NSString stringWithUTF8String:maxKey];
+        state.feedFormat = (SSBBFEFeedFormat)sqlite3_column_int(stmt, 3);
     }
     sqlite3_finalize(stmt);
     return state;
@@ -534,7 +582,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 - (NSArray<SSBMessage *> *)messagesForAuthor:(NSString *)author fromSequence:(NSInteger)startSeq limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE author = ? AND sequence >= ? ORDER BY sequence ASC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE author = ? AND sequence >= ? ORDER BY sequence ASC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
@@ -549,7 +597,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 - (NSArray<SSBMessage *> *)recentMessagesWithLimit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages ORDER BY claimed_timestamp DESC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE content_type != 'metafeed/index' ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_int64(stmt, 1, limit);
@@ -562,7 +610,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 - (NSArray<SSBMessage *> *)timelineWithLimit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE author IN (SELECT target_author FROM contacts WHERE following = 1) ORDER BY claimed_timestamp DESC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE author IN (SELECT target_author FROM contacts WHERE following = 1) AND content_type != 'metafeed/index' ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_int64(stmt, 1, limit);
@@ -575,7 +623,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 - (NSArray<SSBMessage *> *)feedForAuthor:(NSString *)author limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE author = ? ORDER BY sequence DESC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE author = ? ORDER BY sequence DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
@@ -589,10 +637,24 @@ static const NSInteger kCurrentSchemaVersion = 3;
 - (NSArray<SSBMessage *> *)messagesOfType:(NSString *)contentType limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE content_type = ? ORDER BY claimed_timestamp DESC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE content_type = ? ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_text(stmt, 1, contentType.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 2, limit);
+        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
+        sqlite3_finalize(stmt);
+    });
+    return results;
+}
+
+- (NSArray<SSBMessage *> *)messagesForFeedFormat:(SSBBFEFeedFormat)format limit:(NSInteger)limit {
+    __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE feed_format = ? ORDER BY claimed_timestamp DESC LIMIT ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
+        sqlite3_bind_int(stmt, 1, (int)format);
         sqlite3_bind_int64(stmt, 2, limit);
         while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
         sqlite3_finalize(stmt);
@@ -608,7 +670,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
     NSInteger startFrom = [options[@"startFrom"] integerValue];
     NSString *order = descending ? @"DESC" : @"ASC";
     NSString *seqOp = descending ? @"<" : @">";
-    NSMutableString *fullSQL = [NSMutableString stringWithFormat:@"SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE %@", ql[@"sql"]];
+    NSMutableString *fullSQL = [NSMutableString stringWithFormat:@"SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE %@", ql[@"sql"]];
     NSMutableArray *allParams = [NSMutableArray arrayWithArray:ql[@"params"]];
     if (startFrom > 0) { [fullSQL appendFormat:@" AND sequence %@ ?", seqOp]; [allParams addObject:@(startFrom)]; }
     [fullSQL appendFormat:@" ORDER BY sequence %@ LIMIT ?", order];
@@ -651,6 +713,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
         NSData *data = [NSData dataWithBytes:contentJSON length:strlen(contentJSON)];
         msg.content = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     }
+    msg.feedFormat = (SSBBFEFeedFormat)sqlite3_column_int(stmt, 10);
     return msg;
 }
 
@@ -747,7 +810,7 @@ static const NSInteger kCurrentSchemaVersion = 3;
 - (NSArray<SSBMessage *> *)searchMessages:(NSString *)searchText limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json FROM messages WHERE content_json LIKE ? ORDER BY claimed_timestamp DESC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE content_json LIKE ? ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
             NSString *likePattern = [NSString stringWithFormat:@"%%%@%%", searchText];
