@@ -6,6 +6,9 @@
 #import <SSBNetwork/SSBRoomClient.h>
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRNotificationNames.h"
+#import <os/log.h>
+
+static os_log_t profile_log;
 
 @interface SRProfileViewController () <SRFeedViewControllerDelegate>
 @property (nonatomic, strong) SRProfileHeaderView *headerView;
@@ -16,6 +19,12 @@
 @end
 
 @implementation SRProfileViewController
+
++ (void)initialize {
+    if (self == [SRProfileViewController class]) {
+        profile_log = os_log_create("com.scuttlebutt.app", "ProfileVC");
+    }
+}
 
 - (instancetype)initWithPeerID:(NSString *)peerID client:(nullable SSBRoomClient *)client {
     self = [super init];
@@ -99,11 +108,9 @@
     
     // Trigger replication for preview
     if (self.client && self.client.host) {
-        NSLog(@"[UI] Triggering replication from peer %@ via room %@", self.peerID, self.client.host);
-        SSBLogInfo(SSBLogCategoryUI, @"   Triggering replication from peer...");
+        SSBLogInfo(SSBLogCategoryUI, @"   Triggering replication from peer %@ via room %@", self.peerID, self.client.host);
         [self.client replicateFromPeer:self.peerID viaRoom:self.client.host];
     } else {
-        NSLog(@"[UI] Cannot replicate: client=%p host=%@", self.client, self.client.host);
         SSBLogWarning(SSBLogCategoryUI, @"   Cannot replicate: client=%@ host=%@", self.client ? @"yes" : @"no", self.client.host);
     }
     

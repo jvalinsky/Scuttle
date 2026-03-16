@@ -95,7 +95,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
 }
 
 + (size_t)handleInput:(nw_framer_t)framer context:(SSBSecurityContext *)context {
-    NSLog(@"[SecurityFramer] handleInput called, state=%ld", (long)context.state);
+    os_log_debug(ssb_sec_log, "handleInput called, state=%ld", (long)context.state);
     switch (context.state) {
         case SSBSecurityStateHandshakeHelloWait: {
             size_t req = 64; // Expect Client Hello
@@ -108,7 +108,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                 return 0;
             });
             if (success) {
-                NSLog(@"[SecurityFramer] Client Hello processed. Sending Server Hello.");
+                os_log_info(ssb_sec_log, "Client Hello processed. Sending Server Hello.");
                 NSData *hello = [context.handshake createHello];
                 dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, helloData);
@@ -128,7 +128,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                 return 0;
             });
             if (success) {
-                NSLog(@"[SecurityFramer] Server Hello processed. Sending Auth.");
+                os_log_info(ssb_sec_log, "Server Hello processed. Sending Auth.");
                 NSData *auth = [context.handshake createAuth];
                 dispatch_data_t authData = dispatch_data_create(auth.bytes, auth.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, authData);
@@ -148,7 +148,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                 return 0;
             });
             if (success) {
-                NSLog(@"[SecurityFramer] Client Auth processed. Sending Server Accept.");
+                os_log_info(ssb_sec_log, "Client Auth processed. Sending Server Accept.");
                 NSData *accept = [context.handshake createAccept];
                 dispatch_data_t acceptData = dispatch_data_create(accept.bytes, accept.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, acceptData);
@@ -175,7 +175,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                 return 0;
             });
             if (success) {
-                NSLog(@"[SecurityFramer] Server Accept processed. Handshake COMPLETE.");
+                os_log_info(ssb_sec_log, "Server Accept processed. Handshake COMPLETE.");
                 context.boxStream = [[SSBBoxStream alloc] initWithClientToServerKey:context.handshake.clientToServerKey
                                                                   serverToClientKey:context.handshake.serverToClientKey
                                                                 clientToServerNonce:context.handshake.clientToServerNonce
@@ -211,7 +211,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                                                                   outLength:&bodyLen 
                                                                  outBodyMac:&bodyMac];
                             if (!headerParsed) {
-                                NSLog(@"[SecurityFramer] Box header decrypt FAILED");
+                                os_log_error(ssb_sec_log, "Box header decrypt FAILED");
                             }
                             return headerReq;
                         }
@@ -233,7 +233,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                 if (context.state == SSBSecurityStateBoxBody) {
                     size_t bodyLen = context.pendingBodyLen;
                     if (bodyLen == 0) {
-                        NSLog(@"[SecurityFramer] Goodbye packet received");
+                        os_log_info(ssb_sec_log, "Goodbye packet received");
                         nw_framer_mark_failed_with_error(framer, 0); // Goodbye
                         return 0;
                     }
@@ -243,7 +243,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                             decryptedBody = [context.boxStream decryptBody:[NSData dataWithBytes:buffer length:bodyLen] 
                                                                expectedMac:context.pendingBodyMac];
                             if (!decryptedBody) {
-                                NSLog(@"[SecurityFramer] Box body decrypt FAILED");
+                                os_log_error(ssb_sec_log, "Box body decrypt FAILED");
                             }
                             return bodyLen;
                         }

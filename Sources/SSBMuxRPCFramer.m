@@ -87,7 +87,7 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
                             nw_framer_message_set_object_value(message, "RequestNumber", @(context.reqNum));
                             nw_framer_deliver_input(inner_framer, NULL, 0, message, true);
                             success = YES;
-                            NSLog(@"[MuxRPCFramer] DELIVERED empty message: flags=%u req=%d", context.flags, context.reqNum);
+                            os_log_debug(ssb_rpc_log, "DELIVERED empty message: flags=%u req=%d", context.flags, context.reqNum);
                         }
                         
                         if (success) {
@@ -108,7 +108,7 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
 }
 
 + (void)handleOutput:(nw_framer_t)framer message:(nw_framer_message_t)message messageLength:(size_t)messageLength {
-    NSLog(@"[MuxRPCFramer] handleOutput: passing through %zu bytes", messageLength);
+    os_log_debug(ssb_rpc_log, "handleOutput: passing through %zu bytes", messageLength);
     nw_framer_parse_output(framer, messageLength, messageLength, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
         nw_framer_write_output_data(framer, dispatch_data_create(buffer, buffer_length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT));
         return buffer_length;

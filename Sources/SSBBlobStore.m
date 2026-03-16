@@ -1,6 +1,9 @@
 #import "SSBBlobStore.h"
 #import "SSBMuxRPCSession.h"
 #import <CommonCrypto/CommonDigest.h>
+#import <os/log.h>
+
+static os_log_t blob_store_log;
 
 @interface SSBBlobStore ()
 @property (nonatomic, copy) NSString *basePath;
@@ -9,6 +12,12 @@
 @end
 
 @implementation SSBBlobStore
+
++ (void)initialize {
+    if (self == [SSBBlobStore class]) {
+        blob_store_log = os_log_create("com.scuttlebutt.app", "BlobStore");
+    }
+}
 
 + (instancetype)sharedStore {
     static SSBBlobStore *shared = nil;
@@ -69,14 +78,14 @@
     NSString *computedHash = [NSString stringWithFormat:@"&%@.sha256", [hashData base64EncodedStringWithOptions:0]];
     
     if (![computedHash isEqualToString:blobID]) {
-        NSLog(@"[BlobStore] Hash mismatch for %@: computed %@", blobID, computedHash);
+        os_log_error(blob_store_log, "Hash mismatch for %{public}@: computed %{public}@", blobID, computedHash);
         return nil;
     }
     
     NSString *filename = [self filenameForBlobID:blobID];
     NSString *path = [self.basePath stringByAppendingPathComponent:filename];
     [data writeToFile:path atomically:YES];
-    NSLog(@"[BlobStore] Stored blob %@ (%lu bytes)", blobID, (unsigned long)data.length);
+    os_log_info(blob_store_log, "Stored blob %{public}@ (%lu bytes)", blobID, (unsigned long)data.length);
     return path;
 }
 
@@ -103,7 +112,7 @@
     
     [session sendRequest:@[@"blobs", @"get"] args:@[blobID] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
-            NSLog(@"[BlobStore] Fetch error for %@: %@", blobID, error.localizedDescription);
+            os_log_error(blob_store_log, "Fetch error for %{public}@: %{public}@", blobID, error.localizedDescription);
             [weakSelf completePendingFetches:blobID path:nil error:error];
             return;
         }
@@ -160,7 +169,7 @@
         [fm removeItemAtPath:self.basePath error:nil];
         [fm createDirectoryAtPath:self.basePath withIntermediateDirectories:YES attributes:nil error:nil];
     });
-    NSLog(@"[BlobStore] Wiped all blobs");
+    os_log_info(blob_store_log, "Wiped all blobs");
 }
 
 @end
