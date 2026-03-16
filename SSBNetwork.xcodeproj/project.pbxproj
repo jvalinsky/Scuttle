@@ -14,6 +14,8 @@
 		BF0001FC0001FC0001FC0001 /* SSBFeedCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = FC0001FC0001FC0001FC0001 /* SSBFeedCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		BF0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h in Headers */ = {isa = PBXBuildFile; fileRef = FC0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		BF0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = FC0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m */; };
+		GB0001FC0001FC0001FC0001 /* SSBGabbyGrove.h in Headers */ = {isa = PBXBuildFile; fileRef = GG0001FC0001FC0001FC0001 /* SSBGabbyGrove.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		GB0002FC0002FC0002FC0002 /* SSBGabbyGrove.m in Sources */ = {isa = PBXBuildFile; fileRef = GG0002FC0002FC0002FC0002 /* SSBGabbyGrove.m */; };
 		BF0004FC0004FC0004FC0004 /* SSBBencode.h in Headers */ = {isa = PBXBuildFile; fileRef = FC0004FC0004FC0004FC0004 /* SSBBencode.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		BF0005FC0005FC0005FC0005 /* SSBBencode.m in Sources */ = {isa = PBXBuildFile; fileRef = FC0005FC0005FC0005FC0005 /* SSBBencode.m */; };
 		04FBDC2110F3898DE17DD339 /* SSBMessageCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = EBEB65F0F3E4B90137A01A1F /* SSBMessageCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -238,6 +240,8 @@
 		FC0001FC0001FC0001FC0001 /* SSBFeedCodec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodec.h; sourceTree = "<group>"; };
 		FC0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodecRegistry.h; sourceTree = "<group>"; };
 		FC0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedCodecRegistry.m; sourceTree = "<group>"; };
+		GG0001FC0001FC0001FC0001 /* SSBGabbyGrove.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGabbyGrove.h; sourceTree = "<group>"; };
+		GG0002FC0002FC0002FC0002 /* SSBGabbyGrove.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBGabbyGrove.m; sourceTree = "<group>"; };
 		FC0004FC0004FC0004FC0004 /* SSBBencode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBencode.h; sourceTree = "<group>"; };
 		FC0005FC0005FC0005FC0005 /* SSBBencode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBencode.m; sourceTree = "<group>"; };
 		AF4343841D1F5AC58E8E750A /* SRProfileViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRProfileViewController.m; sourceTree = "<group>"; };
@@ -421,6 +425,8 @@
 				FC0001FC0001FC0001FC0001 /* SSBFeedCodec.h */,
 				FC0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h */,
 				FC0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m */,
+				GG0001FC0001FC0001FC0001 /* SSBGabbyGrove.h */,
+				GG0002FC0002FC0002FC0002 /* SSBGabbyGrove.m */,
 				C9373F921F75303BFCDC1BE6 /* SSBFeedStore.h */,
 				C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */,
 				A5572FAB9C13EDB3AA6AC7E0 /* SSBHTTPAuth.h */,
@@ -511,6 +517,7 @@
 				BF0004FC0004FC0004FC0004 /* SSBBencode.h in Headers */,
 				BF0001FC0001FC0001FC0001 /* SSBFeedCodec.h in Headers */,
 				BF0002FC0002FC0002FC0002 /* SSBFeedCodecRegistry.h in Headers */,
+				GB0001FC0001FC0001FC0001 /* SSBGabbyGrove.h in Headers */,
 				74600C44417F9C6494E12588 /* SSBBitset.h in Headers */,
 				75C687E3FE12F6444A6B9BBF /* SSBBlobStore.h in Headers */,
 				AAAAAAAA1111222233334444 /* SSBLogger.h in Headers */,
@@ -655,6 +662,7 @@
 				85E97634B5B4504389199501 /* SSBBendyButt.m in Sources */,
 				BF0005FC0005FC0005FC0005 /* SSBBencode.m in Sources */,
 				BF0003FC0003FC0003FC0003 /* SSBFeedCodecRegistry.m in Sources */,
+				GB0002FC0002FC0002FC0002 /* SSBGabbyGrove.m in Sources */,
 				39F00E94391FC93614BF28A9 /* SSBBitset.m in Sources */,
 				657E50EA694DAFFDDAFDE668 /* SSBBlobStore.m in Sources */,
 				AAAAAAAA1111222233334445 /* SSBLogger.m in Sources */,
