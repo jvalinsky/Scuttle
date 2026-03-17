@@ -1,5 +1,7 @@
 #import "SRPreferencesViewController.h"
 #import "SRProfileHeaderView.h"
+#import "SRSeedBackupViewController.h"
+#import "SRSeedRecoveryViewController.h"
 #import "../Logic/SRRoomManager.h"
 #import <SSBNetwork/SSBNetwork.h>
 #import <SSBNetwork/SSBKeychain.h>
@@ -64,6 +66,8 @@ static os_log_t prefs_log;
 @property (nonatomic, strong) NSButton *saveButton;
 @property (nonatomic, strong) NSButton *wipeButton;
 @property (nonatomic, strong) NSButton *resetButton;
+@property (nonatomic, strong) NSButton *backupSeedButton;
+@property (nonatomic, strong) NSButton *recoverSeedButton;
 @property (nonatomic, strong) NSButton *devButton;
 @property (nonatomic, strong) SRStorageUsageView *usageView;
 @property (nonatomic, strong) NSTextField *usageLegend;
@@ -131,6 +135,20 @@ static os_log_t prefs_log;
     self.resetButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.resetButton];
     
+    self.backupSeedButton = [NSButton buttonWithTitle:@"Back Up Identity Seed…"
+                                              target:self
+                                              action:@selector(backupSeedAction:)];
+    self.backupSeedButton.bezelStyle = NSBezelStyleRounded;
+    self.backupSeedButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.backupSeedButton];
+
+    self.recoverSeedButton = [NSButton buttonWithTitle:@"Recover from Backup…"
+                                                target:self
+                                                action:@selector(recoverSeedAction:)];
+    self.recoverSeedButton.bezelStyle = NSBezelStyleRounded;
+    self.recoverSeedButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.recoverSeedButton];
+
     self.devButton = [NSButton buttonWithTitle:@"Show Developer Panel" target:self action:@selector(showDevPanelAction:)];
     self.devButton.bezelStyle = NSBezelStyleRounded;
     self.devButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -165,11 +183,17 @@ static os_log_t prefs_log;
         
         [self.wipeButton.topAnchor constraintEqualToAnchor:self.usageLegend.bottomAnchor constant:40],
         [self.wipeButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
-        
+
         [self.resetButton.topAnchor constraintEqualToAnchor:self.usageLegend.bottomAnchor constant:40],
         [self.resetButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
-        
-        [self.devButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:20],
+
+        [self.backupSeedButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:14],
+        [self.backupSeedButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+
+        [self.recoverSeedButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:14],
+        [self.recoverSeedButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+
+        [self.devButton.topAnchor constraintEqualToAnchor:self.backupSeedButton.bottomAnchor constant:20],
         [self.devButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
     ]];
     
@@ -246,6 +270,16 @@ static os_log_t prefs_log;
     if ([alert runModal] == NSAlertFirstButtonReturn) {
         [[SRRoomManager sharedManager] resetAccount];
     }
+}
+
+- (void)backupSeedAction:(id)sender {
+    SRSeedBackupViewController *vc = [[SRSeedBackupViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
+}
+
+- (void)recoverSeedAction:(id)sender {
+    SRSeedRecoveryViewController *vc = [[SRSeedRecoveryViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
 }
 
 - (void)showDevPanelAction:(id)sender {
