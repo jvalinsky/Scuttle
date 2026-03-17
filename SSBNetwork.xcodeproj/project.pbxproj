@@ -31,6 +31,10 @@
 		2C54FA73EF2F1B21DB48083C /* SRFeedItem.m in Sources */ = {isa = PBXBuildFile; fileRef = 9360DF8B7599CB7D3C9E9C2F /* SRFeedItem.m */; };
 		2CFA0B235B87F6A5B03AEE35 /* RoomInviteHandlerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = AFE38E82BFCE0732285FBFD3 /* RoomInviteHandlerTests.m */; };
 		2D27C4B1478B3BEE80FD5ACE /* tweetnacl.c in Sources */ = {isa = PBXBuildFile; fileRef = 75516176EABD43E300304542 /* tweetnacl.c */; };
+		BK2B0001BK2B0001BK2B0001 /* blake2b.c in Sources */ = {isa = PBXBuildFile; fileRef = BK2R0001BK2R0001BK2R0001 /* blake2b.c */; };
+		BK2B0002BK2B0002BK2B0002 /* blake2b.h in Headers */ = {isa = PBXBuildFile; fileRef = BK2R0002BK2R0002BK2R0002 /* blake2b.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		BK3B0001BK3B0001BK3B0001 /* blake3.c in Sources */ = {isa = PBXBuildFile; fileRef = BK3R0001BK3R0001BK3R0001 /* blake3.c */; };
+		BK3B0002BK3B0002BK3B0002 /* blake3.h in Headers */ = {isa = PBXBuildFile; fileRef = BK3R0002BK3R0002BK3R0002 /* blake3.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		2D6FBF5BD89783F1B4CAAEAA /* SSBNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; };
 		2DFF3BBA68D1B5E1BF607B23 /* RoomInviteHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 1C3C9A7A3F394789F22597E9 /* RoomInviteHandler.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		354EEFD8311B43F625E719EB /* SRSidebarViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96752B10BAC7153C8F7F4636 /* SRSidebarViewController.m */; };
@@ -209,6 +213,10 @@
 		6FD11AF287BF3FFCE56C6979 /* SSBIndexFeedGenerator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBIndexFeedGenerator.m; sourceTree = "<group>"; };
 		7466A4084D3543D750F94190 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		75516176EABD43E300304542 /* tweetnacl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tweetnacl.c; sourceTree = "<group>"; };
+		BK2R0001BK2R0001BK2R0001 /* blake2b.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = blake2b.c; sourceTree = "<group>"; };
+		BK2R0002BK2R0002BK2R0002 /* blake2b.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = blake2b.h; sourceTree = "<group>"; };
+		BK3R0001BK3R0001BK3R0001 /* blake3.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = blake3.c; sourceTree = "<group>"; };
+		BK3R0002BK3R0002BK3R0002 /* blake3.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = blake3.h; sourceTree = "<group>"; };
 		7644B4728766AF6A0A6D4D5F /* SRChannelBrowserViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRChannelBrowserViewController.h; sourceTree = "<group>"; };
 		7668453A9FDCB9818F040227 /* SRRoomManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRRoomManager.h; sourceTree = "<group>"; };
 		7903E33DB09B529B3231AC07 /* SSBConnectionFSMTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBConnectionFSMTests.m; sourceTree = "<group>"; };
@@ -488,6 +496,10 @@
 				FF643DB59B16753E557EAF57 /* SSBURI.m */,
 				75516176EABD43E300304542 /* tweetnacl.c */,
 				ADF41D2BA8155CDF54C259CB /* tweetnacl.h */,
+				BK2R0001BK2R0001BK2R0001 /* blake2b.c */,
+				BK2R0002BK2R0002BK2R0002 /* blake2b.h */,
+				BK3R0001BK3R0001BK3R0001 /* blake3.c */,
+				BK3R0002BK3R0002BK3R0002 /* blake3.h */,
 				B91E4AFF9783002129D1E882 /* SSBTunnelConnection.m */,
 			);
 			path = Sources;
@@ -561,6 +573,8 @@
 				02B32B268B26D2DC78051FC6 /* SSBThread.h in Headers */,
 				C675DBFEC6E02324C36C7FF1 /* SSBURI.h in Headers */,
 				B4B1781611491EA710139777 /* tweetnacl.h in Headers */,
+				BK2B0002BK2B0002BK2B0002 /* blake2b.h in Headers */,
+				BK3B0002BK3B0002BK3B0002 /* blake3.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -708,6 +722,8 @@
 				884E6C004581AD0133CC3FD3 /* SSBURI.m in Sources */,
 				CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */,
 				2D27C4B1478B3BEE80FD5ACE /* tweetnacl.c in Sources */,
+				BK2B0001BK2B0001BK2B0001 /* blake2b.c in Sources */,
+				BK3B0001BK3B0001BK3B0001 /* blake3.c in Sources */,
 				98FF8819ABBB611B01ED0775 /* SSBTunnelConnection.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

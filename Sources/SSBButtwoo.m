@@ -1,11 +1,11 @@
 #import "SSBButtwoo.h"
 #import "SSBFeedCodecRegistry.h"
-#import "SSBBencode.h"
+#import "SSBBIPF.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
-#import "blake2b.h"
+#import "blake3.h"
 
-// Buttwoo wire format (bencode):
+// Buttwoo wire format (BIPF):
 //   Message = [payload, signature_bfe]
 //   Payload = [author_bfe, sequence, previous_bfe, timestamp, content_data]
 //
@@ -77,9 +77,9 @@ static const NSUInteger kMaxMessageSize = 8192;
     uint64_t seqBE = CFSwapInt64HostToBig((uint64_t)sequence);
     [input appendBytes:&seqBE length:8];
 
-    // BLAKE2b-256 of the 40-byte input (author || seq_BE)
+    // BLAKE3-256 of the 40-byte input (author || seq_BE)
     uint8_t digest[32];
-    if (blake2b256(digest, input.bytes, input.length) != 0) {
+    if (blake3_256(digest, input.bytes, input.length) != 0) {
         return nil;
     }
     return [NSData dataWithBytes:digest length:32];
@@ -96,9 +96,9 @@ static const NSUInteger kMaxMessageSize = 8192;
         return NO;
     }
 
-    // Parse the outer bencode list: [payload, signature_bfe]
-    NSUInteger offset = 0;
-    id decoded = [SSBBencode decode:messageData offset:&offset];
+    // Parse the outer BIPF list: [payload, signature_bfe]
+    NSUInteger consumed = 0;
+    id decoded = [SSBBIPF decode:messageData consumed:&consumed];
     if (![decoded isKindOfClass:[NSArray class]]) {
         return NO;
     }
@@ -118,8 +118,8 @@ static const NSUInteger kMaxMessageSize = 8192;
     }
 
     // Parse payload: [author_bfe, seq, prev_bfe, timestamp, content]
-    NSUInteger payloadOffset = 0;
-    id payloadDecoded = [SSBBencode decode:payloadData offset:&payloadOffset];
+    NSUInteger payloadConsumed = 0;
+    id payloadDecoded = [SSBBIPF decode:payloadData consumed:&payloadConsumed];
     if (![payloadDecoded isKindOfClass:[NSArray class]]) {
         return NO;
     }
@@ -226,8 +226,8 @@ static const NSUInteger kMaxMessageSize = 8192;
     }
 
     // Parse outer message to extract payload
-    NSUInteger offset = 0;
-    id decoded = [SSBBencode decode:messageData offset:&offset];
+    NSUInteger consumed = 0;
+    id decoded = [SSBBIPF decode:messageData consumed:&consumed];
     if (![decoded isKindOfClass:[NSArray class]]) {
         return nil;
     }
@@ -243,8 +243,8 @@ static const NSUInteger kMaxMessageSize = 8192;
     }
 
     // Parse payload to extract author BFE and sequence number
-    NSUInteger payloadOffset = 0;
-    id payloadDecoded = [SSBBencode decode:payloadData offset:&payloadOffset];
+    NSUInteger payloadConsumed = 0;
+    id payloadDecoded = [SSBBIPF decode:payloadData consumed:&payloadConsumed];
     if (![payloadDecoded isKindOfClass:[NSArray class]]) {
         return nil;
     }
