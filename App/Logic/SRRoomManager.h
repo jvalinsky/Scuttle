@@ -23,6 +23,9 @@ extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
 
 - (nullable SSBRoomClient *)clientForHost:(NSString *)host;
 
+/// Returns any currently connected room client, or nil if none are connected.
+- (nullable SSBRoomClient *)anyConnectedClient;
+
 /// Publishes a metafeed/tombstone message revoking the given sub-feed key.
 - (void)revokeSubfeed:(NSString *)feedID reason:(nullable NSString *)reason;
 

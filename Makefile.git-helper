@@ -1,0 +1,17 @@
+# Makefile for Scuttle Git Helper
+
+CC = clang
+CFLAGS = -Wall -O2
+LDFLAGS = 
+
+all: git-remote-ssb
+
+git-remote-ssb: Sources/git-remote-ssb.c
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+
+install: git-remote-ssb
+	mkdir -p /usr/local/bin
+	cp git-remote-ssb /usr/local/bin/git-remote-ssb
+
+clean:
+	rm -f git-remote-ssb

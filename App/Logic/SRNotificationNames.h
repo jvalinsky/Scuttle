@@ -23,4 +23,11 @@ extern NSString * const SRRoomSyncStatusChangedNotification;
 /// userInfo: @"author" (NSString feed ID), @"verified" (NSNumber BOOL)
 extern NSString * const SRFeedIntegrityDidUpdateNotification;
 
+/// Git-specific notifications
+extern NSString * const SRGitRepoSelectedNotification;
+extern NSString * const SRGitRepoSelectedKey;
+
+extern NSString * const SRGitRepoUpdatedNotification;
+extern NSString * const SRGitRepoUpdatedKey;
+
 NS_ASSUME_NONNULL_END

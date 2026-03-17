@@ -1,6 +1,7 @@
 #import "AppDelegate.h"
 #import "Logic/SRRoomManager.h"
 #import "Logic/SRNotificationNames.h"
+#import "Logic/SRGitRemoteHelperServer.h"
 #import "UI/SRMainSplitViewController.h"
 #import <os/log.h>
 #import <UserNotifications/UserNotifications.h>
@@ -59,6 +60,13 @@ static os_log_t ssb_app_log;
     // Initialize Room Manager
     os_log_info(ssb_app_log, "Initializing RoomManager");
     [SRRoomManager sharedManager];
+    
+    // Start Git Helper Server
+    [[SRGitRemoteHelperServer sharedServer] start];
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    [[SRGitRemoteHelperServer sharedServer] stop];
 }
 
 - (void)setupMenu {

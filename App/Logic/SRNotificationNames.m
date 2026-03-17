@@ -13,3 +13,9 @@ NSString * const SRLocalIdentityGeneratedNotification  = @"SRLocalIdentityGenera
 NSString * const SRRoomSyncStatusChangedNotification   = @"SRRoomSyncStatusChangedNotification";
 
 NSString * const SRFeedIntegrityDidUpdateNotification  = @"SRFeedIntegrityDidUpdateNotification";
+
+NSString * const SRGitRepoSelectedNotification         = @"SRGitRepoSelectedNotification";
+NSString * const SRGitRepoSelectedKey                  = @"SRGitRepoSelectedKey";
+
+NSString * const SRGitRepoUpdatedNotification          = @"SRGitRepoUpdatedNotification";
+NSString * const SRGitRepoUpdatedKey                   = @"SRGitRepoUpdatedKey";

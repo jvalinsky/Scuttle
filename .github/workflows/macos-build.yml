@@ -1,0 +1,42 @@
+name: macOS Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Build and Test Framework
+        run: |
+          xcodebuild clean build test \
+            -scheme "SSBNetwork" \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build ScuttleRoomApp
+        run: |
+          xcodebuild build \
+            -target "ScuttleRoomApp" \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build git-remote-ssb
+        run: |
+          xcodebuild build \
+            -target "git-remote-ssb" \
+            -destination "platform=macOS" \
+            CODE_SIGNING_ALLOWED=NO

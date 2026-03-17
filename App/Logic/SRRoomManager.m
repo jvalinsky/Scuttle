@@ -534,4 +534,17 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     return client;
 }
 
+- (nullable SSBRoomClient *)anyConnectedClient {
+    __block SSBRoomClient *connectedClient = nil;
+    dispatch_sync(self.managerQueue, ^{
+        for (SSBRoomClient *client in self.internalClients.allValues) {
+            if (client.isConnected) {
+                connectedClient = client;
+                break;
+            }
+        }
+    });
+    return connectedClient;
+}
+
 @end

@@ -8,6 +8,9 @@
 #import "SRThreadViewController.h"
 #import "SRProfileViewController.h"
 #import "SRSidebarViewController.h"
+#import "SRGitActivityViewController.h"
+#import "SRGitRepoListViewController.h"
+#import "SRGitRepoViewController.h"
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMessageCodec.h"
 #import "../../Sources/SSBLogger.h"
@@ -88,6 +91,7 @@ static os_log_t split_log;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusDidUpdate:) name:SRRoomManagerConnectionStatusChangedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(endpointsDidUpdate:) name:SRRoomManagerDidUpdateEndpointsNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:SRLocalIdentityGeneratedNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(repoSelected:) name:SRGitRepoSelectedNotification object:nil];
 
     // Replay any room that was selected before we registered observers.
     NSArray<RoomConfig *> *existingRooms = [SRRoomManager sharedManager].rooms;
@@ -112,6 +116,18 @@ static os_log_t split_log;
     if (pubkey) {
         [self.homeVC.headerView updateWithIdentity:pubkey name:nil];
     }
+}
+
+- (void)repoSelected:(NSNotification *)notification {
+    NSString *repoID = notification.userInfo[SRGitRepoSelectedKey];
+    if (!repoID) return;
+    
+    SSBGitObjectStore *objectStore = [[SSBGitObjectStore alloc] initWithBlobStore:[SSBBlobStore sharedStore]];
+    SSBGitRepo *repo = [[SSBGitRepo alloc] initWithRepoID:repoID feedStore:[SSBFeedStore sharedStore] objectStore:objectStore];
+    
+    SRGitRepoViewController *repoVC = [[SRGitRepoViewController alloc] initWithRepo:repo];
+    repoVC.currentClient = [self currentClient];
+    [self.contentContainer pushViewController:repoVC];
 }
 
 - (void)statusDidUpdate:(NSNotification *)notification {
@@ -173,6 +189,33 @@ static os_log_t split_log;
     SRChannelBrowserViewController *channelVC = [[SRChannelBrowserViewController alloc] init];
     channelVC.delegate = self;
     [self.contentContainer pushViewController:channelVC];
+}
+
+- (void)showGitActivity {
+    if ([self.contentContainer.topViewController isKindOfClass:[SRGitActivityViewController class]]) return;
+    SRGitActivityViewController *gitVC = [[SRGitActivityViewController alloc] init];
+    gitVC.currentClient = [self currentClient];
+    [self.contentContainer pushViewController:gitVC];
+}
+
+- (void)showGitMyRepos {
+    if ([self.contentContainer.topViewController isKindOfClass:[SRGitRepoListViewController class]]) {
+        SRGitRepoListViewController *vc = (SRGitRepoListViewController *)self.contentContainer.topViewController;
+        if (vc.listType == SRGitRepoListTypeMyRepos) return;
+    }
+    SRGitRepoListViewController *gitVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeMyRepos];
+    gitVC.currentClient = [self currentClient];
+    [self.contentContainer pushViewController:gitVC];
+}
+
+- (void)showGitFollowing {
+    if ([self.contentContainer.topViewController isKindOfClass:[SRGitRepoListViewController class]]) {
+        SRGitRepoListViewController *vc = (SRGitRepoListViewController *)self.contentContainer.topViewController;
+        if (vc.listType == SRGitRepoListTypeFollowing) return;
+    }
+    SRGitRepoListViewController *gitVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeFollowing];
+    gitVC.currentClient = [self currentClient];
+    [self.contentContainer pushViewController:gitVC];
 }
 
 #pragma mark - Helpers

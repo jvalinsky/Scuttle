@@ -41,6 +41,15 @@ targets:
       CODE_SIGN_IDENTITY: ""
       CODE_SIGNING_REQUIRED: NO
       INFOPLIST_FILE: App/Info.plist
+  git-remote-ssb:
+    type: tool
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources/git-remote-ssb.c
+    settings:
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: NO
 schemes:
   SSBNetwork:
     build:

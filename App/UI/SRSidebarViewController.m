@@ -244,23 +244,53 @@ static os_log_t sidebar_log;
     NSInteger row = self.tableView.selectedRow;
     if (row < 0) return;
     
-    if (row == 0) return; // Header
+    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
     
-    NSInteger roomCount = [SRRoomManager sharedManager].rooms.count;
-    if (row <= roomCount) {
+    if (row == 0) return; // ROOMS Header
+    
+    if (row <= rooms) {
         RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
         os_log_info(sidebar_log, "Notifying room selected: %{public}@", room.host);
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
                                                             object:nil
                                                           userInfo:@{SRRoomManagerRoomSelectedKey: room}];
-    } else if (row == roomCount + 1) {
-        // Discovery Header
         return;
-    } else if (row == roomCount + 2) {
+    }
+    
+    if (row == rooms + 1) return; // DISCOVERY Header
+    
+    if (row == rooms + 2) {
         // Browse Channels
         if ([self.view.window.contentViewController respondsToSelector:@selector(showChannelBrowser)]) {
             [self.view.window.contentViewController performSelector:@selector(showChannelBrowser)];
         }
+        return;
+    }
+    
+    if (row == rooms + 3) return; // GIT REPOS Header
+    
+    if (row == rooms + 4) {
+        // Git Activity
+        if ([self.view.window.contentViewController respondsToSelector:@selector(showGitActivity)]) {
+            [self.view.window.contentViewController performSelector:@selector(showGitActivity)];
+        }
+        return;
+    }
+    
+    if (row == rooms + 5) {
+        // Git My Repos
+        if ([self.view.window.contentViewController respondsToSelector:@selector(showGitMyRepos)]) {
+            [self.view.window.contentViewController performSelector:@selector(showGitMyRepos)];
+        }
+        return;
+    }
+    
+    if (row == rooms + 6) {
+        // Git Following
+        if ([self.view.window.contentViewController respondsToSelector:@selector(showGitFollowing)]) {
+            [self.view.window.contentViewController performSelector:@selector(showGitFollowing)];
+        }
+        return;
     }
 }
 
@@ -282,14 +312,15 @@ static os_log_t sidebar_log;
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
     NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
-    // Section 1: Rooms Header + Rooms
-    // Section 2: Discovery Header + Browse Channels
-    return (1 + rooms) + 2;
+    // Section 1: ROOMS Header + Rooms
+    // Section 2: DISCOVERY Header + Browse Channels
+    // Section 3: GIT REPOS Header + Activity + My Repos + Following
+    return (1 + rooms) + 2 + 4;
 }
 
 - (BOOL)tableView:(NSTableView *)tableView isGroupRow:(NSInteger)row {
     NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
-    return (row == 0 || row == rooms + 1);
+    return (row == 0 || row == rooms + 1 || row == rooms + 3);
 }
 
 #pragma mark - NSTableViewDelegate
@@ -298,64 +329,76 @@ static os_log_t sidebar_log;
     NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
     
     if (row == 0) {
-        NSTableCellView *header = [tableView makeViewWithIdentifier:@"HeaderCell" owner:self];
-        if (!header) {
-            header = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
-            header.identifier = @"HeaderCell";
-            NSTextField *tf = [NSTextField labelWithString:@""];
-            tf.font = [NSFont boldSystemFontOfSize:11];
-            tf.textColor = [NSColor secondaryLabelColor];
-            tf.translatesAutoresizingMaskIntoConstraints = NO;
-            [header addSubview:tf];
-            header.textField = tf;
-            [NSLayoutConstraint activateConstraints:@[
-                [tf.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:4],
-                [tf.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
-            ]];
-        }
-        header.textField.stringValue = @"ROOMS";
-        return header;
+        return [self headerCellForTableView:tableView stringValue:@"ROOMS"];
     }
     
     if (row == rooms + 1) {
-        NSTableCellView *header = [tableView makeViewWithIdentifier:@"HeaderCell" owner:self];
-        if (!header) {
-            header = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
-            header.identifier = @"HeaderCell";
-            NSTextField *tf = [NSTextField labelWithString:@""];
-            tf.font = [NSFont boldSystemFontOfSize:11];
-            tf.textColor = [NSColor secondaryLabelColor];
-            tf.translatesAutoresizingMaskIntoConstraints = NO;
-            [header addSubview:tf];
-            header.textField = tf;
-            [NSLayoutConstraint activateConstraints:@[
-                [tf.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:4],
-                [tf.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
-            ]];
-        }
-        header.textField.stringValue = @"DISCOVERY";
-        return header;
+        return [self headerCellForTableView:tableView stringValue:@"DISCOVERY"];
     }
     
     if (row == rooms + 2) {
-        NSTableCellView *cell = [tableView makeViewWithIdentifier:@"ActionCell" owner:self];
-        if (!cell) {
-            cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
-            cell.identifier = @"ActionCell";
-            NSTextField *tf = [NSTextField labelWithString:@""];
-            tf.translatesAutoresizingMaskIntoConstraints = NO;
-            [cell addSubview:tf];
-            cell.textField = tf;
-            [NSLayoutConstraint activateConstraints:@[
-                [tf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
-                [tf.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
-            ]];
-        }
-        cell.textField.stringValue = @"Browse Channels";
-        return cell;
+        return [self actionCellForTableView:tableView stringValue:@"Browse Channels" identifier:@"ActionCell"];
+    }
+    
+    if (row == rooms + 3) {
+        return [self headerCellForTableView:tableView stringValue:@"GIT REPOS"];
+    }
+    
+    if (row == rooms + 4) {
+        return [self actionCellForTableView:tableView stringValue:@"Activity" identifier:@"GitActivityCell"];
+    }
+    
+    if (row == rooms + 5) {
+        return [self actionCellForTableView:tableView stringValue:@"My Repos" identifier:@"GitMyReposCell"];
+    }
+    
+    if (row == rooms + 6) {
+        return [self actionCellForTableView:tableView stringValue:@"Following" identifier:@"GitFollowingCell"];
     }
     
     // Room Cells
+    return [self roomCellForTableView:tableView row:row];
+}
+
+- (NSView *)headerCellForTableView:(NSTableView *)tableView stringValue:(NSString *)stringValue {
+    NSTableCellView *header = [tableView makeViewWithIdentifier:@"HeaderCell" owner:self];
+    if (!header) {
+        header = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
+        header.identifier = @"HeaderCell";
+        NSTextField *tf = [NSTextField labelWithString:@""];
+        tf.font = [NSFont boldSystemFontOfSize:11];
+        tf.textColor = [NSColor secondaryLabelColor];
+        tf.translatesAutoresizingMaskIntoConstraints = NO;
+        [header addSubview:tf];
+        header.textField = tf;
+        [NSLayoutConstraint activateConstraints:@[
+            [tf.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:4],
+            [tf.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
+        ]];
+    }
+    header.textField.stringValue = stringValue;
+    return header;
+}
+
+- (NSView *)actionCellForTableView:(NSTableView *)tableView stringValue:(NSString *)stringValue identifier:(NSString *)identifier {
+    NSTableCellView *cell = [tableView makeViewWithIdentifier:identifier owner:self];
+    if (!cell) {
+        cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
+        cell.identifier = identifier;
+        NSTextField *tf = [NSTextField labelWithString:@""];
+        tf.translatesAutoresizingMaskIntoConstraints = NO;
+        [cell addSubview:tf];
+        cell.textField = tf;
+        [NSLayoutConstraint activateConstraints:@[
+            [tf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
+            [tf.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
+        ]];
+    }
+    cell.textField.stringValue = stringValue;
+    return cell;
+}
+
+- (NSView *)roomCellForTableView:(NSTableView *)tableView row:(NSInteger)row {
     NSTableCellView *cell = [tableView makeViewWithIdentifier:@"RoomCell" owner:self];
     if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 44)];
