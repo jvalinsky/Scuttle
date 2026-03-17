@@ -12,6 +12,8 @@
 #import "SSBBlobStore.h"
 #import "tweetnacl.h"
 #import "SSBTunnelConnection.h"
+#import "SSBBamboo.h"
+#import "SSBFeedCodecRegistry.h"
 
 static os_log_t ssb_room_log;
 
@@ -1324,6 +1326,67 @@ static os_log_t ssb_room_log;
 - (void)scheduleReconnect {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), self.clientQueue, ^{
         [self connect];
+    });
+}
+
+- (void)verifyFeedIntegrity:(NSString *)feedID
+                     author:(NSString *)author
+                     format:(SSBBFEFeedFormat)format
+                 completion:(void(^)(BOOL, NSError *))completion {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        // Only GabbyGrove and Bamboo support lipmaa-based verification.
+        if (format != SSBBFEFeedFormatGabbygroveV1 && format != SSBBFEFeedFormatBamboo) {
+            if (completion) completion(YES, nil);
+            return;
+        }
+
+        SSBFeedState *state = [self.feedStore feedStateForAuthor:author];
+        if (!state || state.maxSequence <= 0) {
+            if (completion) completion(YES, nil); // empty feed is trivially valid
+            return;
+        }
+
+        id<SSBFeedCodec> codec = [[SSBFeedCodecRegistry sharedRegistry]
+                                  codecForFeedFormat:format];
+        if (!codec) {
+            NSError *err = [NSError errorWithDomain:@"SSBRoomClient" code:10
+                userInfo:@{NSLocalizedDescriptionKey: @"No codec for feed format"}];
+            if (completion) completion(NO, err);
+            return;
+        }
+
+        // Walk the lipmaa chain backwards from the tip.
+        // Each iteration verifies the entry at `seq` and jumps to lipmaaSeq.
+        NSInteger seq = state.maxSequence;
+        BOOL valid = YES;
+        NSError *verifyError = nil;
+
+        while (seq > 0) {
+            NSArray<SSBMessage *> *msgs = [self.feedStore messagesForAuthor:author
+                                                              fromSequence:seq
+                                                                     limit:1];
+            SSBMessage *msg = msgs.firstObject;
+            if (!msg) {
+                verifyError = [NSError errorWithDomain:@"SSBRoomClient" code:11
+                    userInfo:@{NSLocalizedDescriptionKey:
+                        [NSString stringWithFormat:@"Missing seq %ld for %@", (long)seq, author]}];
+                valid = NO;
+                break;
+            }
+
+            NSError *err = nil;
+            if (![codec verifyMessageData:msg.valueJSON error:&err]) {
+                verifyError = err;
+                valid = NO;
+                break;
+            }
+
+            NSInteger lipmaaSeq = [SSBBamboo lipmaaSequenceFor:seq];
+            if (lipmaaSeq <= 0 || lipmaaSeq >= seq) break; // reached the beginning
+            seq = lipmaaSeq;
+        }
+
+        if (completion) completion(valid, verifyError);
     });
 }
 

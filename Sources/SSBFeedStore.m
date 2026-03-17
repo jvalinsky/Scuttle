@@ -2,6 +2,7 @@
 #import "SSBFeedCodecRegistry.h"
 #import "SSBQueryEngine.h"
 #import "SSBTangle.h"
+#import "SSBBamboo.h"
 #import <sqlite3.h>
 #import <os/log.h>
 
@@ -610,9 +611,24 @@ static const NSInteger kCurrentSchemaVersion = 4;
 - (NSArray<SSBMessage *> *)timelineWithLimit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE author IN (SELECT target_author FROM contacts WHERE following = 1) AND content_type != 'metafeed/index' ORDER BY claimed_timestamp DESC LIMIT ?";
+        // Union classic followed feeds with any registered device sub-feeds of followed authors.
+        // Device sub-feeds are listed in add/derived metafeed messages authored by followed users.
+        const char *sql =
+            "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, "
+            "is_private, content_type, value_json, content_json, feed_format "
+            "FROM messages "
+            "WHERE content_type != 'metafeed/index' AND ("
+            "    author IN (SELECT target_author FROM contacts WHERE following = 1)"
+            "    OR author IN ("
+            "        SELECT json_extract(content_json,'$.subfeed') "
+            "        FROM messages "
+            "        WHERE content_type = 'metafeed/add/derived' "
+            "          AND author IN (SELECT target_author FROM contacts WHERE following = 1)"
+            "    )"
+            ") "
+            "ORDER BY claimed_timestamp DESC LIMIT ?";
         sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
+        if (sqlite3_prepare_v2(self->_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_int64(stmt, 1, limit);
         while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
         sqlite3_finalize(stmt);
@@ -660,6 +676,83 @@ static const NSInteger kCurrentSchemaVersion = 4;
         sqlite3_finalize(stmt);
     });
     return results;
+}
+
+- (BOOL)isTombstoned:(NSString *)feedID {
+    if (!feedID) return NO;
+    __block BOOL result = NO;
+    dispatch_sync(self.dbQueue, ^{
+        // A tombstone is a metafeed message whose content JSON contains
+        // "type":"metafeed/tombstone" and "subfeed":<feedID>.
+        const char *sql =
+            "SELECT 1 FROM messages WHERE content_type = 'metafeed/tombstone' "
+            "AND content_json LIKE ? LIMIT 1";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(self->_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            NSString *pattern = [NSString stringWithFormat:@"%%%@%%", feedID];
+            sqlite3_bind_text(stmt, 1, pattern.UTF8String, -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(stmt) == SQLITE_ROW) result = YES;
+            sqlite3_finalize(stmt);
+        }
+    });
+    return result;
+}
+
+- (nullable SSBMessage *)lipmaaMessageForAuthor:(NSString *)author
+                                       sequence:(NSInteger)sequence
+                                         format:(SSBBFEFeedFormat)format {
+    // Compute the lipmaa sequence for the requested sequence number.
+    NSInteger lipmaaSeq;
+    if (format == SSBBFEFeedFormatBamboo) {
+        lipmaaSeq = [SSBBamboo lipmaaSequenceFor:sequence];
+    } else {
+        // GabbyGrove uses the same lipmaa formula.
+        lipmaaSeq = [SSBBamboo lipmaaSequenceFor:sequence];
+    }
+    if (lipmaaSeq <= 0 || lipmaaSeq == sequence) return nil;
+
+    __block SSBMessage *result = nil;
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql =
+            "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, "
+            "is_private, content_type, value_json, content_json, feed_format "
+            "FROM messages WHERE author = ? AND sequence = ? AND feed_format = ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(self->_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, author.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt, 2, lipmaaSeq);
+            sqlite3_bind_int(stmt, 3, (int)format);
+            if (sqlite3_step(stmt) == SQLITE_ROW) result = [self _messageFromStatement:stmt];
+            sqlite3_finalize(stmt);
+        }
+    });
+    return result;
+}
+
+- (NSArray<NSString *> *)deviceFeedIDsForMetafeedID:(NSString *)metafeedID {
+    if (!metafeedID) return @[];
+    __block NSMutableArray<NSString *> *feedIDs = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        // add/derived messages from the root metafeed encode the new subfeed ID in content_json.
+        const char *sql =
+            "SELECT content_json FROM messages WHERE content_type = 'metafeed/add/derived' "
+            "AND author = ?";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(self->_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, metafeedID.UTF8String ?: "", -1, SQLITE_TRANSIENT);
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *jsonStr = (const char *)sqlite3_column_text(stmt, 0);
+                if (!jsonStr) continue;
+                NSData *jsonData = [NSData dataWithBytes:jsonStr length:strlen(jsonStr)];
+                NSDictionary *content = [NSJSONSerialization JSONObjectWithData:jsonData
+                                                                        options:0 error:nil];
+                NSString *subfeedID = content[@"subfeed"];
+                if (subfeedID) [feedIDs addObject:subfeedID];
+            }
+            sqlite3_finalize(stmt);
+        }
+    });
+    return [feedIDs copy];
 }
 
 - (NSArray<SSBMessage *> *)querySubset:(NSDictionary<NSString *, id> *)query options:(NSDictionary<NSString *, id> *)options {

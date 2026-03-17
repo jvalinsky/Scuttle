@@ -11,3 +11,5 @@ NSString * const SRNewMessageKey                       = @"SRNewMessageKey";
 NSString * const SRLocalIdentityGeneratedNotification  = @"SRLocalIdentityGeneratedNotification";
 
 NSString * const SRRoomSyncStatusChangedNotification   = @"SRRoomSyncStatusChangedNotification";
+
+NSString * const SRFeedIntegrityDidUpdateNotification  = @"SRFeedIntegrityDidUpdateNotification";

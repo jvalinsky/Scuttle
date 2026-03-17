@@ -19,4 +19,8 @@ extern NSString * const SRLocalIdentityGeneratedNotification;
 /// Posted when a room sync status changes. userInfo: @"status", @"progress", optionally @"author"
 extern NSString * const SRRoomSyncStatusChangedNotification;
 
+/// Posted after a lipmaa integrity check completes for a GabbyGrove/Bamboo feed.
+/// userInfo: @"author" (NSString feed ID), @"verified" (NSNumber BOOL)
+extern NSString * const SRFeedIntegrityDidUpdateNotification;
+
 NS_ASSUME_NONNULL_END

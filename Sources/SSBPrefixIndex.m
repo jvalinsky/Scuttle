@@ -1,5 +1,15 @@
 #import "SSBPrefixIndex.h"
-#import <zlib.h>
+
+/// FNV-1a 64-bit hash folded to 32 bits.
+/// Far lower collision probability than CRC32 for string identity purposes.
+static uint32_t fnv1a32(const char *s) {
+    uint64_t h = 14695981039346656037ULL;
+    while (*s) {
+        h ^= (uint8_t)*s++;
+        h *= 1099511628211ULL;
+    }
+    return (uint32_t)(h ^ (h >> 32));
+}
 
 @interface SSBPrefixIndex () {
     NSMutableData *_buffer;
@@ -29,22 +39,18 @@
 
 - (void)addValue:(NSString *)value atSequence:(uint64_t)sequence {
     if (sequence >= _capacity) return;
-    
     uint32_t *prefixes = _buffer.mutableBytes;
-    const char *utf8 = value.UTF8String;
-    prefixes[sequence] = (uint32_t)crc32(0, (const Bytef *)utf8, (uInt)strlen(utf8));
+    prefixes[sequence] = fnv1a32(value.UTF8String);
 }
 
 - (void)filterBitset:(SSBBitset *)bitset withValue:(NSString *)value {
     const uint32_t *prefixes = _buffer.bytes;
-    const char *utf8 = value.UTF8String;
-    uint32_t targetPrefix = (uint32_t)crc32(0, (const Bytef *)utf8, (uInt)strlen(utf8));
-    
+    uint32_t targetHash = fnv1a32(value.UTF8String);
+
     uint64_t count = MIN(_capacity, bitset.capacity);
     for (uint64_t i = 0; i < count; i++) {
-        // Only check bits that are already set
         if ([bitset isBitSetAtIndex:i]) {
-            if (prefixes[i] != targetPrefix) {
+            if (prefixes[i] != targetHash) {
                 [bitset clearBitAtIndex:i];
             }
         }

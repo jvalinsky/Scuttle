@@ -4,15 +4,14 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /// Codec for Buttwoo (buttwoo-v1) feed format.
-/// Buttwoo uses bencode wire format (same as BendyButt) with Ed25519 signing,
-/// but with deterministic message IDs computed as BLAKE2b/SHA-256(author || seq).
+/// Buttwoo uses BIPF wire format with Ed25519 signing and deterministic message
+/// IDs computed as BLAKE3-256(author_pubkey_32bytes || seq_8bytes_bigendian).
 /// Unlike BendyButt, there is no separate content signing.
 @interface SSBButtwoo : NSObject <SSBFeedCodec>
 
 + (instancetype)sharedCodec;
 
-/// Compute the deterministic message key: SHA-256(author_pubkey_32bytes || seq_8bytes_bigendian).
-/// Note: spec uses BLAKE2b; using SHA-256 as placeholder.
+/// Compute the deterministic message key: BLAKE3-256(author_pubkey_32bytes || seq_8bytes_bigendian).
 + (nullable NSData *)computeDeterministicKey:(NSData *)authorPublicKey sequence:(NSInteger)sequence;
 
 /// Returns YES if the Buttwoo message is structurally valid and Ed25519 signature is correct.

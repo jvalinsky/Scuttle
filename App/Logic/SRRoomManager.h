@@ -23,6 +23,14 @@ extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
 
 - (nullable SSBRoomClient *)clientForHost:(NSString *)host;
 
+/// Publishes a metafeed/tombstone message revoking the given sub-feed key.
+- (void)revokeSubfeed:(NSString *)feedID reason:(nullable NSString *)reason;
+
+/// Derives a new sub-feed key, publishes an add/derived announcement, then tombstones
+/// the old feed. Calls completion on the main queue with the new feed ID or an error.
+- (void)replaceSubfeed:(NSString *)oldFeedID
+            completion:(void(^)(NSString * _Nullable newFeedID, NSError * _Nullable error))completion;
+
 /**
  * Resolves the display name for a given author by querying the feed store for About messages.
  */

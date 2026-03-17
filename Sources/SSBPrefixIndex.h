@@ -4,7 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /**
- * SSBPrefixIndex stores 32-bit CRC hashes of strings to provide fast filtering
+ * SSBPrefixIndex stores 32-bit FNV-1a hashes of strings to provide fast filtering
  * for high-cardinality values like author IDs or thread links.
  */
 @interface SSBPrefixIndex : NSObject

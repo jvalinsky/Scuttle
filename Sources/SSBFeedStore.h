@@ -68,6 +68,20 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the latest N messages stored for a given feed format (e.g. index or metafeed messages).
 - (NSArray<SSBMessage *> *)messagesForFeedFormat:(SSBBFEFeedFormat)format limit:(NSInteger)limit;
 
+/// Returns YES if the given feed ID has been tombstoned by a metafeed/tombstone message.
+/// Used by EBT clock generation to signal "do not want" for revoked feeds.
+- (BOOL)isTombstoned:(NSString *)feedID;
+
+/// Returns the message at the lipmaa-linked predecessor sequence for the given author and sequence.
+/// Returns nil if the message is not stored or the format does not support lipmaa links.
+- (nullable SSBMessage *)lipmaaMessageForAuthor:(NSString *)author
+                                       sequence:(NSInteger)sequence
+                                         format:(SSBBFEFeedFormat)format;
+
+/// Returns the set of all device feed IDs registered under the given root metafeed ID.
+/// These are feeds recorded by add/derived metafeed messages with purpose SSBMetafeedPurposeV1.
+- (NSArray<NSString *> *)deviceFeedIDsForMetafeedID:(NSString *)metafeedID;
+
 #pragma mark - Subset Queries (SIP 3)
 
 /// Executes an ssb-ql-0 query and returns matching messages.
