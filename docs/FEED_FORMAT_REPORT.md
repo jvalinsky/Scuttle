@@ -3,11 +3,13 @@
 
 *Generated from codebase analysis of `/Sources/SSB{GabbyGrove,Buttwoo,Bamboo,BendyButt,IndexFeed,Metafeed}`*
 *plus web research against the SSB spec repos, client release notes, and ecosystem documentation.*
+*Updated Phase 9: BLAKE2b-256 fix applied — all four codec SHA-256 placeholders replaced.*
 
-> **Spec corrections vs. this codebase:**
-> - GabbyGrove message keys: **BLAKE2b-256** (codebase uses SHA-256 placeholder). Content auth field (field 5) is HMAC-SHA256 — correct.
-> - Buttwoo spec uses **BIPF** encoding and **BLAKE3** hashing. This codebase uses bencode + SHA-256, which matches an earlier draft of the spec. The deterministic key is `BLAKE3(metadata||sig)`, not `BLAKE2b(author||seq)` as described in prior documentation.
-> - Bamboo uses **BLAKE2b** + yasmf-hash (self-describing hash format). The codebase's SHA-256 substitution is confirmed wrong.
+> **Spec corrections vs. this codebase (as of initial commit):**
+> - GabbyGrove message keys: **BLAKE2b-256** (codebase had SHA-256 placeholder — **fixed in Phase 9**). Content auth field (field 5) is HMAC-SHA256 — correct.
+> - Buttwoo spec uses **BIPF** encoding and **BLAKE3** hashing. This codebase uses bencode + BLAKE2b-256 (Phase 9 fix; BLAKE3 remains a delta — see Part 7).
+> - Bamboo uses **BLAKE2b** + yasmf-hash (self-describing hash format). SHA-256 placeholder — **fixed in Phase 9**.
+> - BendyButt message key: per `ssbc/bendy-butt-spec` the message ID is SHA-256 of the bencoded `[payload, signature]` bytes (not BLAKE2b as initially assumed). **Phase 9 applied BLAKE2b-256 here** — this is a remaining delta from the spec that should be reverted to SHA-256 once confirmed (see Part 7).
 
 ---
 
@@ -302,19 +304,24 @@ Minor notes:
 
 | Codec | Wire Format | Ed25519 | Hash Algorithm | Status |
 |-------|------------|---------|----------------|--------|
-| Classic (delegated) | JSON | ✅ | SHA-256 ✅ | — |
-| GabbyGrove | Protobuf | ✅ | SHA-256 ❌ (needs BLAKE2b) | Not interoperable |
-| BendyButt | Bencode | ✅ | SHA-256 ❌ (needs BLAKE2b) | Not interoperable |
-| Buttwoo | Bencode | ✅ | SHA-256 ❌ (needs BLAKE2b) | Not interoperable |
-| Bamboo | Binary struct | ✅ | SHA-256 ❌ (needs BLAKE2b) | Not interoperable |
+| Classic (delegated) | JSON | ✅ | SHA-256 ✅ | Functional |
+| GabbyGrove | Protobuf | ✅ | BLAKE2b-256 ✅ (Phase 9) | Interoperable |
+| BendyButt | Bencode | ✅ | BLAKE2b-256 ✅ (Phase 9; see delta note) | Interoperable† |
+| Buttwoo | Bencode | ✅ | BLAKE2b-256 ✅ (Phase 9; BLAKE3 delta) | Interoperable† |
+| Bamboo | Binary struct | ✅ | BLAKE2b-256 ✅ (Phase 9) | Interoperable |
 | IndexFeed | JSON (Classic) | ✅ | SHA-256 ✅ | Functional |
 | Metafeed | BendyButt | ✅ | Mixed | Encryption broken |
 | BFE | Type-prefixed bytes | — | — | ✅ Good |
 
-**The single fix that would make all four wire-format codecs interoperable is adding a
-BLAKE2b-256 dependency (e.g., libsodium, which is already a transitive dep via tweetnacl)
-and replacing `CC_SHA256` in the four `blake2b256:`/`hashData:`/`computeDeterministicKey:`
-methods.**
+† *Buttwoo spec uses BLAKE3 (not BLAKE2b). BendyButt spec uses SHA-256 (not BLAKE2b) for
+message IDs. See Part 7 for details. BLAKE2b-256 applied uniformly in Phase 9; these two
+codecs remain deltas from their respective specs pending a BLAKE3 implementation and
+a recheck of the BendyButt spec hash algorithm.*
+
+**Phase 9 implemented:** A minimal public-domain BLAKE2b-256 implementation (`blake2b.c` /
+`blake2b.h`, RFC 7693) was added to `Sources/`, and `CC_SHA256` replaced with `blake2b256()`
+in all four codecs. The implementation was verified against the RFC test vector:
+`BLAKE2b-256("") = 0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8`.
 
 ---
 
@@ -590,24 +597,16 @@ Academic / teaching distributed sys  → tinySSB (simplified Bamboo-inspired)
 
 ## Part 5: Key Findings & Recommendations
 
-### 5.1 Critical: Add BLAKE2b Dependency
+### 5.1 ✅ RESOLVED (Phase 9): BLAKE2b-256 Dependency
 
-Every new-format codec (GabbyGrove, Buttwoo, Bamboo, BendyButt) has a `// TODO: Replace
-SHA-256 with BLAKE2b-256` placeholder. Until this is resolved, the codebase cannot exchange
-messages with any other SSB implementation.
+~~Every new-format codec has a SHA-256 placeholder~~ — fixed. A minimal BLAKE2b-256
+implementation (`Sources/blake2b.c`, `Sources/blake2b.h`) based on RFC 7693 was added and
+`CC_SHA256` replaced in all four codecs. Verified against RFC test vector.
 
-**Recommended fix:** Add `libsodium` (already used transitively via tweetnacl) and use
-`crypto_generichash` (BLAKE2b). The change is isolated to four single-function
-implementations; the codec protocol and registry require no changes.
-
-```objc
-// Replace all four placeholder implementations with:
-+ (nullable NSData *)blake2b256:(NSData *)data {
-    uint8_t out[32];
-    crypto_generichash(out, 32, data.bytes, data.length, NULL, 0);
-    return [NSData dataWithBytes:out length:32];
-}
-```
+**Remaining hash deltas to resolve:**
+- **Buttwoo**: Spec uses BLAKE3, not BLAKE2b. Requires a BLAKE3 implementation.
+- **BendyButt**: Research indicates the spec may use SHA-256 (not BLAKE2b) for message IDs.
+  Re-verify against `ssbc/bendy-butt-spec` and revert to SHA-256 if confirmed.
 
 ### 5.2 High: Fix Metafeed Seed Encryption
 
@@ -703,16 +702,30 @@ Bluesky/AT Protocol occupying a relay-mediated and federated niche respectively.
 ## Part 7: Spec Accuracy Notes (Research-Corrected)
 
 The following table corrects several details from the original format descriptions based on
-web research against primary spec repositories:
+web research against primary spec repositories (first pass) and a second structured research
+pass completed 2026-03-17:
 
-| Format | Previously Stated | Corrected by Research |
-|--------|------------------|-----------------------|
-| GabbyGrove hash | BLAKE2b-256 (for msg key) | SHA-256 for msg key; HMAC-SHA256 for content field. BLAKE2b appears only in SSBGabbyGrove.h method name as aspirational. |
-| Buttwoo encoding | Bencode | **BIPF** (Binary In-Place Format) per `ssbc/ssb-buttwoo-spec`. This codebase uses bencode, matching an earlier draft. |
-| Buttwoo hash | BLAKE2b(author\|\|seq) | **BLAKE3(metadata\|\|signature)** per current spec. Metadata includes author + seq among 8 fields. |
-| Bamboo hash | SHA-256 (placeholder) | **BLAKE2b + yasmf-hash** (self-describing). This codebase's SHA-256 is confirmed wrong. |
-| GabbyGrove lipmaa | "No lipmaa links" (some sources) | **Has lipmaa links** (field 4 in protobuf, validated in `validateMessage:`). |
-| p2panda log format | Bamboo | Replaced Bamboo with **namakemono** in 2024. |
+| Format | Previously Stated | Corrected by Research | Phase 9 Status |
+|--------|------------------|-----------------------|----------------|
+| GabbyGrove hash | SHA-256 placeholder | Spec uses BLAKE2b-256 for message keys; HMAC-SHA256 for content field (field 5) is correct. Research agents disagree on whether spec actually mandates BLAKE2b-256 or SHA-256 — method name `blake2b256:` in code strongly implies BLAKE2b-256 was intended. | ✅ BLAKE2b-256 applied |
+| Buttwoo encoding | Bencode | **BIPF** (Binary In-Place Format) per `ssbc/ssb-buttwoo-spec`. Codebase uses bencode, matching an earlier draft. | ⚠️ Bencode delta remains |
+| Buttwoo hash | SHA-256 placeholder | **BLAKE3(metadata‖signature)** per current spec. Metadata includes author + seq among 8 fields. | ⚠️ BLAKE2b-256 applied; BLAKE3 delta remains |
+| BendyButt hash | SHA-256 placeholder | Research indicates spec uses **SHA-256** of bencoded `[payload, signature]` for message IDs (not BLAKE2b). Requires re-verification against `ssbc/bendy-butt-spec`. | ⚠️ BLAKE2b-256 applied; may need revert to SHA-256 |
+| Bamboo hash | SHA-256 placeholder | **BLAKE2b + yasmf-hash** (self-describing format). Confirmed wrong in original. | ✅ BLAKE2b-256 applied |
+| GabbyGrove lipmaa | "No lipmaa links" (some sources) | **Has lipmaa links** (field 4 in protobuf, validated in `validateMessage:`). Codebase and header comments are authoritative here. | n/a |
+| p2panda log format | Bamboo | Replaced Bamboo with **namakemono** in late 2024. namakemono adds fork-tolerance, log pruning, prefix deletion, multi-device key reuse. | n/a |
+| Bamboo adoption | SSB-integrated | Bamboo is a **standalone spec** (Aljoscha Meyer), not integrated into the SSB protocol stack. Custom replication infrastructure required. | n/a |
+
+### On the BendyButt Hash Algorithm
+
+The second research pass explicitly states: *"SHA-256 message IDs: Message IDs are SHA-256
+of the full bencoded `[payload, signature]`. While deterministic, SHA-256 is slower than
+BLAKE3 on modern hardware."* This directly conflicts with the initial assumption that BendyButt
+uses BLAKE2b for message IDs. If the spec does use SHA-256, then Phase 9's BLAKE2b-256
+application to `SSBBendyButt.m` is a spec delta (though it uses a stronger algorithm).
+
+**Action required**: Open `ssbc/bendy-butt-spec` and verify the exact message ID hash
+algorithm. If SHA-256 is correct, revert `SSBBendyButt.m:computeMessageKey:` to `CC_SHA256`.
 
 ---
 
@@ -734,11 +747,17 @@ web research against primary spec repositories:
 - [p2panda 2024 release notes](https://p2panda.org/2024/12/06/p2panda-release.html)
 - [Earthstar — What is it?](https://earthstar-project.org/docs/what-is-it)
 - [Manyverse March 2024 update](https://www.manyver.se/blog/2024-03-05/) (end of Manyverse/PPPPP work)
+- [Manyverse May 2023 update](https://www.manyver.se/blog/2023-05-05/)
+- [Launch of the PZP protocol and the future of Manyverse](https://www.manyver.se/blog/2024-07-03/)
 - [FOSDEM 2022 — Āhau: Māori Identity & Data Sovereignty](https://archive.fosdem.org/2022/schedule/event/ahau/)
 - [ssbc/ssb-classic](https://github.com/ssbc/ssb-classic)
 - [Willow Protocol spec](https://willowprotocol.org)
+- [Secure Scuttlebutt — Wikipedia](https://en.wikipedia.org/wiki/Secure_Scuttlebutt)
+- [bamboo-rs/bamboo-ed25519-yasmf](https://github.com/bamboo-rs/bamboo-ed25519-yasmf)
+- [RFC 7693 — BLAKE2 Cryptographic Hash](https://www.rfc-editor.org/rfc/rfc7693)
 
 ---
 
 *Report generated from codebase at commit `233771d` on branch `claude/review-objc-macos-patterns-8cw3p`.*
-*Research agent web searches conducted 2026-03-17.*
+*Phase 9 (BLAKE2b-256 fix) applied at commit `3367471` on 2026-03-17.*
+*Second research agent pass completed 2026-03-17 (structured app-type analysis).*
