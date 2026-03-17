@@ -1,8 +1,13 @@
 # SSB Feed Format Report
 ## Code Review + Ecosystem App Analysis
 
-*Generated from codebase analysis of `/Sources/SSB{GabbyGrove,Buttwoo,Bamboo,BendyButt,IndexFeed,Metafeed}.*
-*plus SSB ecosystem research.*
+*Generated from codebase analysis of `/Sources/SSB{GabbyGrove,Buttwoo,Bamboo,BendyButt,IndexFeed,Metafeed}`*
+*plus web research against the SSB spec repos, client release notes, and ecosystem documentation.*
+
+> **Spec corrections vs. this codebase:**
+> - GabbyGrove message keys: **BLAKE2b-256** (codebase uses SHA-256 placeholder). Content auth field (field 5) is HMAC-SHA256 — correct.
+> - Buttwoo spec uses **BIPF** encoding and **BLAKE3** hashing. This codebase uses bencode + SHA-256, which matches an earlier draft of the spec. The deterministic key is `BLAKE3(metadata||sig)`, not `BLAKE2b(author||seq)` as described in prior documentation.
+> - Bamboo uses **BLAKE2b** + yasmf-hash (self-describing hash format). The codebase's SHA-256 substitution is confirmed wrong.
 
 ---
 
@@ -629,4 +634,111 @@ populated but never read.
 
 ---
 
+## Part 6: Ecosystem Divergence — Why tinySSB, p2panda, and Earthstar Took Different Paths
+
+All three projects started with SSB's core insight (cryptographic append-only log, offline-first
+gossip) and then diverged at precisely the point where SSB's immutability model becomes a
+constraint rather than a feature.
+
+### tinySSB (University of Basel)
+
+Not a different protocol — a constrained *variant* of SSB concepts for LoRa and BLE. Packets
+are exactly 120 bytes (a compromise between LoRa's air-time limits and BLE's MTU). It uses
+BIPF internally and a GOSET (Grow-Only SET) protocol for feed discovery that avoids transmitting
+full 32-byte feed IDs in every packet. Used for teaching distributed systems and for
+disaster-scenario mesh communication.
+
+**Why not standard SSB?** Standard SSB messages (even Classic JSON) are too large for LoRa
+duty cycles. tinySSB keeps SSB's structural model while radically constraining the packet size.
+
+### p2panda (Rust + TypeScript, originally Bamboo-based)
+
+Initially adopted Bamboo as its log format, then replaced it with **namakemono** — a custom
+format that introduces **fork tolerance**, configurable log pruning, prefix deletion, and
+multi-device key reuse. p2panda targets "post-internet" transports (LoRa, BLE, USB) for
+community apps (local event calendars, resource sharing, news).
+
+**Why not standard SSB?** SSB's strict append-only, device-bound identity creates irreconcilable
+problems for applications that need GDPR-compliant deletion, multi-device users, or forgettable
+ephemeral data. SSB's answer (metafeeds + fusion identity) adds enough complexity that it was
+easier for p2panda to design a new log format than to build on SSB's infrastructure.
+
+### Earthstar / Willow Protocol
+
+Earthstar abandoned the append-only log entirely in favor of a **mutable document model** with
+path-addressed key-value storage. Any author can edit any document at any path; deletions are
+first-class. Earthstar v6 is a full instantiation of the **Willow Protocol** (co-designed with
+Aljoscha Meyer, also the Bamboo author), which generalizes the approach across namespaces,
+subspaces, and path ranges with capability tokens (Meadowcap).
+
+**Why not standard SSB?** Earthstar directly targets SSB's inability to delete or edit content.
+The cost is losing SSB's tamper-evidence over full history — Earthstar can prove the *current*
+state of a document but not that no prior versions were suppressed. For applications that need
+editable profiles, revocable content, and multi-device simultaneous writes, this tradeoff is
+the right one.
+
+### The Common Pattern
+
+```
+SSB immutability = strong security guarantee AND primary constraint
+
+Projects that need...         → Chose...
+────────────────────────────────────────────────────────────────
+Deletion / GDPR compliance    → Earthstar (mutable KV) or p2panda (prunable log)
+Multi-device without sharing  → Metafeeds + Fusion Identity (complex) or Earthstar
+keys                            (any device owns any path)
+Ultra-constrained transport   → tinySSB (120-byte) or p2panda (LoRa/BLE native)
+Partial log verification      → Bamboo / tinySSB (lipmaa skip links)
+Broad social graph compat     → Classic SSB (no alternative)
+```
+
+André Staltz's PPPPP project (2023-2024, abandoned) attempted a middle path: DAG-based tangles
+instead of linear chains, garbage collection via "goals", and multi-device support without key
+sharing. Its abandonment in March 2024 (along with Manyverse) leaves the classic SSB stack as
+the only production-deployed decentralized social protocol in this design space, with Nostr and
+Bluesky/AT Protocol occupying a relay-mediated and federated niche respectively.
+
+---
+
+## Part 7: Spec Accuracy Notes (Research-Corrected)
+
+The following table corrects several details from the original format descriptions based on
+web research against primary spec repositories:
+
+| Format | Previously Stated | Corrected by Research |
+|--------|------------------|-----------------------|
+| GabbyGrove hash | BLAKE2b-256 (for msg key) | SHA-256 for msg key; HMAC-SHA256 for content field. BLAKE2b appears only in SSBGabbyGrove.h method name as aspirational. |
+| Buttwoo encoding | Bencode | **BIPF** (Binary In-Place Format) per `ssbc/ssb-buttwoo-spec`. This codebase uses bencode, matching an earlier draft. |
+| Buttwoo hash | BLAKE2b(author\|\|seq) | **BLAKE3(metadata\|\|signature)** per current spec. Metadata includes author + seq among 8 fields. |
+| Bamboo hash | SHA-256 (placeholder) | **BLAKE2b + yasmf-hash** (self-describing). This codebase's SHA-256 is confirmed wrong. |
+| GabbyGrove lipmaa | "No lipmaa links" (some sources) | **Has lipmaa links** (field 4 in protobuf, validated in `validateMessage:`). |
+| p2panda log format | Bamboo | Replaced Bamboo with **namakemono** in 2024. |
+
+---
+
+## Sources
+
+- [Scuttlebutt Protocol Guide](https://ssbc.github.io/scuttlebutt-protocol-guide/)
+- [ssbc/ssb-meta-feeds-spec](https://github.com/ssbc/ssb-meta-feeds-spec)
+- [ssbc/bendy-butt-spec](https://github.com/ssbc/bendy-butt-spec) (SIP 4)
+- [ssbc/ssb-buttwoo-spec](https://github.com/ssbc/ssb-buttwoo-spec)
+- [ssbc/ssb-index-feeds-spec](https://github.com/ssbc/ssb-index-feeds-spec) (SIP 3)
+- [AljoschaMeyer/bamboo](https://github.com/AljoschaMeyer/bamboo)
+- [ssbc/go-gabbygrove](https://github.com/ssbc/go-gabbygrove)
+- [ssbc/ssb-spec-drafts PR #1](https://github.com/ssbc/ssb-spec-drafts/pull/1) (GabbyGrove spec)
+- [ssbc/go-metafeed](https://github.com/ssbc/go-metafeed)
+- [ssb-ngi-pointer/manyverse-with-index-feeds](https://github.com/ssb-ngi-pointer/manyverse-with-index-feeds)
+- [SSB Partial Replication Audit Report](https://ssb-ngi-pointer.github.io/Audit%20Report_%20Secure%20Scuttlebutt%20Partial%20Replication%20and%20Fusion%20Identity.html)
+- [ssbc/tinySSB](https://github.com/ssbc/tinySSB)
+- [p2panda namakemono spec](https://aquadoggo.p2panda.org/specifications/namakemono/)
+- [p2panda 2024 release notes](https://p2panda.org/2024/12/06/p2panda-release.html)
+- [Earthstar — What is it?](https://earthstar-project.org/docs/what-is-it)
+- [Manyverse March 2024 update](https://www.manyver.se/blog/2024-03-05/) (end of Manyverse/PPPPP work)
+- [FOSDEM 2022 — Āhau: Māori Identity & Data Sovereignty](https://archive.fosdem.org/2022/schedule/event/ahau/)
+- [ssbc/ssb-classic](https://github.com/ssbc/ssb-classic)
+- [Willow Protocol spec](https://willowprotocol.org)
+
+---
+
 *Report generated from codebase at commit `233771d` on branch `claude/review-objc-macos-patterns-8cw3p`.*
+*Research agent web searches conducted 2026-03-17.*
