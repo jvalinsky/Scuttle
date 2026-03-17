@@ -183,12 +183,12 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     XCTAssertEqual(offset, buf.length);
 }
 
-#pragma mark - BLAKE2b (SHA-256 placeholder)
+#pragma mark - BLAKE2b-256
 
 - (void)testBlake2b256_nilReturnsNil {
     // Passing nil data — method should handle gracefully
     NSData *result = [SSBGabbyGrove blake2b256:[NSData data]];
-    XCTAssertNotNil(result); // empty data is valid; non-nil SHA-256 is expected
+    XCTAssertNotNil(result); // empty data is valid; BLAKE2b-256 of empty is a known constant
 }
 
 - (void)testBlake2b256_emptyData {
@@ -199,12 +199,12 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 }
 
 - (void)testBlake2b256_knownInput {
-    // SHA-256("") is a known constant
+    // BLAKE2b-256("") known constant per RFC 7693 test vectors
     uint8_t expected[32] = {
-        0xe3,0xb0,0xc4,0x42,0x98,0xfc,0x1c,0x14,
-        0x9a,0xfb,0xf4,0xc8,0x99,0x6f,0xb9,0x24,
-        0x27,0xae,0x41,0xe4,0x64,0x9b,0x93,0x4c,
-        0xa4,0x95,0x99,0x1b,0x78,0x52,0xb8,0x55
+        0x0e,0x57,0x51,0xc0,0x26,0xe5,0x43,0xb2,
+        0xe8,0xab,0x2e,0xb0,0x60,0x99,0xda,0xa1,
+        0xd1,0xe5,0xdf,0x47,0x77,0x8f,0x77,0x87,
+        0xfa,0xab,0x45,0xcd,0xf1,0x2f,0xe3,0xa8
     };
     NSData *result = [SSBGabbyGrove blake2b256:[NSData data]];
     NSData *expectedData = [NSData dataWithBytes:expected length:32];

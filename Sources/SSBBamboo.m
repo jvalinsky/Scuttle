@@ -2,7 +2,7 @@
 #import "SSBFeedCodecRegistry.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonDigest.h>
+#import "blake2b.h"
 
 // Bamboo binary entry layout (seq > 1):
 //   author_public_key   bytes  0-31   (32 bytes, Ed25519 public key)
@@ -149,15 +149,17 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
     return seq - pow3;
 }
 
-#pragma mark - SHA-256 Hash (BLAKE2b placeholder)
+#pragma mark - BLAKE2b-256 Hash
 
 + (nullable NSData *)hashData:(NSData *)data {
     if (!data) {
         return nil;
     }
-    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
-    return [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
+    uint8_t digest[32];
+    if (blake2b256(digest, data.bytes, data.length) != 0) {
+        return nil;
+    }
+    return [NSData dataWithBytes:digest length:32];
 }
 
 #pragma mark - Entry Validation

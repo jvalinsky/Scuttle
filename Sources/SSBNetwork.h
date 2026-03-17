@@ -32,3 +32,4 @@
 #import <SSBNetwork/SSBURI.h>
 #import <SSBNetwork/RoomInviteHandler.h>
 #import <SSBNetwork/tweetnacl.h>
+#import <SSBNetwork/blake2b.h>

@@ -1,6 +1,5 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBBamboo.h>
-#import <CommonCrypto/CommonDigest.h>
 
 // TweetNaCl functions linked via SSBNetwork.framework.
 extern int crypto_sign_ed25519_keypair(unsigned char *pk, unsigned char *sk);
@@ -42,11 +41,10 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
     uint64_t seq = CFSwapInt64HostToBig(1);
     memcpy(bytes + 65, &seq, 8);
 
-    // payload_hash (bytes 73-104): SHA-256 of "test payload"
+    // payload_hash (bytes 73-104): BLAKE2b-256 of "test payload"
     NSData *payloadData = [@"test payload" dataUsingEncoding:NSUTF8StringEncoding];
-    unsigned char digest[32];
-    CC_SHA256(payloadData.bytes, (CC_LONG)payloadData.length, digest);
-    memcpy(bytes + 73, digest, 32);
+    NSData *payloadHash = [SSBBamboo hashData:payloadData];
+    memcpy(bytes + 73, payloadHash.bytes, 32);
 
     // payload_size (bytes 105-112): size of "test payload", big-endian
     uint64_t payloadSize = CFSwapInt64HostToBig((uint64_t)payloadData.length);
@@ -144,13 +142,13 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
     XCTAssertEqual(result.length, 32u);
 }
 
-- (void)testHashData_knownSHA256 {
-    // SHA-256("") known constant
+- (void)testHashData_knownBLAKE2b256 {
+    // BLAKE2b-256("") known constant per RFC 7693 test vectors
     uint8_t expected[32] = {
-        0xe3,0xb0,0xc4,0x42,0x98,0xfc,0x1c,0x14,
-        0x9a,0xfb,0xf4,0xc8,0x99,0x6f,0xb9,0x24,
-        0x27,0xae,0x41,0xe4,0x64,0x9b,0x93,0x4c,
-        0xa4,0x95,0x99,0x1b,0x78,0x52,0xb8,0x55
+        0x0e,0x57,0x51,0xc0,0x26,0xe5,0x43,0xb2,
+        0xe8,0xab,0x2e,0xb0,0x60,0x99,0xda,0xa1,
+        0xd1,0xe5,0xdf,0x47,0x77,0x8f,0x77,0x87,
+        0xfa,0xab,0x45,0xcd,0xf1,0x2f,0xe3,0xa8
     };
     NSData *result = [SSBBamboo hashData:[NSData data]];
     XCTAssertEqualObjects(result, [NSData dataWithBytes:expected length:32]);
@@ -272,7 +270,7 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
     NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
     NSData *entryID = [SSBBamboo computeEntryID:entry];
     XCTAssertNotNil(entryID);
-    // Entry ID = SHA-256(first 32 bytes) || signature = 32 + 64 = 96 bytes
+    // Entry ID = BLAKE2b-256(first 32 bytes) || signature = 32 + 64 = 96 bytes
     XCTAssertEqual(entryID.length, 96u);
 }
 
@@ -294,11 +292,11 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
 }
 
 - (void)testComputeEntryID_structure {
-    // The first 32 bytes of the entry ID should be SHA-256 of author bytes
+    // The first 32 bytes of the entry ID should be BLAKE2b-256 of author bytes
     NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
     NSData *entryID = [SSBBamboo computeEntryID:entry];
 
-    // Verify first 32 bytes match SHA-256 of first 32 bytes of entry (author)
+    // Verify first 32 bytes match BLAKE2b-256 of first 32 bytes of entry (author)
     NSData *authorBytes = [entry subdataWithRange:NSMakeRange(0, 32)];
     NSData *expectedHash = [SSBBamboo hashData:authorBytes];
     NSData *entryIDHashPart = [entryID subdataWithRange:NSMakeRange(0, 32)];

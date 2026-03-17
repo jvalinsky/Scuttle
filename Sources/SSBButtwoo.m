@@ -3,7 +3,7 @@
 #import "SSBBencode.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonDigest.h>
+#import "blake2b.h"
 
 // Buttwoo wire format (bencode):
 //   Message = [payload, signature_bfe]
@@ -77,11 +77,12 @@ static const NSUInteger kMaxMessageSize = 8192;
     uint64_t seqBE = CFSwapInt64HostToBig((uint64_t)sequence);
     [input appendBytes:&seqBE length:8];
 
-    // SHA-256 of the 40-byte input (stand-in for BLAKE2b)
-    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(input.bytes, (CC_LONG)input.length, digest);
-
-    return [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
+    // BLAKE2b-256 of the 40-byte input (author || seq_BE)
+    uint8_t digest[32];
+    if (blake2b256(digest, input.bytes, input.length) != 0) {
+        return nil;
+    }
+    return [NSData dataWithBytes:digest length:32];
 }
 
 #pragma mark - Message Validation

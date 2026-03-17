@@ -2,7 +2,7 @@
 #import "SSBFeedCodecRegistry.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonCrypto.h>
+#import "blake2b.h"
 
 // GabbyGrove protobuf field numbers
 static const int kGGFieldAuthor       = 1; // bytes: Ed25519 public key (32 bytes)
@@ -100,11 +100,15 @@ static const int kWireTypeLengthDelimited = 2;
 
 #pragma mark - BLAKE2b-256
 
-// TODO: Replace SHA-256 with BLAKE2b-256 per RFC 7693 once a BLAKE2b dependency is added
 + (nullable NSData *)blake2b256:(NSData *)data {
-    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
-    return [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
+    if (!data) {
+        return nil;
+    }
+    uint8_t digest[32];
+    if (blake2b256(digest, data.bytes, data.length) != 0) {
+        return nil;
+    }
+    return [NSData dataWithBytes:digest length:32];
 }
 
 #pragma mark - Lipmaa sequence
