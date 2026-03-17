@@ -1,5 +1,6 @@
 #import "SRComposeViewController.h"
 #import "../Logic/SRRoomManager.h"
+#import "../Logic/SRNotificationNames.h"
 #import <SSBNetwork/SSBRoomClient.h>
 
 @interface SRComposeViewController ()
@@ -27,7 +28,7 @@
     
     [[NSNotificationCenter defaultCenter] addObserver:self 
                                              selector:@selector(syncStatusDidUpdate:) 
-                                                 name:@"SRRoomSyncStatusChangedNotification" 
+                                                 name:SRRoomSyncStatusChangedNotification
                                                object:nil];
 }
 

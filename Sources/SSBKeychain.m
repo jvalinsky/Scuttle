@@ -45,7 +45,7 @@ static NSString * const kMessageCountKey = @"ssb_published_count";
     NSMutableDictionary *query = [self baseQuery];
     query[(__bridge id)kSecAttrAccount] = key;
     query[(__bridge id)kSecValueData] = data;
-    query[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleAfterFirstUnlock;
+    query[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlocked;
 
     OSStatus status = SecItemAdd((__bridge CFDictionaryRef)query, NULL);
     return status == errSecSuccess;
@@ -111,6 +111,12 @@ static NSString * const kMessageCountKey = @"ssb_published_count";
     BOOL networkResult = [self deleteNetworkKey];
     BOOL countResult = [self deleteDataForKey:kMessageCountKey];
     return identityResult && networkResult && countResult;
+}
+
++ (nullable NSString *)publicIDFromSecret:(NSData *)secret {
+    if (secret.length < 64) return nil;
+    NSData *pkData = [secret subdataWithRange:NSMakeRange(32, 32)];
+    return [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
 }
 
 @end

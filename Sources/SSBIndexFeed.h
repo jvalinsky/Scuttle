@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "SSBFeedCodec.h"
 
 @class SSBMetafeedKeys;
 
@@ -11,7 +12,13 @@ typedef NS_ENUM(NSInteger, SSBIndexFeedType) {
     SSBIndexFeedTypeCustom
 };
 
-@interface SSBIndexFeed : NSObject
+/// Index feed (indexed-v1) utilities and SSBFeedCodec conformance.
+/// Index feed messages use Classic JSON wire format with Ed25519 signing,
+/// carrying content type "metafeed/index". The codec delegates crypto
+/// operations to SSBMessageCodec and self-registers at +load time.
+@interface SSBIndexFeed : NSObject <SSBFeedCodec>
+
++ (instancetype)sharedCodec;
 
 + (NSString *)indexFeedBFEIdentifier;
 

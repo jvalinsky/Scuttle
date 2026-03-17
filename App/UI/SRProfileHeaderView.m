@@ -1,6 +1,10 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
+#import "../Logic/SRNotificationNames.h"
 #import <SSBNetwork/SSBKeychain.h>
+#import <os/log.h>
+
+static os_log_t profile_header_log;
 
 @interface SRProfileHeaderView ()
 @property (nonatomic, strong) NSView *avatarView;
@@ -14,6 +18,12 @@
 
 @implementation SRProfileHeaderView
 
++ (void)initialize {
+    if (self == [SRProfileHeaderView class]) {
+        profile_header_log = os_log_create("com.scuttlebutt.app", "ProfileHeader");
+    }
+}
+
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
@@ -22,7 +32,7 @@
         
         [[NSNotificationCenter defaultCenter] addObserver:self 
                                                  selector:@selector(loadLocalIdentity) 
-                                                     name:@"SRLocalIdentityGeneratedNotification" 
+                                                     name:SRLocalIdentityGeneratedNotification
                                                    object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleProfileUpdated:)
@@ -237,7 +247,7 @@
                         [fail runModal];
                     } else {
                         // Success, could update UI or show a toast
-                        NSLog(@"Alias registered successfully: %@", response);
+                        os_log_info(profile_header_log, "Alias registered successfully: %{public}@", response);
                     }
                 });
             }];

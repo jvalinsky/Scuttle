@@ -1,4 +1,6 @@
 #import "SSBIndexFeed.h"
+#import "SSBFeedCodecRegistry.h"
+#import "SSBMessageCodec.h"
 #import "SSBBFE.h"
 #import "SSBMetafeed.h"
 #import "SSBURI.h"
@@ -11,6 +13,65 @@ static NSString *const kMetafeedIndexType = @"metafeed/index";
 static NSString *const kMetafeedAddDerivedType = @"metafeed/add/derived";
 
 @implementation SSBIndexFeed
+
+#pragma mark - SSBFeedCodec Registration
+
++ (void)load {
+    [[SSBFeedCodecRegistry sharedRegistry] registerCodec:[self sharedCodec]];
+}
+
++ (instancetype)sharedCodec {
+    static SSBIndexFeed *instance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[SSBIndexFeed alloc] init];
+    });
+    return instance;
+}
+
+#pragma mark - SSBFeedCodec Protocol
+
+- (SSBBFEFeedFormat)feedFormat {
+    return SSBBFEFeedFormatIndexedV1;
+}
+
+- (SSBBFEMessageFormat)messageFormat {
+    return SSBBFEMessageFormatIndexedV1;
+}
+
+- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
+    // Index feed messages are Classic JSON signed with ed25519.
+    // Delegate cryptographic verification to SSBMessageCodec.
+    NSError *jsonError = nil;
+    NSDictionary *value = [NSJSONSerialization JSONObjectWithData:messageData
+                                                         options:0
+                                                           error:&jsonError];
+    if (!value) {
+        if (error) *error = jsonError;
+        return NO;
+    }
+    BOOL valid = [SSBMessageCodec verifyMessage:value];
+    if (!valid && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
+                                userInfo:@{NSLocalizedDescriptionKey: @"Index feed message signature invalid"}];
+    }
+    return valid;
+}
+
+- (nullable NSData *)computeMessageKeyFromData:(NSData *)messageData error:(NSError **)error {
+    if (!messageData.length) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"SSBFeedCodec" code:2
+                                    userInfo:@{NSLocalizedDescriptionKey: @"Empty index feed message data"}];
+        }
+        return nil;
+    }
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(messageData.bytes, (CC_LONG)messageData.length, digest);
+    return [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
+}
+
+#pragma mark - Index Feed API
 
 + (NSString *)indexFeedBFEIdentifier {
     return kIndexedV1Format;

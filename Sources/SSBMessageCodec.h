@@ -1,9 +1,14 @@
 #import <Foundation/Foundation.h>
+#import "SSBFeedCodec.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Handles SSB classic message encoding, signing, verification, and key computation.
-@interface SSBMessageCodec : NSObject
+/// Handles SSB classic (ed25519) message encoding, signing, verification, and key computation.
+/// Conforms to SSBFeedCodec so it can be dispatched from SSBFeedCodecRegistry.
+@interface SSBMessageCodec : NSObject <SSBFeedCodec>
+
+/// Returns the shared codec instance registered in SSBFeedCodecRegistry.
++ (instancetype)sharedCodec;
 
 /// Creates a signed SSB message value dictionary with proper format.
 /// @param content The message content (must include "type" key).

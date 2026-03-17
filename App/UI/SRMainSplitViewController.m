@@ -1,139 +1,102 @@
 #import "SRMainSplitViewController.h"
+#import "SRContentContainerViewController.h"
+#import "SRHomeViewController.h"
 #import "SRChannelBrowserViewController.h"
 #import "SRPreferencesWindowController.h"
-#import "SRErrorBannerView.h"
 #import "SRPeerListViewController.h"
 #import "SRFeedViewController.h"
 #import "SRThreadViewController.h"
 #import "SRProfileViewController.h"
-#import "SRComposeViewController.h"
 #import "SRSidebarViewController.h"
-#import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMessageCodec.h"
 #import "../../Sources/SSBLogger.h"
+#import "../../Sources/SSBKeychain.h"
+#import "../Logic/SRNotificationNames.h"
+#import <os/log.h>
 
-@interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate, NSToolbarDelegate>
+static os_log_t split_log;
+
+@interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate>
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
-@property (nonatomic, strong) SRProfileHeaderView *headerView;
-@property (nonatomic, strong) SRFeedViewController *feedVC;
-@property (nonatomic, strong) SRThreadViewController *threadVC;
-@property (nonatomic, strong) SRProfileViewController *profileVC;
-@property (nonatomic, strong) SRChannelBrowserViewController *channelBrowserVC;
-@property (nonatomic, strong) SRErrorBannerView *errorBanner;
-@property (nonatomic, strong) SRComposeViewController *composeVC;
-@property (nonatomic, strong) NSView *contentAreaContainer; // We'll use this to swap views
+@property (nonatomic, strong) SRHomeViewController *homeVC;
+@property (nonatomic, strong) SRContentContainerViewController *contentContainer;
 @property (nonatomic, strong) SRPeerListViewController *peerListVC;
 @property (nonatomic, strong, nullable) RoomConfig *selectedRoom;
-- (void)toolbarSettings:(id)sender;
-
 @end
 
 @implementation SRMainSplitViewController
 
++ (void)initialize {
+    if (self == [SRMainSplitViewController class]) {
+        split_log = os_log_create("com.scuttlebutt.app", "MainSplitVC");
+    }
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
+
     self.sidebarVC = [[SRSidebarViewController alloc] init];
-    
-    // Main Content Area (Feed + Compose)
-    NSViewController *contentContainer = [[NSViewController alloc] init];
-    contentContainer.view = [[NSView alloc] init];
-    
-    self.feedVC = [[SRFeedViewController alloc] init];
-    self.feedVC.delegate = self;
-    [contentContainer addChildViewController:self.feedVC];
-    [contentContainer.view addSubview:self.feedVC.view];
-    self.feedVC.view.translatesAutoresizingMaskIntoConstraints = NO;
-    
-    self.contentAreaContainer = contentContainer.view;
-    
-    self.errorBanner = [[SRErrorBannerView alloc] init];
-    self.errorBanner.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.contentAreaContainer addSubview:self.errorBanner];
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.errorBanner.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
-        [self.errorBanner.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
-        [self.errorBanner.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor constant:8]
-    ]];
-    
-    self.headerView = [[SRProfileHeaderView alloc] init];
-    self.headerView.hidesProfileButton = YES;
-    [contentContainer.view addSubview:self.headerView];
-    self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
-    
+
+    // Content area: a container that manages push/pop navigation between the
+    // home view and any detail view (profile, thread, channel browser).
+    self.contentContainer = [[SRContentContainerViewController alloc] init];
+
+    self.homeVC = [[SRHomeViewController alloc] init];
+    // Accessing .view triggers viewDidLoad on homeVC, instantiating its children.
+    [self.contentContainer setRootViewController:self.homeVC];
+
+    // Wire delegates now that homeVC's children exist.
+    self.homeVC.feedVC.delegate = self;
+
     __weak typeof(self) weakSelf = self;
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
-    if (localSecret && localSecret.length >= 64) {
-        NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
-        NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
-        [self.headerView updateWithIdentity:pubkey name:nil];
-        
-        [[SRRoomManager sharedManager] resolveDisplayNameForAuthor:pubkey completion:^(NSString *name) {
-            [weakSelf.headerView updateWithIdentity:pubkey name:name];
-        }];
-    }
-    
-    self.composeVC = [[SRComposeViewController alloc] init];
-    [contentContainer addChildViewController:self.composeVC];
-    [contentContainer.view addSubview:self.composeVC.view];
-    self.composeVC.view.translatesAutoresizingMaskIntoConstraints = NO;
-    
-    
-    self.composeVC.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo) {
+    self.homeVC.composeVC.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo) {
         [weakSelf handlePublishWithText:text contentWarning:cw replyTo:replyTo];
     };
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.headerView.topAnchor constraintEqualToAnchor:self.errorBanner.bottomAnchor],
-        [self.headerView.leadingAnchor constraintEqualToAnchor:contentContainer.view.leadingAnchor],
-        [self.headerView.trailingAnchor constraintEqualToAnchor:contentContainer.view.trailingAnchor],
-        [self.headerView.heightAnchor constraintEqualToConstant:60],
 
-        [self.feedVC.view.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
-        [self.feedVC.view.leadingAnchor constraintEqualToAnchor:contentContainer.view.leadingAnchor],
-        [self.feedVC.view.trailingAnchor constraintEqualToAnchor:contentContainer.view.trailingAnchor],
-        [self.feedVC.view.bottomAnchor constraintEqualToAnchor:self.composeVC.view.topAnchor constant:-12],
-        
-        [self.composeVC.view.leadingAnchor constraintEqualToAnchor:contentContainer.view.leadingAnchor constant:20],
-        [self.composeVC.view.trailingAnchor constraintEqualToAnchor:contentContainer.view.trailingAnchor constant:-20],
-        [self.composeVC.view.bottomAnchor constraintEqualToAnchor:contentContainer.view.bottomAnchor constant:-20],
-        [self.composeVC.view.heightAnchor constraintEqualToConstant:120]
-    ]];
-    
+    // Populate identity header.
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    if (pubkey) {
+        [self.homeVC.headerView updateWithIdentity:pubkey name:nil];
+        [[SRRoomManager sharedManager] resolveDisplayNameForAuthor:pubkey completion:^(NSString *name) {
+            [weakSelf.homeVC.headerView updateWithIdentity:pubkey name:name];
+        }];
+    }
+
     self.peerListVC = [[SRPeerListViewController alloc] init];
     self.peerListVC.delegate = self;
-    
+
     NSSplitViewItem *sidebarItem = [NSSplitViewItem sidebarWithViewController:self.sidebarVC];
     sidebarItem.minimumThickness = 200;
     sidebarItem.maximumThickness = 300;
-    
-    NSSplitViewItem *contentItem = [NSSplitViewItem splitViewItemWithViewController:contentContainer];
+
+    NSSplitViewItem *contentItem = [NSSplitViewItem splitViewItemWithViewController:self.contentContainer];
     contentItem.minimumThickness = 400;
-    
+
     NSSplitViewItem *peerListItem = [NSSplitViewItem splitViewItemWithViewController:self.peerListVC];
     peerListItem.minimumThickness = 250;
     peerListItem.maximumThickness = 400;
-    
+
     [self addSplitViewItem:sidebarItem];
     [self addSplitViewItem:contentItem];
     [self addSplitViewItem:peerListItem];
-    
+
     self.splitView.dividerStyle = NSSplitViewDividerStyleThin;
-    
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:@"SRRoomSelectedNotification" object:nil];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusDidUpdate:) name:SRRoomManagerConnectionStatusChangedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(endpointsDidUpdate:) name:SRRoomManagerDidUpdateEndpointsNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:@"SRLocalIdentityGeneratedNotification" object:nil];
-}
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:SRLocalIdentityGeneratedNotification object:nil];
 
-- (void)identityDidGenerate:(NSNotification *)notification {
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
-    if (localSecret && localSecret.length >= 64) {
-        NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
-        NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
-        [self.headerView updateWithIdentity:pubkey name:nil];
+    // Replay any room that was selected before we registered observers.
+    NSArray<RoomConfig *> *existingRooms = [SRRoomManager sharedManager].rooms;
+    if (existingRooms.count > 0) {
+        RoomConfig *first = existingRooms.firstObject;
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
+                                                            object:nil
+                                                          userInfo:@{SRRoomManagerRoomSelectedKey: first}];
     }
 }
 
@@ -141,170 +104,129 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+#pragma mark - Notification handlers
+
+- (void)identityDidGenerate:(NSNotification *)notification {
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    if (pubkey) {
+        [self.homeVC.headerView updateWithIdentity:pubkey name:nil];
+    }
+}
+
 - (void)statusDidUpdate:(NSNotification *)notification {
     NSDictionary *userInfo = notification.userInfo;
     NSString *host = userInfo[@"host"];
     BOOL connected = [userInfo[@"connected"] boolValue];
-    
-    if (!self.selectedRoom) {
-        // If no room is selected, we don't care about connection status for a specific host yet.
-        return;
-    }
+
+    if (!self.selectedRoom) return;
 
     if (!connected && [host isEqualToString:self.selectedRoom.host]) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.errorBanner showMessage:[NSString stringWithFormat:@"Disconnected from %@", host]];
+            [self.homeVC.errorBanner showMessage:[NSString stringWithFormat:@"Disconnected from %@", host]];
         });
     } else if (connected && [host isEqualToString:self.selectedRoom.host]) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.errorBanner hide];
+            [self.homeVC.errorBanner hide];
         });
     }
 }
 
 - (void)roomSelected:(NSNotification *)notification {
-    RoomConfig *room = notification.object;
+    RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
     self.selectedRoom = room;
-    NSLog(@"[MainVC] SELECTED ROOM: %@ (name: %@)", room.host, room.name);
-    
-    [self.headerView updateWithIdentity:room.host name:room.name];
-    
-    // Start loading indicators
-    [self.feedVC.progressIndicator startAnimation:nil];
+    os_log_info(split_log, "Selected room: %{public}@ (name: %{public}@)", room.host, room.name);
+
+    [self.homeVC.headerView updateWithIdentity:room.host name:room.name];
+
+    [self.homeVC.feedVC.progressIndicator startAnimation:nil];
     [self.peerListVC.progressIndicator startAnimation:nil];
-    
-    self.feedVC.currentClient = [self currentClient];
-    
+
+    self.homeVC.feedVC.currentClient = [self currentClient];
+
     [self updatePeerList];
-    [self.feedVC refreshFeed];
+    [self.homeVC.feedVC refreshFeed];
 }
 
 - (void)endpointsDidUpdate:(NSNotification *)notification {
     SSBRoomClient *client = notification.object;
-    NSLog(@"[MainVC] DEBUG: Endpoints notification received from %@ (Current selected: %@)", client.host, self.selectedRoom.host);
+    os_log_debug(split_log, "Endpoints notification from %{public}@ (selected: %{public}@)", client.host, self.selectedRoom.host);
     if (!self.selectedRoom || [client.host isEqualToString:self.selectedRoom.host]) {
         if (!self.selectedRoom) {
-            NSLog(@"[MainVC] DEBUG: No room selected, auto-selecting %@", client.host);
+            os_log_debug(split_log, "No room selected, auto-selecting %{public}@", client.host);
             self.selectedRoom = [[SRRoomManager sharedManager].rooms firstObject];
         }
         [self updatePeerList];
     } else {
-        NSLog(@"[MainVC] DEBUG: Notification ignored (host mismatch)");
+        os_log_debug(split_log, "Endpoint notification ignored (host mismatch)");
     }
 }
+
+#pragma mark - Public
 
 - (void)showPreferences {
     [[SRPreferencesWindowController sharedPreferencesWindowController] showWindow:nil];
 }
 
+- (void)showChannelBrowser {
+    if ([self.contentContainer.topViewController isKindOfClass:[SRChannelBrowserViewController class]]) return;
+    SRChannelBrowserViewController *channelVC = [[SRChannelBrowserViewController alloc] init];
+    channelVC.delegate = self;
+    [self.contentContainer pushViewController:channelVC];
+}
+
+#pragma mark - Helpers
+
 - (void)updatePeerList {
     if (!self.selectedRoom) {
-        NSLog(@"[MainVC] DEBUG: updatePeerList called but no room selected");
+        os_log_debug(split_log, "updatePeerList called but no room selected");
         [self.peerListVC updatePeers:@[]];
         return;
     }
     NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[self.selectedRoom.host];
-    NSLog(@"[MainVC] DEBUG: updatePeerList for %@ - found %lu peers in Manager", self.selectedRoom.host, (unsigned long)peers.count);
+    os_log_debug(split_log, "updatePeerList for %{public}@ - found %lu peers", self.selectedRoom.host, (unsigned long)peers.count);
     [self.peerListVC updatePeers:peers ?: @[]];
 }
 
 - (void)handlePublishWithText:(NSString *)text contentWarning:(NSString *)cw replyTo:(nullable NSString *)replyTo {
     SSBRoomClient *client = [self currentClient];
     if (!client) return;
-    
+
     NSDictionary *content;
     if (replyTo) {
         content = [SSBMessageCodec replyContentWithText:text root:replyTo branch:replyTo channel:nil contentWarning:cw mentions:nil recps:nil];
     } else {
         content = [SSBMessageCodec rootPostContentWithText:text channel:nil contentWarning:cw mentions:nil recps:nil];
     }
-    
+
     NSError *error = nil;
     SSBMessage *msg = [client publishLocalMessageWithContent:content error:&error];
     if (msg) {
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRNewMessageNotification" object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRNewMessageNotification object:nil];
     }
+}
+
+- (nullable SSBRoomClient *)currentClient {
+    SSBRoomClient *client = nil;
+    if (self.selectedRoom) {
+        client = [[SRRoomManager sharedManager] clientForHost:self.selectedRoom.host];
+    }
+    if (!client) {
+        client = [SRRoomManager sharedManager].clients.allValues.firstObject;
+    }
+    return client;
 }
 
 #pragma mark - SRPeerListDelegate
 
 - (void)peerListViewController:(SRPeerListViewController *)vc didSelectPeer:(NSString *)peerID {
     SSBLogInfo(SSBLogCategoryUI, @"👤 Peer selected: %@", [peerID substringToIndex:MIN(8, peerID.length)]);
-    
-    if (self.profileVC) {
-        SSBLogInfo(SSBLogCategoryUI, @"   Removing existing profile view");
-        [self.profileVC.view removeFromSuperview];
-        [self.profileVC removeFromParentViewController];
-    }
-    
     SSBRoomClient *client = [self currentClient];
     SSBLogInfo(SSBLogCategoryUI, @"   Client: %@ connected=%d", client ? @"available" : @"nil", client.isConnected);
-    
-    self.profileVC = [[SRProfileViewController alloc] initWithPeerID:peerID client:client];
-    self.profileVC.delegate = self;
-    [self addChildViewController:self.profileVC];
-    [self.contentAreaContainer addSubview:self.profileVC.view];
-    self.profileVC.view.translatesAutoresizingMaskIntoConstraints = NO;
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.profileVC.view.topAnchor constraintEqualToAnchor:self.contentAreaContainer.safeAreaLayoutGuide.topAnchor],
-        [self.profileVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
-        [self.profileVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
-        [self.profileVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]
-    ]];
-    
-    self.headerView.hidden = YES;
-    self.feedVC.view.hidden = YES;
-    self.composeVC.view.hidden = YES;
-    if (self.threadVC) self.threadVC.view.hidden = YES;
-}
 
-#pragma mark - SRProfileViewControllerDelegate
-
-- (void)profileViewControllerDidRequestBack:(SRProfileViewController *)vc {
-    self.headerView.hidden = NO;
-    self.feedVC.view.hidden = NO;
-    self.composeVC.view.hidden = NO;
-    [vc.view removeFromSuperview];
-    [vc removeFromParentViewController];
-    self.profileVC = nil;
-}
-
-#pragma mark - SRChannelBrowserDelegate
-
-- (void)channelBrowser:(SRChannelBrowserViewController *)vc didSelectChannel:(NSString *)channel {
-    [self channelBrowserDidRequestBack:vc];
-    [self.feedVC loadFeedForChannel:channel];
-}
-
-- (void)channelBrowserDidRequestBack:(SRChannelBrowserViewController *)vc {
-    self.headerView.hidden = NO;
-    self.feedVC.view.hidden = NO;
-    self.composeVC.view.hidden = NO;
-    [vc.view removeFromSuperview];
-    [vc removeFromParentViewController];
-    self.channelBrowserVC = nil;
-}
-
-- (void)showChannelBrowser {
-    if (self.channelBrowserVC) return;
-    
-    self.channelBrowserVC = [[SRChannelBrowserViewController alloc] init];
-    self.channelBrowserVC.delegate = self;
-    [self addChildViewController:self.channelBrowserVC];
-    [self.contentAreaContainer addSubview:self.channelBrowserVC.view];
-    self.channelBrowserVC.view.translatesAutoresizingMaskIntoConstraints = NO;
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.channelBrowserVC.view.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
-        [self.channelBrowserVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
-        [self.channelBrowserVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
-        [self.channelBrowserVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]
-    ]];
-    
-    self.headerView.hidden = YES;
-    self.feedVC.view.hidden = YES;
-    self.composeVC.view.hidden = YES;
+    SRProfileViewController *profileVC = [[SRProfileViewController alloc] initWithPeerID:peerID client:client];
+    profileVC.delegate = self;
+    [self.contentContainer pushViewController:profileVC];
 }
 
 - (void)peerListViewController:(SRPeerListViewController *)vc didRequestFollow:(NSString *)peerID {
@@ -340,6 +262,23 @@
     }
 }
 
+#pragma mark - SRProfileViewControllerDelegate
+
+- (void)profileViewControllerDidRequestBack:(SRProfileViewController *)vc {
+    [self.contentContainer popViewController];
+}
+
+#pragma mark - SRChannelBrowserDelegate
+
+- (void)channelBrowser:(SRChannelBrowserViewController *)vc didSelectChannel:(NSString *)channel {
+    [self.contentContainer popViewController];
+    [self.homeVC.feedVC loadFeedForChannel:channel];
+}
+
+- (void)channelBrowserDidRequestBack:(SRChannelBrowserViewController *)vc {
+    [self.contentContainer popViewController];
+}
+
 #pragma mark - SRFeedViewControllerDelegate
 
 - (void)feedViewController:(SRFeedViewController *)vc didLikeMessage:(SSBMessage *)message {
@@ -351,66 +290,30 @@
 }
 
 - (void)feedViewController:(SRFeedViewController *)vc didReplyToMessage:(SSBMessage *)message {
-    // For now, selecting a thread also acts as 'reply' intent if we don't have a better UI
     [self feedViewController:vc didSelectMessageThread:message];
 }
 
 - (void)feedViewController:(SRFeedViewController *)vc didSelectMessageThread:(SSBMessage *)message {
-    if (self.threadVC) {
-        [self.threadVC.view removeFromSuperview];
-        [self.threadVC removeFromParentViewController];
-    }
-    
     SSBRoomClient *client = [self currentClient];
-    self.threadVC = [[SRThreadViewController alloc] initWithRootMessage:message client:client];
-    self.threadVC.delegate = self;
-    [self addChildViewController:self.threadVC];
-    [self.contentAreaContainer addSubview:self.threadVC.view];
-    self.threadVC.view.translatesAutoresizingMaskIntoConstraints = NO;
-    
-    [NSLayoutConstraint activateConstraints:@[
-        [self.threadVC.view.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
-        [self.threadVC.view.leadingAnchor constraintEqualToAnchor:self.contentAreaContainer.leadingAnchor],
-        [self.threadVC.view.trailingAnchor constraintEqualToAnchor:self.contentAreaContainer.trailingAnchor],
-        [self.threadVC.view.bottomAnchor constraintEqualToAnchor:self.contentAreaContainer.bottomAnchor]
-    ]];
-    
-    self.feedVC.view.hidden = YES;
-    self.composeVC.view.hidden = YES;
+    SRThreadViewController *threadVC = [[SRThreadViewController alloc] initWithRootMessage:message client:client];
+    threadVC.delegate = self;
+    [self.contentContainer pushViewController:threadVC];
 }
 
 #pragma mark - SRThreadViewControllerDelegate
 
 - (void)threadViewControllerDidRequestBack:(SRThreadViewController *)vc {
-    self.feedVC.view.hidden = NO;
-    self.composeVC.view.hidden = NO;
-    [vc.view removeFromSuperview];
-    [vc removeFromParentViewController];
-    self.threadVC = nil;
+    [self.contentContainer popViewController];
 }
 
 - (void)threadViewController:(SRThreadViewController *)vc didLikeMessage:(SSBMessage *)message {
-    [self feedViewController:self.feedVC didLikeMessage:message];
+    [self feedViewController:self.homeVC.feedVC didLikeMessage:message];
 }
 
 - (void)threadViewController:(SRThreadViewController *)vc didReplyToMessage:(SSBMessage *)message {
-    self.composeVC.replyToKey = message.key;
-    [self.view.window makeFirstResponder:self.composeVC.view];
-    // Maybe also scroll compose view into view if it was hidden?
-    // In our case it's always at the bottom of the feed container.
-}
-
-#pragma mark - Helpers
-
-- (nullable SSBRoomClient *)currentClient {
-    SSBRoomClient *client = nil;
-    if (self.selectedRoom) {
-        client = [[SRRoomManager sharedManager] clientForHost:self.selectedRoom.host];
-    }
-    if (!client) {
-        client = [SRRoomManager sharedManager].clients.allValues.firstObject;
-    }
-    return client;
+    [self.contentContainer popViewController];
+    self.homeVC.composeVC.replyToKey = message.key;
+    [self.homeVC.composeVC.view.window makeFirstResponder:self.homeVC.composeVC.view];
 }
 
 #pragma mark - NSToolbarDelegate
@@ -434,14 +337,17 @@
         return item;
     } else if ([itemIdentifier isEqualToString:@"ToggleFeed"]) {
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
-        NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithLabels:@[@"Timeline", @"Global"] trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(toolbarToggleFeed:)];
-        control.selectedSegment = (self.feedVC.feedType == SRFeedTypeTimeline) ? 0 : 1;
+        NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithLabels:@[@"Timeline", @"Global"]
+                                                                        trackingMode:NSSegmentSwitchTrackingSelectOne
+                                                                              target:self
+                                                                              action:@selector(toolbarToggleFeed:)];
+        control.selectedSegment = (self.homeVC.feedVC.feedType == SRFeedTypeTimeline) ? 0 : 1;
         item.view = control;
         item.label = @"Feed Type";
         item.paletteLabel = @"Toggle Feed Type";
         return item;
     } else if ([itemIdentifier isEqualToString:@"Search"]) {
-    NSSearchToolbarItem *searchItem = [[NSSearchToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        NSSearchToolbarItem *searchItem = [[NSSearchToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         searchItem.label = @"Search";
         searchItem.paletteLabel = @"Search Messages";
         searchItem.searchField.delegate = (id<NSSearchFieldDelegate>)self;
@@ -468,47 +374,36 @@
     return @[@"Compose", @"Refresh", NSToolbarFlexibleSpaceItemIdentifier, @"Search", @"Settings", @"ToggleFeed"];
 }
 
+- (void)toolbarCompose:(id)sender {
+    if (self.contentContainer.topViewController != self.homeVC) {
+        [self.contentContainer popViewController];
+    }
+    [self.homeVC.composeVC.view.window makeFirstResponder:self.homeVC.composeVC.view];
+}
+
+- (void)toolbarRefresh:(id)sender {
+    [self.homeVC.feedVC refreshFeed];
+}
+
 - (void)toolbarSearch:(id)sender {
     NSString *query = @"";
     if ([sender isKindOfClass:[NSSearchToolbarItem class]]) {
         query = ((NSSearchToolbarItem *)sender).searchField.stringValue;
     }
-    
-    if (self.threadVC.view.superview) {
-        [self threadViewControllerDidRequestBack:self.threadVC];
+    if (self.contentContainer.topViewController != self.homeVC) {
+        [self.contentContainer popViewController];
     }
-    if (self.profileVC.view.superview) {
-        [self profileViewControllerDidRequestBack:self.profileVC];
-    }
-    if (self.channelBrowserVC.view.superview) {
-        [self channelBrowserDidRequestBack:self.channelBrowserVC];
-    }
-    
-    [self.feedVC loadFeedWithSearch:query];
-}
-
-- (void)toolbarCompose:(id)sender {
-    if (self.threadVC.view.superview) {
-        [self threadViewControllerDidRequestBack:self.threadVC];
-    }
-    if (self.profileVC.view.superview) {
-        [self profileViewControllerDidRequestBack:self.profileVC];
-    }
-    [self.composeVC.view.window makeFirstResponder:self.composeVC.view];
-}
-
-- (void)toolbarRefresh:(id)sender {
-    [self.feedVC refreshFeed];
+    [self.homeVC.feedVC loadFeedWithSearch:query];
 }
 
 - (void)toolbarToggleFeed:(id)sender {
     NSSegmentedControl *control = (NSSegmentedControl *)sender;
-    if (control.selectedSegment == 0) {
-        self.feedVC.feedType = SRFeedTypeTimeline;
-    } else {
-        self.feedVC.feedType = SRFeedTypeGlobal;
-    }
-    [self.feedVC refreshFeed];
+    self.homeVC.feedVC.feedType = (control.selectedSegment == 0) ? SRFeedTypeTimeline : SRFeedTypeGlobal;
+    [self.homeVC.feedVC refreshFeed];
+}
+
+- (void)toolbarSettings:(id)sender {
+    [self showPreferences];
 }
 
 @end

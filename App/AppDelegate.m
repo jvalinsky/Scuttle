@@ -1,8 +1,11 @@
 #import "AppDelegate.h"
 #import "Logic/SRRoomManager.h"
+#import "Logic/SRNotificationNames.h"
 #import "UI/SRMainSplitViewController.h"
 #import <os/log.h>
 #import <UserNotifications/UserNotifications.h>
+
+static os_log_t ssb_app_log;
 
 @interface AppDelegate ()
 @property (nonatomic, strong) SRMainSplitViewController *mainVC;
@@ -11,15 +14,21 @@
 
 @implementation AppDelegate
 
++ (void)initialize {
+    if (self == [AppDelegate class]) {
+        ssb_app_log = os_log_create("com.scuttlebutt.app", "AppDelegate");
+    }
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    NSLog(@"[AppDelegate] Application did finish launching");
+    os_log_info(ssb_app_log, "Application did finish launching");
     [self setupStatusItem];
     
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-    center.delegate = (id<UNUserNotificationCenterDelegate>)self;
+    center.delegate = self;
     [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge) completionHandler:^(BOOL granted, NSError * _Nullable error) {
         if (granted) {
-            NSLog(@"[AppDelegate] Notifications granted");
+            os_log_info(ssb_app_log, "Notifications granted");
         }
     }];
     
@@ -33,12 +42,14 @@
     self.window.title = @"ScuttleRoom";
     self.window.titlebarAppearsTransparent = YES;
     self.window.titleVisibility = NSWindowTitleHidden;
+    self.window.identifier = @"ScuttleRoomMainWindow";
+    self.window.restorationClass = [AppDelegate class];
     
     self.mainVC = [[SRMainSplitViewController alloc] init];
     self.window.contentViewController = self.mainVC;
     
     NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"MainToolbar"];
-    toolbar.delegate = (id<NSToolbarDelegate>)self.mainVC;
+    toolbar.delegate = self.mainVC;
     toolbar.displayMode = NSToolbarDisplayModeIconOnly;
     self.window.toolbar = toolbar;
     
@@ -46,7 +57,7 @@
     [self.window makeKeyAndOrderFront:nil];
     
     // Initialize Room Manager
-    NSLog(@"[AppDelegate] Initializing RoomManager");
+    os_log_info(ssb_app_log, "Initializing RoomManager");
     [SRRoomManager sharedManager];
 }
 
@@ -73,9 +84,7 @@
 }
 
 - (void)showPreferences:(id)sender {
-    if ([self.mainVC respondsToSelector:@selector(showPreferences)]) {
-        [self.mainVC performSelector:@selector(showPreferences)];
-    }
+    [self.mainVC showPreferences];
 }
 
 - (void)resetIdentity:(id)sender {
@@ -98,18 +107,21 @@
     [self updateStatusMenu];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStatusMenu) name:SRRoomManagerDidUpdateRoomsNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleNewMessageNotification:) name:@"SRNewMessageNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleNewMessageNotification:) name:SRNewMessageNotification object:nil];
 }
 
 - (void)handleNewMessageNotification:(NSNotification *)notification {
-    NSDictionary *msgDict = notification.object;
-    if (![msgDict isKindOfClass:[NSDictionary class]]) return;
-    
-    NSDictionary *content = msgDict[@"content"];
+    id msgObj = notification.userInfo[SRNewMessageKey];
+    NSDictionary *content = nil;
+    NSString *author = @"Someone";
+    if ([msgObj respondsToSelector:@selector(content)]) {
+        content = [msgObj valueForKey:@"content"];
+        NSString *msgAuthor = [msgObj valueForKey:@"author"];
+        if (msgAuthor.length > 0) author = msgAuthor;
+    }
     if (![content isKindOfClass:[NSDictionary class]]) return;
-    
+
     NSString *text = content[@"text"] ?: @"New message";
-    NSString *author = msgDict[@"author"] ?: @"Someone";
     
     UNMutableNotificationContent *notifContent = [[UNMutableNotificationContent alloc] init];
     notifContent.title = [NSString stringWithFormat:@"Message from %@", author];
@@ -151,11 +163,34 @@
 - (void)statusItemRoomAction:(NSMenuItem *)sender {
     RoomConfig *room = sender.representedObject;
     [self.window makeKeyAndOrderFront:nil];
-    [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSelectedNotification" object:room];
+    [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
+                                                        object:nil
+                                                      userInfo:@{SRRoomManagerRoomSelectedKey: room}];
+}
+
++ (void)restoreWindowWithIdentifier:(NSUserInterfaceItemIdentifier)identifier
+                              state:(NSCoder *)state
+                  completionHandler:(void (^)(NSWindow *, NSError *))completionHandler {
+    AppDelegate *delegate = (AppDelegate *)[NSApp delegate];
+    completionHandler(delegate.window, nil);
+}
+
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
+    if (!flag) {
+        [self.window makeKeyAndOrderFront:nil];
+    }
+    return NO;
 }
 
 - (void)bringToFront:(id)sender {
-    [NSApp activateIgnoringOtherApps:YES];
+    if (@available(macOS 14.0, *)) {
+        [NSApp activate];
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        [NSApp activateIgnoringOtherApps:YES];
+#pragma clang diagnostic pop
+    }
     [self.window makeKeyAndOrderFront:nil];
 }
 

@@ -1,10 +1,19 @@
 #import "SSBConnectionFSM.h"
+#import <os/log.h>
+
+static os_log_t fsm_log;
 
 @interface SSBConnectionFSM ()
 @property (nonatomic, readwrite) SSBConnectionState currentState;
 @end
 
 @implementation SSBConnectionFSM
+
++ (void)initialize {
+    if (self == [SSBConnectionFSM class]) {
+        fsm_log = os_log_create("com.scuttlebutt.network", "ConnectionFSM");
+    }
+}
 
 - (instancetype)init {
     self = [super init];
@@ -18,13 +27,42 @@
     if (self.currentState == SSBConnectionStateError || self.currentState == SSBConnectionStateClosed) {
         return;
     }
-    
+
+    SSBConnectionState nextState;
+    switch (self.currentState) {
+        case SSBConnectionStateInit:
+            nextState = SSBConnectionStateSHSHelloSent;
+            break;
+        case SSBConnectionStateSHSHelloSent:
+            nextState = SSBConnectionStateSHSHelloReceived;
+            break;
+        case SSBConnectionStateSHSHelloReceived:
+            nextState = SSBConnectionStateSHSAuthSent;
+            break;
+        case SSBConnectionStateSHSAuthSent:
+            nextState = SSBConnectionStateSHSAuthReceived;
+            break;
+        case SSBConnectionStateSHSAuthReceived:
+            nextState = SSBConnectionStateSHSAcceptSent;
+            break;
+        case SSBConnectionStateSHSAcceptSent:
+            nextState = SSBConnectionStateSHSAcceptReceived;
+            break;
+        case SSBConnectionStateSHSAcceptReceived:
+            nextState = SSBConnectionStateBoxStream;
+            break;
+        case SSBConnectionStateBoxStream:
+            return;
+        default:
+            NSAssert(NO, @"advanceState called from unexpected state %ld", (long)self.currentState);
+            return;
+    }
+
     SSBConnectionState oldState = self.currentState;
-    _currentState++;
-    NSLog(@"[FSM] State advanced: %ld -> %ld", (long)oldState, (long)self.currentState);
-    
-    if (self.currentState == SSBConnectionStateBoxStream) {
-        NSLog(@"[FSM] Notifying delegate of BoxStream transition...");
+    _currentState = nextState;
+    os_log_info(fsm_log, "State advanced: %ld -> %ld", (long)oldState, (long)_currentState);
+
+    if (_currentState == SSBConnectionStateBoxStream) {
         if ([self.delegate respondsToSelector:@selector(connectionFSMDidTransitionToBoxStream:)]) {
             [self.delegate connectionFSMDidTransitionToBoxStream:self];
         }

@@ -7,6 +7,7 @@
 #import "SSBQueryEngine.h"
 #import "SSBMuxRPC.h"
 #import "SSBKeychain.h"
+#import "../App/Logic/SRNotificationNames.h"
 #import "SSBSecretHandshake.h"
 #import "SSBBlobStore.h"
 #import "tweetnacl.h"
@@ -141,28 +142,30 @@ static os_log_t ssb_room_log;
     self.connection = nw_connection_create(endpoint, params);
     nw_connection_set_queue(self.connection, self.clientQueue);
     
+    __weak typeof(self) weakSelf = self;
     nw_connection_set_state_changed_handler(self.connection, ^(nw_connection_state_t state, nw_error_t error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+
         if (state == nw_connection_state_ready) {
-            NSLog(@"[ROOM_DIAG] Connection state: READY");
-            [self log:@"Connected and secured."];
-            self.isConnected = YES;
-            if ([self.delegate respondsToSelector:@selector(roomClientDidConnect:)]) {
+            os_log_info(ssb_room_log, "Connection state: READY");
+            [strongSelf log:@"Connected and secured."];
+            strongSelf.isConnected = YES;
+            if ([strongSelf.delegate respondsToSelector:@selector(roomClientDidConnect:)]) {
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    [self.delegate roomClientDidConnect:self];
+                    [strongSelf.delegate roomClientDidConnect:strongSelf];
                 });
             }
-            NSLog(@"[ROOM_DIAG] Calling startReceivingMessages");
-            [self startReceivingMessages];
-            NSLog(@"[ROOM_DIAG] Calling performInitialSetup");
-            [self performInitialSetup];
+            [strongSelf startReceivingMessages];
+            [strongSelf performInitialSetup];
         } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
-            NSLog(@"[ROOM_DIAG] Connection state changed: %d", state);
-            self.isConnected = NO;
-            if (self.autoReconnect && state == nw_connection_state_failed) {
-                [self scheduleReconnect];
+            os_log_info(ssb_room_log, "Connection state changed: %d", state);
+            strongSelf.isConnected = NO;
+            if (strongSelf.autoReconnect && state == nw_connection_state_failed) {
+                [strongSelf scheduleReconnect];
             }
         } else {
-            NSLog(@"[ROOM_DIAG] Connection state changed: %d", state);
+            os_log_info(ssb_room_log, "Connection state changed: %d", state);
         }
     });
     
@@ -170,43 +173,48 @@ static os_log_t ssb_room_log;
 }
 
 - (void)startReceivingMessages {
+    __weak typeof(self) weakSelf = self;
     nw_connection_receive_message(self.connection, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+
         if (error) {
-            NSLog(@"[ROOM_DIAG] Client %@: receive error: %@", self.host, error);
+            os_log_error(ssb_room_log, "Client %{public}@: receive error: %{public}@", strongSelf.host, error);
             return;
         }
-        
+
         if (content) {
-            NSLog(@"[ROOM_DIAG] Client: received content of length %zu", dispatch_data_get_size(content));
+            os_log_debug(ssb_room_log, "Client: received content of length %zu", dispatch_data_get_size(content));
             nw_protocol_metadata_t metadata = nw_content_context_copy_protocol_metadata(context, [SSBMuxRPCFramer createDefinition]);
             if (metadata) {
                 NSNumber *flagsObj = nw_framer_message_copy_object_value(metadata, "Flags");
                 NSNumber *reqNumObj = nw_framer_message_copy_object_value(metadata, "RequestNumber");
-                
+
                 if (flagsObj && reqNumObj) {
                     NSData *body = (NSData *)content;
-                    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:[flagsObj unsignedIntValue] 
-                                                                      requestNumber:[reqNumObj intValue] 
+                    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:[flagsObj unsignedIntValue]
+                                                                      requestNumber:[reqNumObj intValue]
                                                                                body:body];
-                    NSLog(@"[ROOM_DIAG] Client: Dispatching msg flags=%u req=%d len=%lu", [flagsObj unsignedIntValue], [reqNumObj intValue], (unsigned long)body.length);
-                    [self.rpcSession handleIncomingMessage:msg];
+                    [strongSelf.rpcSession handleIncomingMessage:msg];
                 } else {
-                    NSLog(@"[ROOM_DIAG] Client %@: Metadata present but missing values", self.host);
+                    os_log_debug(ssb_room_log, "Client %{public}@: Metadata present but missing values", strongSelf.host);
                 }
             } else {
-                NSLog(@"[ROOM_DIAG] Client %@: No MuxRPC metadata found", self.host);
+                os_log_debug(ssb_room_log, "Client %{public}@: No MuxRPC metadata found", strongSelf.host);
             }
         } else {
-            NSLog(@"[ROOM_DIAG] Client %@: nil content received, is_complete=%d", self.host, is_complete);
+            os_log_debug(ssb_room_log, "Client %{public}@: nil content received, is_complete=%d", strongSelf.host, is_complete);
         }
-        
-        [self startReceivingMessages];
+
+        if (strongSelf.isConnected) {
+            [strongSelf startReceivingMessages];
+        }
     });
 }
 
 - (void)sendRPCMessage:(SSBMuxRPCMessage *)msg {
     if (!self.isConnected) {
-        NSLog(@"[ROOM_DIAG] sendRPCMessage DROPPING msg: isConnected=NO");
+        os_log_debug(ssb_room_log, "sendRPCMessage DROPPING msg: isConnected=NO");
         return;
     }
     
@@ -219,7 +227,7 @@ static os_log_t ssb_room_log;
 }
 
 - (void)performInitialSetup {
-    NSLog(@"[ROOM_DIAG] Client: performInitialSetup starting");
+    os_log_debug(ssb_room_log, "Client: performInitialSetup starting");
     __weak typeof(self) weakSelf = self;
     
     [self sendRPCRequest:@[@"manifest"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
@@ -230,7 +238,7 @@ static os_log_t ssb_room_log;
         [weakSelf log:[NSString stringWithFormat:@"Identity: %@", response]];
     }];
     
-    __block BOOL metadataFinished = NO;
+    __block _Atomic BOOL metadataFinished = NO;
     [self sendRPCRequest:@[@"room", @"metadata"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (metadataFinished) return;
         metadataFinished = YES;
@@ -640,7 +648,6 @@ static os_log_t ssb_room_log;
         if (msg) {
             successCount++;
             SSBLogInfo(SSBLogCategorySync, @"   ✅ Published: seq=%ld type=%@", (long)msg.sequence, content[@"type"] ?: @"unknown");
-            [self.pendingPublishQueue removeObject:queuedItem];
         } else {
             SSBLogError(SSBLogCategorySync, @"   ❌ Failed to publish: %@", error.localizedDescription);
             [failedItems addObject:queuedItem];
@@ -662,23 +669,23 @@ static os_log_t ssb_room_log;
 }
 
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost {
-    NSLog(@"[EBT] replicateFromPeer: %@ via room: %@", peerID, roomHost);
+    os_log_debug(ssb_room_log, "replicateFromPeer: %{public}@ via room: %{public}@", peerID, roomHost);
     SSBLogInfo(SSBLogCategoryReplication, @"🔄 replicateFromPeer: %@ via room: %@", [peerID substringToIndex:MIN(8, peerID.length)], roomHost);
     
     SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
     if (tunnel) {
-        NSLog(@"[EBT] Found existing tunnel for %@, isConnected=%d", peerID, tunnel.isConnected);
+        os_log_debug(ssb_room_log, "Found existing tunnel for %{public}@, isConnected=%d", peerID, tunnel.isConnected);
     }
-    
+
     if (tunnel && tunnel.isConnected) {
-        NSLog(@"[EBT] Tunnel connected, starting EBT on tunnel session %p", tunnel.rpcSession);
+        os_log_debug(ssb_room_log, "Tunnel connected, starting EBT on tunnel session");
         [self startEBTReplicationWithSession:tunnel.rpcSession];
     } else if (!tunnel) {
-        NSLog(@"[EBT] No tunnel for %@, initiating connectToPeer:", peerID);
+        os_log_debug(ssb_room_log, "No tunnel for %{public}@, initiating connectToPeer:", peerID);
         [self reportSyncStatus:@"Connecting..." progress:0.0 author:peerID];
         [self connectToPeer:peerID];
     } else {
-        NSLog(@"[EBT] Tunnel exists but NOT connected yet for %@", peerID);
+        os_log_debug(ssb_room_log, "Tunnel exists but NOT connected yet for %{public}@", peerID);
         [self reportSyncStatus:@"Handshaking..." progress:0.1 author:peerID];
     }
 }
@@ -686,25 +693,23 @@ static os_log_t ssb_room_log;
 #pragma mark - Replication (EBT)
 
 - (void)startEBTReplicationWithSession:(SSBMuxRPCSession *)session {
-    NSLog(@"[EBT] startEBTReplicationWithSession called. Session=%p isEBTRunning=%d", session, self.isEBTRunning);
-    // if (self.isEBTRunning) return; // Temporarily disabled for multiple sessions
-    
+    if (self.isEBTRunning) return;
+
     NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
     NSDictionary *args = @{@"version": @3};
-    
+
     __weak typeof(self) weakSelf = self;
-    __block SSBRPCCallback ebtCallback;
-    ebtCallback = ^(id _Nullable response, NSError * _Nullable error) {
-        NSLog(@"[EBT] Completion block called for session %p. Error=%@", session, error);
+    SSBRPCCallback ebtCallback = ^(id _Nullable response, NSError * _Nullable error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
         if (error) {
             os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
-            weakSelf.isEBTRunning = NO;
+            strongSelf.isEBTRunning = NO;
             return;
         }
-        [weakSelf handleEBTMessage:response requestID:0 flags:0];
+        [strongSelf handleEBTMessage:response requestID:0 flags:0];
     };
-    
-    NSLog(@"[EBT] Sending ebt.replicate request over session %p... callback=%p", session, (__bridge void *)ebtCallback);
+
     self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
     
     session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
@@ -716,7 +721,7 @@ static os_log_t ssb_room_log;
     
     // Send initial clock
     [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
-    NSLog(@"[EBT] Started replication over session %p with clock of %lu feeds", session, (unsigned long)clock.count);
+    os_log_info(ssb_room_log, "Started EBT replication with clock of %lu feeds", (unsigned long)clock.count);
 }
 
 - (void)startEBTReplication {
@@ -725,9 +730,9 @@ static os_log_t ssb_room_log;
 
 - (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags {
     if (reqID != 0) {
-        NSLog(@"[EBT] handleEBTMessage: REMOTE REQUEST req=%d flags=%u type=%@ body=%@", reqID, flags, [message class], message);
+        os_log_debug(ssb_room_log, "handleEBTMessage: REMOTE REQUEST req=%d flags=%u", reqID, flags);
     } else {
-        NSLog(@"[EBT] handleEBTMessage: RESPONSE type=%@ body=%@", [message class], message);
+        os_log_debug(ssb_room_log, "handleEBTMessage: RESPONSE");
     }
 
     if ([message isKindOfClass:[NSDictionary class]]) {
@@ -736,7 +741,7 @@ static os_log_t ssb_room_log;
         // Check if this is an RPC request rather than an EBT payload
         if (dict[@"name"] && dict[@"args"]) {
             NSArray *name = dict[@"name"];
-            NSLog(@"[EBT]   Ignoring non-EBT RPC request: %@", name);
+            os_log_debug(ssb_room_log, "Ignoring non-EBT RPC request: %{public}@", name);
             // If it was ebt.replicate, we should handle it bilaterally, but for now we just skip to avoid clock corruption
             return;
         }
@@ -748,12 +753,12 @@ static os_log_t ssb_room_log;
         }
     } else if ([message isKindOfClass:[NSData class]]) {
         NSData *data = (NSData *)message;
-        NSLog(@"[EBT] Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
+        os_log_debug(ssb_room_log, "Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
         // Try to parse as JSON first in case it's a clock update in binary form
         NSError *jsonError = nil;
         id parsed = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&jsonError];
         if (!jsonError && [parsed isKindOfClass:[NSDictionary class]]) {
-             NSLog(@"[EBT]   Successfully parsed binary data as JSON dictionary");
+             os_log_debug(ssb_room_log, "Successfully parsed binary EBT data as JSON dictionary");
              [self handleEBTMessage:parsed requestID:reqID flags:flags];
         } else {
              [self processIncomingMessage:data];
@@ -762,13 +767,12 @@ static os_log_t ssb_room_log;
 }
 
 - (void)handleRemoteClockUpdate:(NSDictionary *)update {
-    NSLog(@"[EBT] Received clock update with %lu entries: %@", (unsigned long)update.count, update);
+    os_log_debug(ssb_room_log, "Received clock update with %lu entries", (unsigned long)update.count);
     [update enumerateKeysAndObjectsUsingBlock:^(id key, id val, BOOL *stop) {
-        NSLog(@"[EBT]   Processing entry: keyType=%@ valType=%@ key=%@ val=%@", [key class], [val class], key, val);
         if ([key isKindOfClass:[NSString class]] && [val isKindOfClass:[NSNumber class]]) {
             NSString *author = (NSString *)key;
             NSInteger seq = [val integerValue];
-            NSLog(@"[EBT]   Valid clock for %@ is %ld", author, (long)seq);
+            os_log_debug(ssb_room_log, "Valid clock for %{public}@ is %ld", author, (long)seq);
             self.remoteClock[author] = @(ABS(seq));
             [self updateSyncProgressForAuthor:author];
         }
@@ -802,7 +806,7 @@ static os_log_t ssb_room_log;
         NSError *error = nil;
         if ([self.feedStore appendMessage:msg error:&error]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"SRNewMessageNotification" object:nil];
+                [[NSNotificationCenter defaultCenter] postNotificationName:SRNewMessageNotification object:nil];
                 if ([self.delegate respondsToSelector:@selector(roomClient:didReplicateMessagesFromPeer:count:)]) {
                     [self.delegate roomClient:self didReplicateMessagesFromPeer:msg.author count:1];
                 }
@@ -851,7 +855,7 @@ static os_log_t ssb_room_log;
     self.internalPeerSyncStates[author] = status;
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRRoomSyncStatusChangedNotification"
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomSyncStatusChangedNotification
                                                             object:self
                                                           userInfo:@{@"author": author, @"status": status, @"progress": @(progress)}];
         
@@ -892,7 +896,7 @@ static os_log_t ssb_room_log;
     __block NSInteger replicatedCount = 0;
     int32_t reqID = [session sendRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
-            NSLog(@"[Client] Feed replication error for %@: %@", feedAuthor, error.localizedDescription);
+            os_log_error(ssb_room_log, "Feed replication error for %{public}@: %{public}@", feedAuthor, error.localizedDescription);
             dispatch_async(dispatch_get_main_queue(), ^{
                 if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
                     [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:feedAuthor];
@@ -916,7 +920,7 @@ static os_log_t ssb_room_log;
                 if ([self.feedStore appendMessage:msg error:nil]) {
                     replicatedCount++;
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRNewMessageNotification" object:nil];
+                        [[NSNotificationCenter defaultCenter] postNotificationName:SRNewMessageNotification object:nil];
                     });
                 }
             }
@@ -992,7 +996,7 @@ static os_log_t ssb_room_log;
     __weak typeof(self) weakSelf = self;
     SSBRPCCallback handler = ^(id _Nullable response, NSError * _Nullable error) {
         if (!error) {
-            NSLog(@"[Client] DEBUG: Got stream event for %@: %@", weakSelf.host, response);
+            os_log_debug(ssb_room_log, "Got stream event for %{public}@", weakSelf.host);
             [weakSelf handleAttendantsResponse:response];
         } else {
             [weakSelf log:[NSString stringWithFormat:@"Stream error for %@: %@", weakSelf.host, error.localizedDescription]];
@@ -1000,16 +1004,16 @@ static os_log_t ssb_room_log;
     };
     
     if ([self.roomFeatures containsObject:@"room2"]) {
-        [self log:@"[Client] Using Room v2 attendants discovery"];
+        [self log:@"Using Room v2 attendants discovery"];
         [self sendRPCRequest:@[@"room", @"attendants"] args:@[] type:@"source" completion:handler];
     } else {
-        [self log:@"[Client] Using legacy tunnel.endpoints discovery"];
+        [self log:@"Using legacy tunnel.endpoints discovery"];
         [self sendRPCRequest:@[@"tunnel", @"endpoints"] args:@[] type:@"source" completion:handler];
     }
 }
 
 - (void)handleAttendantsResponse:(id)response {
-    NSLog(@"[Client] Received attendants response: %@", response);
+    os_log_debug(ssb_room_log, "Received attendants response: %{public}@", response);
     // Legacy `tunnel.endpoints` (Room v1) returns a direct NSArray of peer IDs.
     if ([response isKindOfClass:[NSArray class]]) {
         [self.attendantsList removeAllObjects];
@@ -1049,7 +1053,7 @@ static os_log_t ssb_room_log;
     }
     
     if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateEndpoints:)]) {
-        NSLog(@"[Client] DEBUG: Notifying delegate of %lu endpoints for %@", (unsigned long)self.attendantsList.count, self.host);
+        os_log_debug(ssb_room_log, "Notifying delegate of %lu endpoints for %{public}@", (unsigned long)self.attendantsList.count, self.host);
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.delegate roomClient:self didUpdateEndpoints:[self.attendantsList copy]];
         });
@@ -1057,7 +1061,7 @@ static os_log_t ssb_room_log;
 }
 
 - (void)connectToPeer:(NSString *)targetPeerId {
-    NSLog(@"[Tunnel] connectToPeer: %@", targetPeerId);
+    os_log_debug(ssb_room_log, "connectToPeer: %{public}@", targetPeerId);
     NSString *base64Key = nil;
     if ([targetPeerId hasPrefix:@"@"] && [targetPeerId hasSuffix:@".ed25519"]) {
         base64Key = [targetPeerId substringWithRange:NSMakeRange(1, targetPeerId.length - 9)];
@@ -1292,7 +1296,6 @@ static os_log_t ssb_room_log;
 }
 
 - (void)log:(NSString *)msg {
-    NSLog(@"[ROOM_DIAG] %@", msg);
     os_log_info(ssb_room_log, "%{public}@", msg);
     if ([self.delegate respondsToSelector:@selector(roomClient:didLogMessage:)]) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1302,8 +1305,7 @@ static os_log_t ssb_room_log;
 }
 
 - (NSString *)localPublicID {
-    NSData *pkData = [self.localIdentitySecret subdataWithRange:NSMakeRange(32, 32)];
-    return [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+    return [SSBKeychain publicIDFromSecret:self.localIdentitySecret] ?: @"";
 }
 
 - (NSString *)serverPublicID {
@@ -1328,7 +1330,7 @@ static os_log_t ssb_room_log;
 + (void)resetLocalIdentity {
     [SSBKeychain deleteIdentitySecret];
     [SSBKeychain savePublishedMessageCount:0];
-    NSLog(@"[Client] Local identity reset. A new one will be generated on next connection.");
+    os_log_info(ssb_room_log, "Local identity reset. A new one will be generated on next connection.");
 }
 
 + (NSData *)generateLocalIdentity {
@@ -1340,10 +1342,10 @@ static os_log_t ssb_room_log;
     [SSBKeychain saveIdentitySecret:secret];
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRLocalIdentityGeneratedNotification" object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRLocalIdentityGeneratedNotification object:nil];
     });
     
-    NSLog(@"[Client] New local identity generated.");
+    os_log_info(ssb_room_log, "New local identity generated.");
     return secret;
 }
 

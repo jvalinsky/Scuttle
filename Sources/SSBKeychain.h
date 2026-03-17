@@ -24,6 +24,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (BOOL)clearAll;
 
+/// Returns the canonical SSB public ID string ("@<base64>.ed25519") derived from a
+/// 64-byte Ed25519 keypair secret. Returns nil if secret is shorter than 64 bytes.
++ (nullable NSString *)publicIDFromSecret:(NSData *)secret;
+
 @end
 
 NS_ASSUME_NONNULL_END

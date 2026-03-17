@@ -17,6 +17,12 @@
 #import <SSBNetwork/SSBBFE.h>
 #import <SSBNetwork/SSBBIPF.h>
 #import <SSBNetwork/SSBBendyButt.h>
+#import <SSBNetwork/SSBBencode.h>
+#import <SSBNetwork/SSBFeedCodec.h>
+#import <SSBNetwork/SSBFeedCodecRegistry.h>
+#import <SSBNetwork/SSBGabbyGrove.h>
+#import <SSBNetwork/SSBBamboo.h>
+#import <SSBNetwork/SSBButtwoo.h>
 #import <SSBNetwork/SSBMetafeed.h>
 #import <SSBNetwork/SSBIndexFeed.h>
 #import <SSBNetwork/RoomStorage.h>
@@ -26,3 +32,4 @@
 #import <SSBNetwork/SSBURI.h>
 #import <SSBNetwork/RoomInviteHandler.h>
 #import <SSBNetwork/tweetnacl.h>
+#import <SSBNetwork/blake2b.h>

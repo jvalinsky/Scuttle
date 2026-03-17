@@ -18,7 +18,7 @@ typedef NS_ENUM(NSInteger, SRFeedType) {
     SRFeedTypeGlobal
 };
 
-@interface SRFeedViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout>
+@interface SRFeedViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDelegateFlowLayout>
 
 @property (nonatomic, weak) id<SRFeedViewControllerDelegate> delegate;
 @property (nonatomic, assign) SRFeedType feedType;

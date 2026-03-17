@@ -6,6 +6,9 @@
 #import <SSBNetwork/SSBRoomClient.h>
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/SSBFeedStore.h>
+#import <os/log.h>
+
+static os_log_t prefs_log;
 
 @interface SRStorageUsageView : NSView
 @property (nonatomic, strong) NSDictionary<NSString *, NSNumber *> *stats;
@@ -67,6 +70,12 @@
 @end
 
 @implementation SRPreferencesViewController
+
++ (void)initialize {
+    if (self == [SRPreferencesViewController class]) {
+        prefs_log = os_log_create("com.scuttlebutt.app", "Preferences");
+    }
+}
 
 - (void)loadView {
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 600, 750)];
@@ -194,7 +203,7 @@
     NSString *name = self.displayNameField.stringValue;
     if (name.length == 0) return;
     
-    NSLog(@"[Prefs] Saving profile name: %@", name);
+    os_log_info(prefs_log, "Saving profile name: %{public}@", name);
     
     NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
     if (!localSecret || localSecret.length < 64) return;
