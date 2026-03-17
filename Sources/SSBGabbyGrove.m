@@ -16,7 +16,9 @@ static const int kGGFieldSignature    = 8; // bytes: Ed25519 signature (64 bytes
 
 // Protobuf wire types
 static const int kWireTypeVarint          = 0;
+static const int kWireType64Bit           = 1;
 static const int kWireTypeLengthDelimited = 2;
+static const int kWireType32Bit           = 5;
 
 @implementation SSBGabbyGrove
 
@@ -217,8 +219,16 @@ static BOOL parseMessage(NSData *data, GGMessage *msg) {
                 default: break; // unknown field, skip
             }
             offset += (NSUInteger)fieldLen;
+        } else if (wireType == kWireType64Bit) {
+            // 64-bit fixed field (wire type 1) — skip 8 bytes
+            if (offset + 8 > length) return NO;
+            offset += 8;
+        } else if (wireType == kWireType32Bit) {
+            // 32-bit fixed field (wire type 5) — skip 4 bytes
+            if (offset + 4 > length) return NO;
+            offset += 4;
         } else {
-            // Unsupported wire type — treat as parse failure
+            // Wire types 3, 4, 6, 7 are deprecated/reserved — treat as parse failure
             return NO;
         }
     }

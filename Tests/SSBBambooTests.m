@@ -266,12 +266,12 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
     XCTAssertNil([SSBBamboo computeEntryID:[NSData dataWithLength:176]]);
 }
 
-- (void)testComputeEntryID_validEntry_returns96Bytes {
+- (void)testComputeEntryID_validEntry_returns32Bytes {
     NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
     NSData *entryID = [SSBBamboo computeEntryID:entry];
     XCTAssertNotNil(entryID);
-    // Entry ID = BLAKE2b-256(first 32 bytes) || signature = 32 + 64 = 96 bytes
-    XCTAssertEqual(entryID.length, 96u);
+    // Entry ID = BLAKE2b-256(full entry bytes) = 32 bytes
+    XCTAssertEqual(entryID.length, 32u);
 }
 
 - (void)testComputeEntryID_deterministic {
@@ -292,15 +292,11 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
 }
 
 - (void)testComputeEntryID_structure {
-    // The first 32 bytes of the entry ID should be BLAKE2b-256 of author bytes
+    // Entry ID = BLAKE2b-256(full entry bytes)
     NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
     NSData *entryID = [SSBBamboo computeEntryID:entry];
-
-    // Verify first 32 bytes match BLAKE2b-256 of first 32 bytes of entry (author)
-    NSData *authorBytes = [entry subdataWithRange:NSMakeRange(0, 32)];
-    NSData *expectedHash = [SSBBamboo hashData:authorBytes];
-    NSData *entryIDHashPart = [entryID subdataWithRange:NSMakeRange(0, 32)];
-    XCTAssertEqualObjects(entryIDHashPart, expectedHash);
+    NSData *expectedHash = [SSBBamboo hashData:entry];
+    XCTAssertEqualObjects(entryID, expectedHash);
 }
 
 #pragma mark - SSBFeedCodec Protocol Conformance
@@ -334,7 +330,7 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
     NSError *error = nil;
     NSData *key = [[SSBBamboo sharedCodec] computeMessageKeyFromData:entry error:&error];
     XCTAssertNotNil(key);
-    XCTAssertEqual(key.length, 96u);
+    XCTAssertEqual(key.length, 32u);
     XCTAssertNil(error);
 }
 

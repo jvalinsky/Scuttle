@@ -2,7 +2,6 @@
 #import "SSBFeedCodecRegistry.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
-#import "blake2b.h"
 #import <CommonCrypto/CommonCrypto.h>
 #import <CommonCrypto/CommonHMAC.h>
 
@@ -396,11 +395,10 @@ static const NSUInteger kMaxMessageSize = 8192;
         return nil;
     }
 
-    uint8_t digest[32];
-    if (blake2b256(digest, messageData.bytes, messageData.length) != 0) {
-        return nil;
-    }
-    return [NSData dataWithBytes:digest length:32];
+    // Spec: key = SHA256([payload, signature]) — ssbc/bendy-butt-spec
+    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(messageData.bytes, (CC_LONG)messageData.length, digest);
+    return [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
 }
 
 #pragma mark - Content Signing

@@ -242,43 +242,8 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
     if (!entryData || entryData.length < kBambooMinSize) {
         return nil;
     }
-
-    // Determine signature offset based on seq number
-    const uint8_t *bytes = (const uint8_t *)entryData.bytes;
-    uint64_t seqBE = 0;
-    memcpy(&seqBE, bytes + kSeqOffset, 8);
-    uint64_t seq = CFSwapInt64BigToHost(seqBE);
-
-    NSUInteger sigOffset = (seq == 1) ? kSigOffsetSeq1 : kSigOffsetSeqN;
-
-    if (entryData.length < sigOffset + crypto_sign_BYTES) {
-        return nil;
-    }
-
-    // SHA-256 of the first 32 bytes of the entry data (hash portion)
-    NSData *hashInput = [entryData subdataWithRange:NSMakeRange(0, 32)];
-    NSData *hashPart  = [self hashData:hashInput];
-    if (!hashPart) {
-        return nil;
-    }
-
-    // Signature bytes (64 bytes)
-    NSData *sigPart = [entryData subdataWithRange:NSMakeRange(sigOffset, crypto_sign_BYTES)];
-
-    // Entry ID = hash (32 bytes) || signature (64 bytes) = 96 bytes total
-    // But the spec says 64 bytes total (hash + sig). SHA-256 is 32 bytes, sig is 64 bytes = 96.
-    // The header says "64 bytes (entry hash + signature)" — the hash here must be 0 bytes of
-    // the SHA-256 portion, OR the spec intends 32-byte hash + 32-byte sig truncation.
-    // Re-reading: "Message IDs are 64 bytes (entry hash + signature)" in the header comment,
-    // but computeEntryID spec says: "SHA-256 of the entry data (first 32 bytes), concatenated
-    // with the 64-byte signature" -> Returns 64 bytes total.
-    // SHA-256 is 32 bytes; 32 + 64 = 96, not 64.
-    // The most consistent interpretation: the "64 bytes" in the header is approximate/wrong,
-    // and the actual implementation per spec body is 32+64=96 bytes. We follow the spec body.
-    NSMutableData *entryID = [NSMutableData dataWithData:hashPart];
-    [entryID appendData:sigPart];
-
-    return [entryID copy];
+    // Spec: entry ID = BLAKE2b-256 of the full entry bytes (32 bytes)
+    return [self hashData:entryData];
 }
 
 @end
