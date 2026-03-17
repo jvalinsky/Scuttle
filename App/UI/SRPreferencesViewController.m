@@ -2,6 +2,7 @@
 #import "SRProfileHeaderView.h"
 #import "SRSeedBackupViewController.h"
 #import "SRSeedRecoveryViewController.h"
+#import "SRDevicePairingViewController.h"
 #import "../Logic/SRRoomManager.h"
 #import <SSBNetwork/SSBNetwork.h>
 #import <SSBNetwork/SSBKeychain.h>
@@ -68,6 +69,8 @@ static os_log_t prefs_log;
 @property (nonatomic, strong) NSButton *resetButton;
 @property (nonatomic, strong) NSButton *backupSeedButton;
 @property (nonatomic, strong) NSButton *recoverSeedButton;
+@property (nonatomic, strong) NSButton *rotateFeedKeyButton;
+@property (nonatomic, strong) NSButton *manageDevicesButton;
 @property (nonatomic, strong) NSButton *devButton;
 @property (nonatomic, strong) SRStorageUsageView *usageView;
 @property (nonatomic, strong) NSTextField *usageLegend;
@@ -149,6 +152,20 @@ static os_log_t prefs_log;
     self.recoverSeedButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.recoverSeedButton];
 
+    self.rotateFeedKeyButton = [NSButton buttonWithTitle:@"Rotate Feed Key…"
+                                                  target:self
+                                                  action:@selector(rotateFeedKeyAction:)];
+    self.rotateFeedKeyButton.bezelStyle = NSBezelStyleRounded;
+    self.rotateFeedKeyButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.rotateFeedKeyButton];
+
+    self.manageDevicesButton = [NSButton buttonWithTitle:@"Manage Devices…"
+                                                  target:self
+                                                  action:@selector(manageDevicesAction:)];
+    self.manageDevicesButton.bezelStyle = NSBezelStyleRounded;
+    self.manageDevicesButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.manageDevicesButton];
+
     self.devButton = [NSButton buttonWithTitle:@"Show Developer Panel" target:self action:@selector(showDevPanelAction:)];
     self.devButton.bezelStyle = NSBezelStyleRounded;
     self.devButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -193,7 +210,13 @@ static os_log_t prefs_log;
         [self.recoverSeedButton.topAnchor constraintEqualToAnchor:self.wipeButton.bottomAnchor constant:14],
         [self.recoverSeedButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
 
-        [self.devButton.topAnchor constraintEqualToAnchor:self.backupSeedButton.bottomAnchor constant:20],
+        [self.rotateFeedKeyButton.topAnchor constraintEqualToAnchor:self.backupSeedButton.bottomAnchor constant:14],
+        [self.rotateFeedKeyButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:40],
+
+        [self.manageDevicesButton.topAnchor constraintEqualToAnchor:self.backupSeedButton.bottomAnchor constant:14],
+        [self.manageDevicesButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-40],
+
+        [self.devButton.topAnchor constraintEqualToAnchor:self.rotateFeedKeyButton.bottomAnchor constant:20],
         [self.devButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor]
     ]];
     
@@ -280,6 +303,55 @@ static os_log_t prefs_log;
 - (void)recoverSeedAction:(id)sender {
     SRSeedRecoveryViewController *vc = [[SRSeedRecoveryViewController alloc] init];
     [self presentViewControllerAsSheet:vc];
+}
+
+- (void)manageDevicesAction:(id)sender {
+    SRDevicePairingViewController *vc = [[SRDevicePairingViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
+}
+
+- (void)rotateFeedKeyAction:(id)sender {
+    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
+    NSString *classicFeedID = [SSBKeychain publicIDFromSecret:identitySecret];
+    if (!classicFeedID) {
+        NSAlert *err = [[NSAlert alloc] init];
+        err.messageText = @"No Identity";
+        err.informativeText = @"No local identity found. Please reset and create a new one.";
+        [err runModal];
+        return;
+    }
+
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Rotate Feed Key?";
+    alert.informativeText =
+        @"This will derive a new sub-feed key under your metafeed and tombstone the current "
+        @"feed. Your social graph and published content are preserved via your metafeed. "
+        @"Peers that replicate your metafeed will automatically discover the new key.\n\n"
+        @"This action cannot be undone.";
+    [alert addButtonWithTitle:@"Rotate Key"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleWarning;
+
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+    self.rotateFeedKeyButton.enabled = NO;
+    [[SRRoomManager sharedManager] replaceSubfeed:classicFeedID
+                                       completion:^(NSString *newFeedID, NSError *error) {
+        self.rotateFeedKeyButton.enabled = YES;
+        if (error) {
+            NSAlert *errAlert = [[NSAlert alloc] init];
+            errAlert.messageText = @"Key Rotation Failed";
+            errAlert.informativeText = error.localizedDescription;
+            [errAlert runModal];
+        } else {
+            NSAlert *ok = [[NSAlert alloc] init];
+            ok.messageText = @"Key Rotated";
+            ok.informativeText = [NSString stringWithFormat:
+                @"New feed key active: %@\n\nPeers will replicate your new feed automatically.",
+                newFeedID ?: @"(unknown)"];
+            [ok runModal];
+        }
+    }];
 }
 
 - (void)showDevPanelAction:(id)sender {

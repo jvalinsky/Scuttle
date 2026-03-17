@@ -132,6 +132,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the local feed store.
 @property (nonatomic, readonly) SSBFeedStore *feedStore;
 
+/// Verifies feed integrity for a GabbyGrove or Bamboo feed using the lipmaa skip-list.
+/// Walks backwards from the tip via lipmaa links (O(log n) messages) and validates
+/// each entry's signature. Calls completion on a background queue with verified=YES/NO.
+- (void)verifyFeedIntegrity:(NSString *)feedID
+                     author:(NSString *)author
+                     format:(SSBBFEFeedFormat)format
+                 completion:(void(^)(BOOL verified, NSError * _Nullable error))completion;
+
 /// Manually trigger replication from a peer via a room.
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost;
 

@@ -13,6 +13,10 @@
 @property (nonatomic, strong) NSButton *backButton;
 @property (nonatomic, strong) NSTextField *emptyLabel;
 @property (nonatomic, strong) NSProgressIndicator *progressIndicator;
+/// Badge shown in the top-left when viewing a single author's feed that has been lipmaa-verified.
+@property (nonatomic, strong) NSTextField *integrityBadge;
+/// Set of author IDs whose feeds have passed lipmaa integrity checks.
+@property (nonatomic, strong) NSMutableSet<NSString *> *verifiedAuthors;
 @end
 
 @implementation SRFeedViewController
@@ -28,6 +32,7 @@
     [super viewDidLoad];
 
     self.messagesByKey = [NSMutableDictionary dictionary];
+    self.verifiedAuthors = [NSMutableSet set];
 
     NSCollectionViewFlowLayout *layout = [[NSCollectionViewFlowLayout alloc] init];
     layout.minimumLineSpacing = 12;
@@ -88,6 +93,14 @@
     self.progressIndicator.displayedWhenStopped = NO;
     [self.view addSubview:self.progressIndicator];
 
+    // Integrity badge — shown when a GabbyGrove/Bamboo author's feed is lipmaa-verified.
+    self.integrityBadge = [NSTextField labelWithString:@"Verified"];
+    self.integrityBadge.font = [NSFont boldSystemFontOfSize:10];
+    self.integrityBadge.textColor = [NSColor systemGreenColor];
+    self.integrityBadge.translatesAutoresizingMaskIntoConstraints = NO;
+    self.integrityBadge.hidden = YES;
+    [self.view addSubview:self.integrityBadge];
+
     [NSLayoutConstraint activateConstraints:@[
         [self.emptyLabel.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
         [self.emptyLabel.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
@@ -95,12 +108,35 @@
         [self.emptyLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.trailingAnchor constant:-40],
 
         [self.progressIndicator.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [self.progressIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor]
+        [self.progressIndicator.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+
+        [self.integrityBadge.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:14],
+        [self.integrityBadge.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20]
     ]];
 
     [self refreshFeed];
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshFeed) name:SRNewMessageNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(feedIntegrityDidUpdate:)
+                                                 name:SRFeedIntegrityDidUpdateNotification
+                                               object:nil];
+}
+
+- (void)feedIntegrityDidUpdate:(NSNotification *)note {
+    NSString *author = note.userInfo[@"author"];
+    BOOL verified = [note.userInfo[@"verified"] boolValue];
+    if (verified) {
+        [self.verifiedAuthors addObject:author];
+    } else {
+        [self.verifiedAuthors removeObject:author];
+    }
+    // Refresh the badge if we are currently showing this author's feed.
+    if (self.filterAuthor && [self.filterAuthor isEqualToString:author]) {
+        self.integrityBadge.stringValue = verified ? @"Verified" : @"Unverified";
+        self.integrityBadge.textColor = verified ? [NSColor systemGreenColor] : [NSColor systemOrangeColor];
+        self.integrityBadge.hidden = NO;
+    }
 }
 
 #pragma mark - Data loading
@@ -137,6 +173,15 @@
 
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
+            // Update the integrity badge for the displayed author.
+            if (strongSelf.filterAuthor) {
+                BOOL verified = [strongSelf.verifiedAuthors containsObject:strongSelf.filterAuthor];
+                strongSelf.integrityBadge.stringValue = verified ? @"Verified" : @"Unverified";
+                strongSelf.integrityBadge.textColor = verified ? [NSColor systemGreenColor] : [NSColor systemOrangeColor];
+                strongSelf.integrityBadge.hidden = NO;
+            } else {
+                strongSelf.integrityBadge.hidden = YES;
+            }
             if (!strongSelf) return;
             [strongSelf applySnapshotWithMessages:newMessages];
             strongSelf.emptyLabel.hidden = (newMessages.count > 0);

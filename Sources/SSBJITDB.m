@@ -11,6 +11,10 @@ static NSString * const kIndexMetaFilename = @"index.meta";
     NSString *_directory;
     /// How many records have been indexed so far. dbQueue only.
     uint64_t _indexedRecordCount;
+    /// Dirty flag: YES when indexes have been updated but not yet saved to disk.
+    BOOL _dirty;
+    /// Coalescing timer that fires saveIndexes 250 ms after the last append.
+    dispatch_source_t _saveTimer;
 }
 @property (nonatomic, strong) dispatch_queue_t dbQueue;
 @end
@@ -118,6 +122,32 @@ static NSString * const kIndexMetaFilename = @"index.meta";
     [metaData writeToFile:metaPath atomically:YES];
 }
 
+#pragma mark - Index save scheduling (C1)
+
+/// Schedule a coalesced index save 250 ms from now. Must be called from dbQueue.
+- (void)scheduleIndexSave {
+    if (_saveTimer) {
+        dispatch_source_cancel(_saveTimer);
+        _saveTimer = nil;
+    }
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, self.dbQueue);
+    dispatch_source_set_timer(timer,
+                              dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC),
+                              DISPATCH_TIME_FOREVER,
+                              10 * NSEC_PER_MSEC);
+    __weak typeof(self) wself = self;
+    dispatch_source_set_event_handler(timer, ^{
+        __strong typeof(wself) sself = wself;
+        if (!sself) return;
+        [sself saveIndexes];
+        dispatch_source_cancel(sself->_saveTimer);
+        sself->_saveTimer = nil;
+    });
+    dispatch_resume(timer);
+    _saveTimer = timer;
+    _dirty = YES;
+}
+
 #pragma mark - Public API
 
 - (void)appendMessage:(NSDictionary *)message completion:(void(^)(uint64_t, NSError *))completion {
@@ -143,11 +173,66 @@ static NSString * const kIndexMetaFilename = @"index.meta";
                 }
                 [self updateIndexesForMessage:message atSequence:recordIndex];
                 self->_indexedRecordCount = recordIndex + 1;
-                [self saveIndexes];
+                // C1: coalesce — schedule a save instead of writing on every append.
+                [self scheduleIndexSave];
                 completion(recordIndex, nil);
             });
         }];
     });
+}
+
+- (void)appendMessages:(NSArray<NSDictionary *> *)messages completion:(void(^)(NSError *))completion {
+    if (messages.count == 0) {
+        if (completion) completion(nil);
+        return;
+    }
+    dispatch_async(self.dbQueue, ^{
+        [self _batchAppend:messages index:0 firstError:nil completion:completion];
+    });
+}
+
+/// Recursive helper that chains log appends one at a time, accumulating the first error.
+/// Saves indexes once after all messages have been processed. Must be called from dbQueue.
+- (void)_batchAppend:(NSArray<NSDictionary *> *)messages
+               index:(NSUInteger)index
+          firstError:(NSError *)firstError
+          completion:(void(^)(NSError *))completion {
+    if (index >= messages.count) {
+        // All messages processed — save indexes a single time for the whole batch.
+        [self saveIndexes];
+        if (completion) {
+            NSError *err = firstError;
+            dispatch_async(dispatch_get_main_queue(), ^{ completion(err); });
+        }
+        return;
+    }
+
+    NSDictionary *message = messages[index];
+    NSData *bipf = [SSBBIPF encode:message];
+    if (!bipf) {
+        NSError *encodeError = firstError ?: [NSError errorWithDomain:@"JITDB" code:1
+            userInfo:@{NSLocalizedDescriptionKey: @"Failed to encode message to BIPF"}];
+        [self _batchAppend:messages index:index + 1 firstError:encodeError completion:completion];
+        return;
+    }
+
+    uint32_t length = (uint32_t)bipf.length;
+    NSMutableData *recordData = [NSMutableData dataWithCapacity:sizeof(uint32_t) + length];
+    [recordData appendBytes:&length length:sizeof(uint32_t)];
+    [recordData appendData:bipf];
+
+    [self->_log appendRecord:recordData completion:^(uint64_t recordIndex, NSError *error) {
+        dispatch_async(self.dbQueue, ^{
+            NSError *nextError = firstError;
+            if (!error) {
+                [self updateIndexesForMessage:message atSequence:recordIndex];
+                self->_indexedRecordCount = recordIndex + 1;
+            } else if (!nextError) {
+                nextError = error;
+            }
+            [self _batchAppend:messages index:index + 1 firstError:nextError completion:completion];
+        });
+    }];
 }
 
 - (SSBBitset *)query:(NSDictionary *)query {
@@ -243,9 +328,16 @@ static NSString * const kIndexMetaFilename = @"index.meta";
 }
 
 - (void)close {
-    // Flush indexes before releasing the log.
+    // Cancel any pending coalesced save and flush synchronously before closing.
     dispatch_sync(self.dbQueue, ^{
-        [self saveIndexes];
+        if (self->_saveTimer) {
+            dispatch_source_cancel(self->_saveTimer);
+            self->_saveTimer = nil;
+        }
+        if (self->_dirty) {
+            [self saveIndexes];
+            self->_dirty = NO;
+        }
     });
     [_log close];
 }
