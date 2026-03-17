@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "SSBMessage.h"
 #import "SSBFeedStore.h"
 #import "SSBGitObjectStore.h"
 

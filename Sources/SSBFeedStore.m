@@ -11,12 +11,6 @@ static os_log_t ssb_feedstore_log;
 static NSString *const SSBFeedStoreErrorDomain = @"SSBFeedStore";
 static const NSInteger kCurrentSchemaVersion = 4;
 
-@implementation SSBMessage
-@end
-
-@implementation SSBFeedState
-@end
-
 @interface SSBFeedStore () {
     sqlite3 *_db;
 }

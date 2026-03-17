@@ -1,7 +1,6 @@
 #import "SSBThread.h"
 #import "SSBTangle.h"
 #import "SSBMessageCodec.h"
-#import "SSBFeedStore.h"
 
 @interface SSBThread ()
 @property (nonatomic, strong) SSBMessage *root;

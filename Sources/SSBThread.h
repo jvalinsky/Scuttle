@@ -1,8 +1,7 @@
 #import <Foundation/Foundation.h>
+#import "SSBMessage.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-@class SSBMessage;
 
 @interface SSBThread : NSObject
 
