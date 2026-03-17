@@ -86,6 +86,25 @@ static NSData *BTWBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 
 #pragma mark - BLAKE3 known-answer test
 
+- (void)testBlake3_256_knownVector_buttwooInput {
+    // BLAKE3-256 of zero author key (32 bytes) || seq=1 big-endian (8 bytes)
+    // Computed by compiling blake3.c against a standalone driver; cross-check with
+    // `python3 -c "import sys; sys.stdout.buffer.write(b'\x00'*32+(1).to_bytes(8,'big'))"| b3sum`
+    static const uint8_t expected[32] = {
+        0x3f, 0xf4, 0x09, 0x50, 0xdd, 0x84, 0x0e, 0xc9,
+        0x05, 0x00, 0xc1, 0xa1, 0x91, 0xf8, 0x3d, 0x72,
+        0xbc, 0x8f, 0x27, 0x12, 0xd3, 0x91, 0xdf, 0xe1,
+        0x74, 0x07, 0x26, 0x1a, 0x5f, 0x2d, 0x46, 0x0c
+    };
+    uint8_t in[40] = {0};
+    in[39] = 1; /* seq=1, big-endian */
+    uint8_t out[32];
+    int ret = blake3_256(out, in, 40);
+    XCTAssertEqual(ret, 0);
+    XCTAssertEqual(memcmp(out, expected, 32), 0,
+                   @"BLAKE3 buttwoo 40-byte input vector mismatch");
+}
+
 - (void)testBlake3_256_knownVector_emptyInput {
     // BLAKE3("") from the official test vectors:
     // https://github.com/BLAKE3-team/BLAKE3/blob/master/test_vectors/test_vectors.json
