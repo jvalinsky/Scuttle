@@ -12,6 +12,9 @@ static NSString * const kServiceName = @"com.scuttlekit.identity";
 static NSString * const kIdentityKey = @"ssb_identity_secret";
 static NSString * const kNetworkKey = @"ssb_network_key";
 static NSString * const kMessageCountKey = @"ssb_published_count";
+static NSString * const kMetafeedSeedKey = @"ssb_metafeed_seed";
+static NSString * const kMetafeedRootIDKey = @"ssb_metafeed_root_id";
+static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 
 @implementation SSBKeychain
 
@@ -107,10 +110,59 @@ static NSString * const kMessageCountKey = @"ssb_published_count";
 #pragma mark - Clear All
 
 + (BOOL)clearAll {
-    BOOL identityResult = [self deleteIdentitySecret];
-    BOOL networkResult = [self deleteNetworkKey];
-    BOOL countResult = [self deleteDataForKey:kMessageCountKey];
-    return identityResult && networkResult && countResult;
+    BOOL identityResult  = [self deleteIdentitySecret];
+    BOOL networkResult   = [self deleteNetworkKey];
+    BOOL countResult     = [self deleteDataForKey:kMessageCountKey];
+    BOOL seedResult      = [self deleteMetafeedSeed];
+    BOOL rootIDResult    = [self deleteMetafeedRootID];
+    BOOL announcedResult = [self deleteMetafeedAnnounced];
+    return identityResult && networkResult && countResult && seedResult && rootIDResult && announcedResult;
+}
+
+#pragma mark - Metafeed
+
++ (nullable NSData *)loadMetafeedSeed {
+    return [self loadDataForKey:kMetafeedSeedKey];
+}
+
++ (BOOL)saveMetafeedSeed:(NSData *)seed {
+    return [self saveData:seed forKey:kMetafeedSeedKey];
+}
+
++ (BOOL)deleteMetafeedSeed {
+    return [self deleteDataForKey:kMetafeedSeedKey];
+}
+
++ (nullable NSString *)loadMetafeedRootID {
+    NSData *data = [self loadDataForKey:kMetafeedRootIDKey];
+    if (!data) return nil;
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
++ (BOOL)saveMetafeedRootID:(NSString *)rootID {
+    NSData *data = [rootID dataUsingEncoding:NSUTF8StringEncoding];
+    return data ? [self saveData:data forKey:kMetafeedRootIDKey] : NO;
+}
+
++ (BOOL)deleteMetafeedRootID {
+    return [self deleteDataForKey:kMetafeedRootIDKey];
+}
+
++ (BOOL)loadMetafeedAnnounced {
+    NSData *data = [self loadDataForKey:kMetafeedAnnouncedKey];
+    if (!data || data.length < 1) return NO;
+    uint8_t val;
+    [data getBytes:&val length:1];
+    return val != 0;
+}
+
++ (BOOL)saveMetafeedAnnounced:(BOOL)announced {
+    uint8_t val = announced ? 1 : 0;
+    return [self saveData:[NSData dataWithBytes:&val length:1] forKey:kMetafeedAnnouncedKey];
+}
+
++ (BOOL)deleteMetafeedAnnounced {
+    return [self deleteDataForKey:kMetafeedAnnouncedKey];
 }
 
 + (nullable NSString *)publicIDFromSecret:(NSData *)secret {

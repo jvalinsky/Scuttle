@@ -4,6 +4,7 @@
 #import <Cocoa/Cocoa.h>
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBRoomClient.h"
+#import "../../Sources/SSBMetafeed.h"
 #import <SSBNetwork/SSBKeychain.h>
 #import "RoomInviteHandler.h"
 #import <os/log.h>
@@ -19,6 +20,8 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBRoomClient *> *internalClients;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray<NSString *> *> *internalRoomEndpoints;
 @property (nonatomic, strong) dispatch_queue_t managerQueue;
+/// Set during bootstrap when a metafeed/announce message still needs to be published.
+@property (nonatomic, assign) BOOL needsMetafeedAnnounce;
 @end
 
 @implementation SRRoomManager
@@ -50,7 +53,10 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
         for (RoomConfig *config in _internalRooms) {
             [self connectToRoom:config];
         }
-        
+
+        // Bootstrap metafeed for existing accounts that predate metafeed support.
+        [self bootstrapMetafeedIfNeeded];
+
         // UI is notified via viewDidLoad pulling state after observers are registered
     }
     return self;
@@ -172,6 +178,32 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     });
 }
 
+- (void)roomClientDidSyncLocalFeed:(SSBRoomClient *)client {
+    if (!self.needsMetafeedAnnounce) return;
+
+    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
+    NSString *classicFeedID = [SSBKeychain publicIDFromSecret:identitySecret];
+    NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+    if (!classicFeedID || !metafeedRootID) return;
+
+    NSDictionary *content = [SSBMetafeed createMetafeedAnnounceMessage:metafeedRootID
+                                                            onMainFeed:classicFeedID
+                                                             secretKey:identitySecret];
+    if (!content) return;
+
+    NSError *publishError;
+    SSBMessage *published = [client publishLocalMessageWithContent:content error:&publishError];
+    if (published) {
+        [SSBKeychain saveMetafeedAnnounced:YES];
+        self.needsMetafeedAnnounce = NO;
+        os_log_info(ssb_room_log, "Metafeed announce published on classic feed: %{public}@", metafeedRootID);
+    } else {
+        os_log_error(ssb_room_log, "Metafeed announce publish failed: %{public}@",
+                     publishError.localizedDescription);
+        // Leave needsMetafeedAnnounce = YES; will retry on the next sync.
+    }
+}
+
 - (void)disconnectFromRoom:(NSString *)host {
     SSBRoomClient *client = self.internalClients[host];
     [client disconnect];
@@ -203,8 +235,9 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 
     [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
 
-    // Generate new identity immediately
+    // Generate new identity and bootstrap its metafeed.
     [SSBRoomClient generateLocalIdentity];
+    [self bootstrapMetafeedIfNeeded];
 
     dispatch_async(dispatch_get_main_queue(), ^{
         NSAlert *alert = [[NSAlert alloc] init];
@@ -212,6 +245,44 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
         alert.informativeText = @"Identity and Database have been wiped. A new identity has been generated and the UI has been updated.";
         [alert runModal];
     });
+}
+
+#pragma mark - Metafeed Bootstrap
+
+- (void)bootstrapMetafeedIfNeeded {
+    // Nothing to do if a seed is already stored.
+    if ([SSBKeychain loadMetafeedSeed]) {
+        // Still need to re-arm the announce flag if it was never published
+        // (e.g. app was killed between bootstrap and first successful sync).
+        if (![SSBKeychain loadMetafeedAnnounced]) {
+            self.needsMetafeedAnnounce = YES;
+        }
+        return;
+    }
+
+    // No identity = nothing to bootstrap yet; called again after generateLocalIdentity.
+    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
+    if (!identitySecret) return;
+
+    NSData *seed = [SSBMetafeed generateSeed];
+    if (!seed) {
+        os_log_error(ssb_room_log, "Metafeed bootstrap: failed to generate seed");
+        return;
+    }
+
+    SSBMetafeed *rootMetafeed = [SSBMetafeed createRootMetafeedFromSeed:seed];
+    if (!rootMetafeed) {
+        os_log_error(ssb_room_log, "Metafeed bootstrap: failed to derive root metafeed");
+        return;
+    }
+
+    if (![SSBKeychain saveMetafeedSeed:seed] || ![SSBKeychain saveMetafeedRootID:rootMetafeed.ID]) {
+        os_log_error(ssb_room_log, "Metafeed bootstrap: failed to save to keychain");
+        return;
+    }
+
+    self.needsMetafeedAnnounce = YES;
+    os_log_info(ssb_room_log, "Metafeed bootstrapped: %{public}@", rootMetafeed.ID);
 }
 
 - (void)removeRoom:(RoomConfig *)config {
