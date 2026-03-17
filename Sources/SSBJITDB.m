@@ -39,7 +39,11 @@ static NSString * const kIndexMetaFilename = @"index.meta";
         _bitsetIndexes = [NSMutableDictionary dictionary];
         _prefixIndexes = [NSMutableDictionary dictionary];
 
-        [self loadIndexes];
+        // Run index loading on dbQueue so that all subsequent index access
+        // (including reindexing) is on the same serial queue that owns the indexes.
+        dispatch_sync(_dbQueue, ^{
+            [self loadIndexes];
+        });
     }
     return self;
 }
@@ -92,7 +96,7 @@ static NSString * const kIndexMetaFilename = @"index.meta";
 }
 
 - (void)updateIndexesForMessage:(NSDictionary *)message atSequence:(uint64_t)seq {
-    // Must be called from dbQueue (or during init before dbQueue is shared).
+    dispatch_assert_queue(self.dbQueue);
     NSString *author = message[@"author"];
     if (author) {
         [[self prefixIndexForField:@"author" capacity:1000000] addValue:author atSequence:seq];
@@ -105,7 +109,7 @@ static NSString * const kIndexMetaFilename = @"index.meta";
 }
 
 - (void)saveIndexes {
-    // Must be called from dbQueue (or during init/close before dbQueue is shared).
+    dispatch_assert_queue(self.dbQueue);
     [_bitsetIndexes enumerateKeysAndObjectsUsingBlock:^(NSString *key, SSBBitset *obj, BOOL *stop) {
         NSString *path = [self->_directory stringByAppendingPathComponent:
                           [key stringByAppendingPathExtension:@"bitset"]];
@@ -243,33 +247,34 @@ static NSString * const kIndexMetaFilename = @"index.meta";
         uint64_t recordCount = self->_log.recordCount;
         uint64_t capacity = recordCount > 0 ? recordCount : 1000000;
 
-        // --- Indexed constraints ---
-        // For the prefix (author) index: start with a universe bitset, filter in-place.
-        // For bitset (type) indexes: copy or AND into result.
-        NSString *author = query[@"author"];
-        if (author) {
-            SSBPrefixIndex *pIndex = [self prefixIndexForField:@"author" capacity:capacity];
-            result = [[SSBBitset alloc] initWithCapacity:capacity];
-            [result not]; // universe: all bits set
-            [pIndex filterBitset:result withValue:author];
-            [unindexedConstraints removeObjectForKey:@"author"];
-        }
+        // --- Indexed constraints (intersection-first, B1 fix) ---
+        // Apply the type bitset index first — it produces a small candidate set directly
+        // without scanning any records. The author prefix filter then runs on this smaller
+        // set (O(k) instead of O(n)), avoiding a full universe scan.
 
         NSString *type = query[@"type"];
         if (type && ![type isEqual:[NSNull null]]) {
             NSString *indexKey = [NSString stringWithFormat:@"type:%@", type];
             SSBBitset *typeSet = self->_bitsetIndexes[indexKey];
             if (typeSet) {
-                if (result) {
-                    [result andWithBitset:typeSet];
-                } else {
-                    result = [typeSet copy];
-                }
+                result = [typeSet copy];
                 [unindexedConstraints removeObjectForKey:@"type"];
             }
         }
 
-        // If no indexed constraint matched, start with all records (full scan).
+        NSString *author = query[@"author"];
+        if (author) {
+            SSBPrefixIndex *pIndex = [self prefixIndexForField:@"author" capacity:capacity];
+            if (!result) {
+                // No type constraint — start with universe so the author filter can prune it.
+                result = [[SSBBitset alloc] initWithCapacity:capacity];
+                [result not];
+            }
+            [pIndex filterBitset:result withValue:author];
+            [unindexedConstraints removeObjectForKey:@"author"];
+        }
+
+        // No indexed constraint matched → full scan over all records.
         if (!result) {
             result = [[SSBBitset alloc] initWithCapacity:capacity];
             [result not];
@@ -345,6 +350,7 @@ static NSString * const kIndexMetaFilename = @"index.meta";
 #pragma mark - Index helpers (dbQueue only)
 
 - (SSBBitset *)bitsetIndexForKey:(NSString *)key capacity:(uint64_t)cap {
+    dispatch_assert_queue(self.dbQueue);
     SSBBitset *idx = _bitsetIndexes[key];
     if (!idx) {
         idx = [[SSBBitset alloc] initWithCapacity:cap];
@@ -354,6 +360,7 @@ static NSString * const kIndexMetaFilename = @"index.meta";
 }
 
 - (SSBPrefixIndex *)prefixIndexForField:(NSString *)field capacity:(uint64_t)cap {
+    dispatch_assert_queue(self.dbQueue);
     SSBPrefixIndex *idx = _prefixIndexes[field];
     if (!idx) {
         idx = [[SSBPrefixIndex alloc] initWithCapacity:cap];
