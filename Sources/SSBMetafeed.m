@@ -8,6 +8,9 @@
 static NSString *const kMetafeedSeedSalt = @"ssb";
 static NSString *const kRootMetafeedInfo = @"ssb-meta-feed-seed-v1:metafeed";
 static NSInteger const kNumberOfShards = 16;
+#define kMetafeedSeedLength     32                                       // seed is always 32 bytes
+#define kMetafeedBoxedSeedLen   (crypto_secretbox_BOXZEROBYTES + kMetafeedSeedLength)  // MAC(16)+ct(32)=48
+#define kMetafeedPaddedCipherLen (crypto_secretbox_BOXZEROBYTES + kMetafeedBoxedSeedLen) // 64
 
 @implementation SSBMetafeedKeys
 
@@ -301,36 +304,38 @@ static NSInteger const kNumberOfShards = 16;
     
     NSData *recipientKey = [recipientKeyData subdataWithRange:NSMakeRange(2, 32)];
 
-    NSMutableData *ephemeralSK = [NSMutableData dataWithLength:crypto_box_SECRETKEYBYTES];
-    SecRandomCopyBytes(kSecRandomDefault, crypto_box_SECRETKEYBYTES, ephemeralSK.mutableBytes);
+    unsigned char ephemeralSK[crypto_box_SECRETKEYBYTES];
+    SecRandomCopyBytes(kSecRandomDefault, crypto_box_SECRETKEYBYTES, ephemeralSK);
 
     // Derive ephemeral public key from ephemeral secret key
     unsigned char ephemeralPubKey[crypto_box_PUBLICKEYBYTES];
-    crypto_scalarmult_curve25519_base(ephemeralPubKey, ephemeralSK.bytes);
+    if (crypto_scalarmult_curve25519_base(ephemeralPubKey, ephemeralSK) != 0) {
+        return nil;
+    }
 
     // Compute DH shared secret: ephemeralSK × recipientPK
     unsigned char sharedKey[crypto_box_BEFORENMBYTES];
-    crypto_box_beforenm(sharedKey, recipientKey.bytes, ephemeralSK.bytes);
+    crypto_box_beforenm(sharedKey, recipientKey.bytes, ephemeralSK);
 
     // Zero nonce — safe because the DH key is unique per ephemeral keypair
     unsigned char nonce[crypto_box_NONCEBYTES];
     memset(nonce, 0, crypto_box_NONCEBYTES);
 
     // NaCl secretbox requires first ZEROBYTES (32) of plaintext buffer to be zero
-    unsigned char paddedMessage[crypto_secretbox_ZEROBYTES + 32];
+    unsigned char paddedMessage[crypto_secretbox_ZEROBYTES + kMetafeedSeedLength];
     memset(paddedMessage, 0, crypto_secretbox_ZEROBYTES);
-    memcpy(paddedMessage + crypto_secretbox_ZEROBYTES, seed.bytes, 32);
+    memcpy(paddedMessage + crypto_secretbox_ZEROBYTES, seed.bytes, kMetafeedSeedLength);
 
     // Output: BOXZEROBYTES (16) zeros || MAC (16) || ciphertext (32) = 64 bytes
-    unsigned char result[crypto_secretbox_ZEROBYTES + 32];
+    unsigned char result[sizeof(paddedMessage)];
     int ret = crypto_secretbox_xsalsa20poly1305(result, paddedMessage, sizeof(paddedMessage), nonce, sharedKey);
     if (ret != 0) {
         return nil;
     }
 
-    // Skip the BOXZEROBYTES zero-prefix; append MAC + ciphertext (48 bytes)
+    // Skip the BOXZEROBYTES zero-prefix; append MAC (16) + ciphertext (32) = 48 bytes
     NSMutableData *ciphertextData = [NSMutableData dataWithBytes:ephemeralPubKey length:crypto_box_PUBLICKEYBYTES];
-    [ciphertextData appendBytes:result + crypto_secretbox_BOXZEROBYTES length:crypto_secretbox_BOXZEROBYTES + 32];
+    [ciphertextData appendBytes:result + crypto_secretbox_BOXZEROBYTES length:kMetafeedBoxedSeedLen];
 
     return ciphertextData;
 }
@@ -354,12 +359,12 @@ static NSInteger const kNumberOfShards = 16;
     }
     
     // ciphertext = ephemeralPubKey (32) || MAC+encryptedSeed (48) = 80 bytes minimum
-    if (!ciphertext || ciphertext.length < crypto_box_PUBLICKEYBYTES + crypto_secretbox_BOXZEROBYTES + 32) {
+    if (!ciphertext || ciphertext.length < crypto_box_PUBLICKEYBYTES + kMetafeedBoxedSeedLen) {
         return nil;
     }
 
     NSData *ephemeralPubKey = [ciphertext subdataWithRange:NSMakeRange(0, crypto_box_PUBLICKEYBYTES)];
-    NSData *boxedSeed = [ciphertext subdataWithRange:NSMakeRange(crypto_box_PUBLICKEYBYTES, ciphertext.length - crypto_box_PUBLICKEYBYTES)];
+    NSData *boxedSeed = [ciphertext subdataWithRange:NSMakeRange(crypto_box_PUBLICKEYBYTES, kMetafeedBoxedSeedLen)];
 
     unsigned char sharedKey[crypto_box_BEFORENMBYTES];
     int ret = crypto_box_beforenm(sharedKey, ephemeralPubKey.bytes, keys.secretKey.bytes);
@@ -370,26 +375,20 @@ static NSInteger const kNumberOfShards = 16;
     unsigned char nonce[crypto_box_NONCEBYTES];
     memset(nonce, 0, crypto_box_NONCEBYTES);
 
-    // NaCl _open requires first BOXZEROBYTES (16) of ciphertext buffer to be zero
-    NSUInteger paddedLen = crypto_secretbox_BOXZEROBYTES + boxedSeed.length;
-    unsigned char *paddedC = (unsigned char *)calloc(paddedLen, 1);
-    if (!paddedC) return nil;
-    memcpy(paddedC + crypto_secretbox_BOXZEROBYTES, boxedSeed.bytes, boxedSeed.length);
+    // NaCl _open requires first BOXZEROBYTES (16) of ciphertext buffer to be zero;
+    // seed is always kMetafeedSeedLength bytes so buffer sizes are compile-time constants.
+    unsigned char paddedC[kMetafeedPaddedCipherLen];
+    memset(paddedC, 0, crypto_secretbox_BOXZEROBYTES);
+    memcpy(paddedC + crypto_secretbox_BOXZEROBYTES, boxedSeed.bytes, kMetafeedBoxedSeedLen);
 
-    unsigned char *decrypted = (unsigned char *)malloc(paddedLen);
-    if (!decrypted) { free(paddedC); return nil; }
-
-    ret = crypto_secretbox_xsalsa20poly1305_open(decrypted, paddedC, paddedLen, nonce, sharedKey);
-    free(paddedC);
+    unsigned char decrypted[kMetafeedPaddedCipherLen];
+    ret = crypto_secretbox_xsalsa20poly1305_open(decrypted, paddedC, kMetafeedPaddedCipherLen, nonce, sharedKey);
     if (ret != 0) {
-        free(decrypted);
         return nil;
     }
 
     // NaCl _open output: first ZEROBYTES (32) are zero, then plaintext
-    NSData *seed = [NSData dataWithBytes:decrypted + crypto_secretbox_ZEROBYTES length:32];
-    free(decrypted);
-    return seed;
+    return [NSData dataWithBytes:decrypted + crypto_secretbox_ZEROBYTES length:kMetafeedSeedLength];
 }
 
 #pragma mark - Shard Calculation

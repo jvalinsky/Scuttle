@@ -311,9 +311,11 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
 }
 
-- (void)testValidateMessage_unknownFixed64Field_isSkipped {
-    // A message with an unknown wire-type-1 (64-bit fixed) field before the signature
-    // should still validate correctly (forward compatibility).
+// Build a seq=1 message with an extra unknown fixed-width field injected before the signature.
+// wireType 1 = 64-bit fixed (byteCount=8), wireType 5 = 32-bit fixed (byteCount=4).
+- (NSData *)buildSeq1MessageWithUnknownField:(int)fieldNumber
+                                    wireType:(int)wireType
+                                   byteCount:(NSUInteger)byteCount {
     NSMutableData *payload = [NSMutableData data];
     GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
     GGAppendVarintField(payload, 2, 1);
@@ -321,10 +323,10 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     memset(contentHash, 0xAB, 32);
     GGAppendBytesField(payload, 5, contentHash, 32);
 
-    // Inject unknown field 99 with wire type 1 (64-bit fixed): tag = (99 << 3) | 1 = 793
-    [SSBGabbyGrove appendVarint:793 toData:payload];
-    uint8_t fixed64[8] = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE};
-    [payload appendBytes:fixed64 length:8];
+    uint64_t tag = ((uint64_t)fieldNumber << 3) | wireType;
+    [SSBGabbyGrove appendVarint:tag toData:payload];
+    uint8_t fixedBytes[8] = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE};
+    [payload appendBytes:fixedBytes length:byteCount];
 
     unsigned long long smLen = 64 + (unsigned long long)payload.length;
     uint8_t *sm = (uint8_t *)malloc((size_t)smLen);
@@ -334,35 +336,19 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     NSData *sig = [NSData dataWithBytes:sm length:64];
     free(sm);
     GGAppendBytesField(payload, 8, sig.bytes, 64);
+    return [payload copy];
+}
 
-    XCTAssertTrue([SSBGabbyGrove validateMessage:payload]);
+- (void)testValidateMessage_unknownFixed64Field_isSkipped {
+    // wire type 1 (64-bit fixed) before the signature should be skipped, not rejected
+    NSData *msg = [self buildSeq1MessageWithUnknownField:99 wireType:1 byteCount:8];
+    XCTAssertTrue([SSBGabbyGrove validateMessage:msg]);
 }
 
 - (void)testValidateMessage_unknownFixed32Field_isSkipped {
-    // A message with an unknown wire-type-5 (32-bit fixed) field before the signature
-    // should still validate correctly (forward compatibility).
-    NSMutableData *payload = [NSMutableData data];
-    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
-    GGAppendVarintField(payload, 2, 1);
-    uint8_t contentHash[32];
-    memset(contentHash, 0xCD, 32);
-    GGAppendBytesField(payload, 5, contentHash, 32);
-
-    // Inject unknown field 100 with wire type 5 (32-bit fixed): tag = (100 << 3) | 5 = 805
-    [SSBGabbyGrove appendVarint:805 toData:payload];
-    uint8_t fixed32[4] = {0x01, 0x02, 0x03, 0x04};
-    [payload appendBytes:fixed32 length:4];
-
-    unsigned long long smLen = 64 + (unsigned long long)payload.length;
-    uint8_t *sm = (uint8_t *)malloc((size_t)smLen);
-    unsigned long long actualSmLen = 0;
-    crypto_sign_ed25519(sm, &actualSmLen, payload.bytes, (unsigned long long)payload.length,
-                        (const unsigned char *)self.secretKey.bytes);
-    NSData *sig = [NSData dataWithBytes:sm length:64];
-    free(sm);
-    GGAppendBytesField(payload, 8, sig.bytes, 64);
-
-    XCTAssertTrue([SSBGabbyGrove validateMessage:payload]);
+    // wire type 5 (32-bit fixed) before the signature should be skipped, not rejected
+    NSData *msg = [self buildSeq1MessageWithUnknownField:100 wireType:5 byteCount:4];
+    XCTAssertTrue([SSBGabbyGrove validateMessage:msg]);
 }
 
 #pragma mark - computeMessageKey:
