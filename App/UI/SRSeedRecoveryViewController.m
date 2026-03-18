@@ -1,14 +1,16 @@
 #import "SRSeedRecoveryViewController.h"
 #import "../../Sources/SSBMetafeed.h"
+#import "../Logic/SRQRUtils.h"
 #import <SSBNetwork/SSBKeychain.h>
 #import <os/log.h>
 
 static os_log_t recovery_log;
 
-@interface SRSeedRecoveryViewController ()
+@interface SRSeedRecoveryViewController () <SRScannerDelegate>
 @property (nonatomic, strong) NSScrollView  *scrollView;
 @property (nonatomic, strong) NSTextView    *messageTextView;
 @property (nonatomic, strong) NSButton      *recoverButton;
+@property (nonatomic, strong) NSButton      *scanQRButton;
 @property (nonatomic, strong) NSButton      *cancelButton;
 @property (nonatomic, strong) NSTextField   *statusLabel;
 @end
@@ -22,7 +24,7 @@ static os_log_t recovery_log;
 }
 
 - (void)loadView {
-    self.view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 480, 320)];
+    self.view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 480, 360)];
 }
 
 - (void)viewDidLoad {
@@ -36,9 +38,7 @@ static os_log_t recovery_log;
 
     // Explanation
     NSTextField *explanation = [NSTextField wrappingLabelWithString:
-        @"Paste the full JSON of a metafeed/seed backup message below. The app will "
-        @"attempt to decrypt it using your current device's metafeed key. On success "
-        @"the recovered seed will replace the current metafeed seed."];
+        @"Paste the full JSON of a metafeed/seed backup message below, or scan a pairing QR code from your other device."];
     explanation.translatesAutoresizingMaskIntoConstraints = NO;
     explanation.textColor = [NSColor secondaryLabelColor];
     explanation.font = [NSFont systemFontOfSize:12];
@@ -67,6 +67,11 @@ static os_log_t recovery_log;
     self.cancelButton = [NSButton buttonWithTitle:@"Cancel" target:self action:@selector(cancelAction:)];
     self.cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
 
+    self.scanQRButton = [NSButton buttonWithTitle:@"Scan QR" target:self action:@selector(scanQRAction:)];
+    self.scanQRButton.bezelStyle = NSBezelStyleRounded;
+    self.scanQRButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.scanQRButton];
+
     self.recoverButton = [NSButton buttonWithTitle:@"Recover" target:self action:@selector(recoverAction:)];
     self.recoverButton.bezelStyle = NSBezelStyleRounded;
     self.recoverButton.keyEquivalent = @"\r";
@@ -92,11 +97,25 @@ static os_log_t recovery_log;
         [self.statusLabel.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
 
         [self.cancelButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16],
-        [self.cancelButton.trailingAnchor constraintEqualToAnchor:self.recoverButton.leadingAnchor constant:-8],
+        [self.cancelButton.trailingAnchor constraintEqualToAnchor:self.scanQRButton.leadingAnchor constant:-8],
+
+        [self.scanQRButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16],
+        [self.scanQRButton.trailingAnchor constraintEqualToAnchor:self.recoverButton.leadingAnchor constant:-8],
 
         [self.recoverButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16],
         [self.recoverButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
     ]];
+}
+
+- (void)scanQRAction:(id)sender {
+    SRScannerViewController *scanner = [[SRScannerViewController alloc] init];
+    scanner.delegate = self;
+    [self presentViewControllerAsSheet:scanner];
+}
+
+- (void)scannerDidScanString:(NSString *)string {
+    self.messageTextView.string = string;
+    [self recoverAction:nil];
 }
 
 - (void)recoverAction:(id)sender {

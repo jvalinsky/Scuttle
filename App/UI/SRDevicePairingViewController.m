@@ -1,17 +1,20 @@
 #import "SRDevicePairingViewController.h"
 #import "../Logic/SRDeviceManager.h"
 #import "../Logic/SRRoomManager.h"
+#import "../Logic/SRQRUtils.h"
 #import "../../Sources/SSBMetafeed.h"
 #import <SSBNetwork/SSBKeychain.h>
 #import <os/log.h>
 
 static os_log_t pairing_log;
 
-@interface SRDevicePairingViewController ()
+@interface SRDevicePairingViewController () <SRScannerDelegate>
 @property (nonatomic, strong) NSTableView     *devicesTable;
 @property (nonatomic, strong) NSScrollView    *scrollView;
 @property (nonatomic, strong) NSButton        *deregisterButton;
 @property (nonatomic, strong) NSButton        *pairButton;
+@property (nonatomic, strong) NSButton        *showQRButton;
+@property (nonatomic, strong) NSButton        *scanQRButton;
 @property (nonatomic, strong) NSButton        *doneButton;
 @property (nonatomic, strong) NSTextField     *statusLabel;
 @property (nonatomic, copy)   NSArray<NSString *> *deviceFeedIDs;
@@ -26,7 +29,7 @@ static os_log_t pairing_log;
 }
 
 - (void)loadView {
-    self.view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 480, 340)];
+    self.view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 520, 420)];
 }
 
 - (void)viewDidLoad {
@@ -84,6 +87,20 @@ static os_log_t pairing_log;
     self.pairButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.pairButton];
 
+    self.showQRButton = [NSButton buttonWithTitle:@"Show QR"
+                                           target:self
+                                           action:@selector(showQRAction:)];
+    self.showQRButton.bezelStyle = NSBezelStyleRounded;
+    self.showQRButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.showQRButton];
+
+    self.scanQRButton = [NSButton buttonWithTitle:@"Scan QR"
+                                           target:self
+                                           action:@selector(scanQRAction:)];
+    self.scanQRButton.bezelStyle = NSBezelStyleRounded;
+    self.scanQRButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.scanQRButton];
+
     self.doneButton = [NSButton buttonWithTitle:@"Done"
                                          target:self
                                          action:@selector(doneAction:)];
@@ -113,7 +130,13 @@ static os_log_t pairing_log;
         [self.deregisterButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
 
         [self.pairButton.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:12],
-        [self.pairButton.leadingAnchor constraintEqualToAnchor:self.deregisterButton.trailingAnchor constant:12],
+        [self.pairButton.leadingAnchor constraintEqualToAnchor:self.deregisterButton.trailingAnchor constant:8],
+
+        [self.showQRButton.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:12],
+        [self.showQRButton.leadingAnchor constraintEqualToAnchor:self.pairButton.trailingAnchor constant:8],
+
+        [self.scanQRButton.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:12],
+        [self.scanQRButton.leadingAnchor constraintEqualToAnchor:self.showQRButton.trailingAnchor constant:8],
 
         [self.doneButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16],
         [self.doneButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
@@ -138,15 +161,13 @@ static os_log_t pairing_log;
     }
 }
 
-#pragma mark - NSTableViewDataSource / Delegate
+#pragma mark - Table View
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
     return (NSInteger)self.deviceFeedIDs.count;
 }
 
-- (nullable id)tableView:(NSTableView *)tableView
-objectValueForTableColumn:(nullable NSTableColumn *)tableColumn
-                     row:(NSInteger)row {
+- (nullable id)tableView:(NSTableView *)tableView objectValueForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     if (row < 0 || row >= (NSInteger)self.deviceFeedIDs.count) return nil;
     return self.deviceFeedIDs[row];
 }
@@ -178,8 +199,6 @@ objectValueForTableColumn:(nullable NSTableColumn *)tableColumn
 }
 
 - (void)pairAction:(id)sender {
-    // Pair a new device by encrypting the metafeed seed to a recipient the user specifies.
-    // The recipient is the new device's ephemeral public key (entered as an SSB ID).
     NSAlert *inputAlert = [[NSAlert alloc] init];
     inputAlert.messageText = @"Pair New Device";
     inputAlert.informativeText =
@@ -195,23 +214,75 @@ objectValueForTableColumn:(nullable NSTableColumn *)tableColumn
 
     NSString *recipientID = [input.stringValue stringByTrimmingCharactersInSet:
                              [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    if (recipientID.length == 0) return;
+    [self _performPairingToRecipient:recipientID];
+}
+
+- (void)showQRAction:(id)sender {
+    NSAlert *inputAlert = [[NSAlert alloc] init];
+    inputAlert.messageText = @"Show Pairing QR";
+    inputAlert.informativeText = @"Enter the new device's ephemeral SSB public key.";
+    NSTextField *input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 340, 24)];
+    input.placeholderString = @"@<base64>.ed25519";
+    [inputAlert setAccessoryView:input];
+    [inputAlert addButtonWithTitle:@"Generate QR"];
+    [inputAlert addButtonWithTitle:@"Cancel"];
+
+    if ([inputAlert runModal] != NSAlertFirstButtonReturn) return;
+
+    NSString *recipientID = [input.stringValue stringByTrimmingCharactersInSet:
+                             [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *pairingJSON = [self _pairingPayloadForRecipient:recipientID];
+    if (!pairingJSON) return;
+
+    NSImage *qr = [SRQRUtils generateQRCodeFromString:pairingJSON size:CGSizeMake(400, 400)];
+    if (qr) {
+        NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, 400, 400)];
+        iv.image = qr;
+        NSAlert *qrAlert = [[NSAlert alloc] init];
+        qrAlert.messageText = @"Scan this on the new device";
+        [qrAlert setAccessoryView:iv];
+        [qrAlert addButtonWithTitle:@"Done"];
+        [qrAlert runModal];
+    }
+}
+
+- (void)scanQRAction:(id)sender {
+    SRScannerViewController *scanner = [[SRScannerViewController alloc] init];
+    scanner.delegate = self;
+    [self presentViewControllerAsSheet:scanner];
+}
+
+- (void)scannerDidScanString:(NSString *)string {
+    self.statusLabel.stringValue = @"QR Scanned. Processing...";
+    NSError *error;
+    NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:[string dataUsingEncoding:NSUTF8StringEncoding] options:0 error:&error];
+    if (payload && [payload[@"type"] isEqualToString:@"metafeed/seed"]) {
+        self.statusLabel.stringValue = @"Valid pairing QR detected.";
+        self.statusLabel.textColor = [NSColor systemGreenColor];
+    } else {
+        self.statusLabel.stringValue = @"Scanned data is not a valid pairing payload.";
+        self.statusLabel.textColor = [NSColor systemRedColor];
+    }
+}
+
+- (nullable NSString *)_pairingPayloadForRecipient:(NSString *)recipientID {
+    if (recipientID.length == 0) return nil;
 
     NSData *seed = [SSBKeychain loadMetafeedSeed];
     if (!seed) {
         self.statusLabel.stringValue = @"No metafeed seed found.";
-        return;
+        return nil;
     }
     SSBMetafeed *rootMetafeed = [SSBMetafeed createRootMetafeedFromSeed:seed];
-    if (!rootMetafeed) return;
+    if (!rootMetafeed) return nil;
 
     NSData *ciphertext = [SSBMetafeed encryptSeedForBackup:seed
                                                     toFeed:recipientID
                                                   feedKeys:rootMetafeed.keys];
     if (!ciphertext) {
-        self.statusLabel.stringValue = @"Encryption failed. Check the recipient ID.";
+        self.statusLabel.stringValue = @"Encryption failed.";
         self.statusLabel.textColor = [NSColor systemRedColor];
-        return;
+        return nil;
     }
 
     NSDictionary *payload = @{
@@ -221,20 +292,18 @@ objectValueForTableColumn:(nullable NSTableColumn *)tableColumn
         @"ciphertext": [ciphertext base64EncodedStringWithOptions:0]
     };
 
-    NSError *jsonError;
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload
-                                                       options:NSJSONWritingPrettyPrinted
-                                                         error:&jsonError];
-    if (jsonData) {
-        NSString *jsonStr = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+    return [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+}
+
+- (void)_performPairingToRecipient:(NSString *)recipientID {
+    NSString *jsonStr = [self _pairingPayloadForRecipient:recipientID];
+    if (jsonStr) {
         [[NSPasteboard generalPasteboard] clearContents];
         [[NSPasteboard generalPasteboard] setString:jsonStr forType:NSPasteboardTypeString];
-        self.statusLabel.stringValue = @"Pairing payload copied to clipboard. Paste it on the new device.";
+        self.statusLabel.stringValue = @"Pairing payload copied to clipboard.";
         self.statusLabel.textColor = [NSColor systemGreenColor];
         os_log_info(pairing_log, "Pairing payload copied for recipient %{public}@", recipientID);
-    } else {
-        self.statusLabel.stringValue = @"Failed to serialise payload.";
-        self.statusLabel.textColor = [NSColor systemRedColor];
     }
 }
 

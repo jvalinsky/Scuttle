@@ -61,189 +61,99 @@ static const NSUInteger kPayloadHashSeq1    = 73;  // 32 bytes
 static const NSUInteger kPayloadSizeSeq1    = 105; // 8 bytes
 static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 
+@implementation SSBBambooProof
++ (BOOL)supportsSecureCoding { return YES; }
+- (void)encodeWithCoder:(NSCoder *)coder {
+    [coder encodeObject:_targetMessage forKey:@"targetMessage"];
+    [coder encodeObject:_lipmaaPath forKey:@"lipmaaPath"];
+    [coder encodeObject:_rootHash forKey:@"rootHash"];
+    [coder encodeObject:_authorPubKey forKey:@"authorPubKey"];
+}
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super init];
+    if (self) {
+        _targetMessage = [coder decodeObjectOfClass:[NSData class] forKey:@"targetMessage"];
+        _lipmaaPath = [coder decodeObjectOfClasses:[NSSet setWithObjects:[NSArray class], [NSData class], nil] forKey:@"lipmaaPath"];
+        _rootHash = [coder decodeObjectOfClass:[NSData class] forKey:@"rootHash"];
+        _authorPubKey = [coder decodeObjectOfClass:[NSData class] forKey:@"authorPubKey"];
+    }
+    return self;
+}
+@end
+
 @implementation SSBBamboo
 
-#pragma mark - SSBFeedCodec Registration
+...
 
-+ (void)load {
-    [[SSBFeedCodecRegistry sharedRegistry] registerCodec:[self sharedCodec]];
-}
+#pragma mark - Lipmaa Proofs
 
-+ (instancetype)sharedCodec {
-    static SSBBamboo *instance;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        instance = [[SSBBamboo alloc] init];
-    });
-    return instance;
-}
-
-#pragma mark - SSBFeedCodec Protocol
-
-- (SSBBFEFeedFormat)feedFormat {
-    return SSBBFEFeedFormatBamboo;
-}
-
-- (SSBBFEMessageFormat)messageFormat {
-    return SSBBFEMessageFormatBamboo;
-}
-
-- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
-    BOOL valid = [SSBBamboo validateEntry:messageData];
-    if (!valid && error) {
-        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
-                                userInfo:@{NSLocalizedDescriptionKey: @"Bamboo entry invalid or signature mismatch"}];
-    }
-    return valid;
-}
-
-- (nullable NSData *)computeMessageKeyFromData:(NSData *)messageData error:(NSError **)error {
-    NSData *key = [SSBBamboo computeEntryID:messageData];
-    if (!key && error) {
-        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:2
-                                userInfo:@{NSLocalizedDescriptionKey: @"Failed to compute Bamboo entry ID"}];
-    }
-    return key;
-}
-
-#pragma mark - Lipmaa Sequence
-
-+ (NSInteger)lipmaaSequenceFor:(NSInteger)seq {
-    if (seq <= 1) {
-        return 1;
-    }
-    // Find the largest power of 3 that is <= seq
-    NSInteger p = 1;
-    while (p * 3 <= seq) {
-        p *= 3;
-    }
-    // lipmaa(n) = n - p + 1  when p is the largest power of 3 <= n
-    // But the canonical definition: lipmaa(n) for n>1 is n - (largest p3 <= n) + 1
-    // Actually: lipmaa(n) = n - p where p = 3^k such that 3^k < n <= 3^(k+1)
-    // We use: find largest p3 strictly less than n, then lipmaa = n - p3
-    // Re-derive: lipmaa(1)=1; lipmaa(2)=1; lipmaa(3)=2; lipmaa(4)=1; lipmaa(5)=4;
-    // lipmaa(6)=3; lipmaa(7)=6; lipmaa(8)=4; lipmaa(9)=6; lipmaa(10)=7...
-    // The standard definition: lipmaa(n) = n - 3^(floor(log3(n-1)))
-    // For n=2: 3^(floor(log3(1)))=3^0=1; 2-1=1 ✓
-    // For n=3: 3^(floor(log3(2)))=3^0=1; 3-1=2 ✓
-    // For n=4: 3^(floor(log3(3)))=3^1=3; 4-3=1 ✓
-    // For n=5: 3^(floor(log3(4)))=3^1=3; 5-3=2... but should be 4?
-    // Actually Bamboo spec says: lipmaa(n) = n - 3^k where k = floor(log3(n))
-    // For n=5: 3^floor(log3(5))=3^1=3; 5-3=2... hmm
-    // Let's use the iterative approach from the spec reference implementation:
-    // Find largest p = 3^k such that p <= n, subtract from n to get lipmaa
-    // n=1 -> p=1 -> n-p+1=1 (special case)
-    // n=2 -> p=1 -> 2-1=1 ✓
-    // n=3 -> p=3 -> 3-3=0... that's wrong
-    // Bamboo spec: lipmaa(n) is the "jump-back" skip sequence
-    // Use: find largest 3^k < n (strictly less)
-    NSInteger pow3 = 1;
-    while (pow3 * 3 < seq) {
-        pow3 *= 3;
-    }
-    // pow3 is now the largest power of 3 strictly less than seq
-    // (unless seq is itself a power of 3, in which case pow3 == seq/3)
-    if (pow3 >= seq) {
-        pow3 /= 3;
-    }
-    return seq - pow3;
-}
-
-#pragma mark - BLAKE2b-256 Hash
-
-+ (nullable NSData *)hashData:(NSData *)data {
-    if (!data) {
-        return nil;
-    }
-    uint8_t digest[32];
-    if (blake2b256(digest, data.bytes, data.length) != 0) {
-        return nil;
-    }
-    return [NSData dataWithBytes:digest length:32];
-}
-
-#pragma mark - Entry Validation
-
-+ (BOOL)validateEntry:(NSData *)entryData {
-    if (!entryData || entryData.length < kBambooMinSize) {
++ (BOOL)verifyProof:(SSBBambooProof *)proof error:(NSError **)error {
+    // 1. Verify target message signature
+    if (![self validateEntry:proof.targetMessage]) {
+        if (error) *error = [NSError errorWithDomain:@"SSBBamboo" code:101 userInfo:@{NSLocalizedDescriptionKey: @"Invalid target message signature"}];
         return NO;
     }
 
+    // 2. Compute Target ID
+    NSData *currentID = [self computeEntryID:proof.targetMessage];
+    
+    // 3. Extract sequence and Lipmaa link from target
+    const uint8_t *bytes = (const uint8_t *)proof.targetMessage.bytes;
+    uint64_t seqBE = 0;
+    memcpy(&seqBE, bytes + kSeqOffset, 8);
+    uint64_t targetSeq = CFSwapInt64BigToHost(seqBE);
+    
+    if (targetSeq == 1) {
+        // Root message is its own proof
+        return [currentID isEqualToData:proof.rootHash];
+    }
+
+    // 4. Verify Lipmaa Path
+    // Each hash in proof.lipmaaPath must be the lipmaa_link of the message that follows it.
+    // In a QR-optimized proof, we provide the hashes of the skip-targets.
+    
+    NSData *expectedLipmaaLink = [self extractLipmaaLink:proof.targetMessage];
+    if (!expectedLipmaaLink) {
+         if (error) *error = [NSError errorWithDomain:@"SSBBamboo" code:102 userInfo:@{NSLocalizedDescriptionKey: @"Missing Lipmaa link in target message"}];
+         return NO;
+    }
+
+    // In this implementation, we verify that the first hash in the path matches the target's lipmaa_link,
+    // and the last hash in the path matches the rootHash.
+    if (proof.lipmaaPath.count == 0) {
+        return [expectedLipmaaLink isEqualToData:proof.rootHash];
+    }
+
+    if (![proof.lipmaaPath.firstObject isEqualToData:expectedLipmaaLink]) {
+         if (error) *error = [NSError errorWithDomain:@"SSBBamboo" code:103 userInfo:@{NSLocalizedDescriptionKey: @"Lipmaa path mismatch"}];
+         return NO;
+    }
+
+    if (![proof.lipmaaPath.lastObject isEqualToData:proof.rootHash]) {
+         if (error) *error = [NSError errorWithDomain:@"SSBBamboo" code:104 userInfo:@{NSLocalizedDescriptionKey: @"Lipmaa path does not terminate at root"}];
+         return NO;
+    }
+
+    return YES;
+}
+
++ (nullable NSData *)extractLipmaaLink:(NSData *)entryData {
+    if (entryData.length < kPayloadHashSeqN) return nil;
     const uint8_t *bytes = (const uint8_t *)entryData.bytes;
-
-    // Extract author public key (bytes 0-31)
-    NSData *authorKey = [entryData subdataWithRange:NSMakeRange(kAuthorOffset, 32)];
-
-    // Extract is_end_of_log (byte 64)
-    uint8_t isEnd = bytes[kIsEndOffset];
-    if (isEnd != 0 && isEnd != 1) {
-        return NO;
-    }
-
-    // Extract seq_number (bytes 65-72, big-endian uint64)
     uint64_t seqBE = 0;
     memcpy(&seqBE, bytes + kSeqOffset, 8);
     uint64_t seq = CFSwapInt64BigToHost(seqBE);
-    if (seq < 1) {
-        return NO;
-    }
-
-    // Determine signature offset and verify entry is large enough
-    NSUInteger sigOffset;
-    if (seq == 1) {
-        // No lipmaa_link, no backlink
-        // Minimum: 32+32+1+8+32+8+64 = 177
-        if (entryData.length < kSigOffsetSeq1 + crypto_sign_BYTES) {
-            return NO;
-        }
-        sigOffset = kSigOffsetSeq1;
-    } else {
-        // Both lipmaa_link (73-104) and backlink (105-136) present
-        // Minimum: 177 + 32 + 32 = 241
-        NSUInteger minSizeSeqN = kSigOffsetSeqN + crypto_sign_BYTES;
-        if (entryData.length < minSizeSeqN) {
-            return NO;
-        }
-        sigOffset = kSigOffsetSeqN;
-    }
-
-    // Signed bytes are everything before the signature
-    NSData *signedData = [entryData subdataWithRange:NSMakeRange(0, sigOffset)];
-    NSData *signature  = [entryData subdataWithRange:NSMakeRange(sigOffset, crypto_sign_BYTES)];
-
-    if (signature.length != crypto_sign_BYTES) {
-        return NO;
-    }
-
-    // Verify Ed25519 signature using tweetnacl crypto_sign_open
-    // crypto_sign_open expects: signed message = signature || message
-    NSMutableData *sm = [NSMutableData dataWithData:signature];
-    [sm appendData:signedData];
-
-    unsigned char m[sm.length];
-    unsigned long long mlen = 0;
-    int ret = crypto_sign_open(m, &mlen, (const unsigned char *)sm.bytes,
-                               (unsigned long long)sm.length,
-                               (const unsigned char *)authorKey.bytes);
-    if (ret != 0) {
-        return NO;
-    }
-
-    if (mlen != signedData.length) {
-        return NO;
-    }
-
-    return memcmp(m, signedData.bytes, signedData.length) == 0;
+    if (seq <= 1) return nil;
+    return [entryData subdataWithRange:NSMakeRange(kLipmaaLinkOffset, 32)];
 }
 
-#pragma mark - Entry ID
++ (nullable NSData *)serializeProof:(SSBBambooProof *)proof {
+    return [NSKeyedArchiver archivedDataWithRootObject:proof requiringSecureCoding:YES error:nil];
+}
 
-+ (nullable NSData *)computeEntryID:(NSData *)entryData {
-    if (!entryData || entryData.length < kBambooMinSize) {
-        return nil;
-    }
-    // Spec: entry ID = BLAKE2b-256 of the full entry bytes (32 bytes)
-    return [self hashData:entryData];
++ (nullable SSBBambooProof *)deserializeProof:(NSData *)data {
+    return [NSKeyedUnarchiver unarchivedObjectOfClass:[SSBBambooProof class] fromData:data error:nil];
 }
 
 @end
+

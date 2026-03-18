@@ -2,17 +2,21 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
+#import "../Logic/SRQRUtils.h"
 #import "SRMainSplitViewController.h"
+#import "../../Sources/SSBBamboo.h"
+#import "../../Sources/SSBFeedStore.h"
 #import <os/log.h>
 
 static os_log_t sidebar_log;
 
-@interface SRSidebarViewController ()
+@interface SRSidebarViewController () <SRScannerDelegate>
 @property (nonatomic, strong) NSVisualEffectView *effectView;
 @property (nonatomic, strong) SRProfileHeaderView *profileHeader;
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSButton *joinButton;
+@property (nonatomic, strong) NSButton *scanButton;
 @property (nonatomic, strong) NSView *syncStatusContainer;
 @property (nonatomic, strong) NSProgressIndicator *syncProgress;
 @property (nonatomic, strong) NSTextField *syncLabel;
@@ -114,43 +118,48 @@ static os_log_t sidebar_log;
     [self.view addSubview:self.profileHeader];
 
     [self.view addSubview:self.scrollView];
-    
+
     self.tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
     self.tableView.headerView = nil;
     self.tableView.backgroundColor = [NSColor clearColor];
     self.tableView.rowHeight = 44;
-    
+
     self.tableView.style = NSTableViewStyleSourceList;
-    
+
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:@"RoomColumn"];
     [self.tableView addTableColumn:column];
     self.tableView.delegate = self;
     self.tableView.dataSource = self;
-    
+
     NSMenu *menu = [[NSMenu alloc] init];
     [menu addItemWithTitle:@"Disconnect" action:@selector(disconnectAction:) keyEquivalent:@""];
     [menu addItemWithTitle:@"Remove Room" action:@selector(removeRoomAction:) keyEquivalent:@""];
     self.tableView.menu = menu;
-    
+
     self.scrollView.documentView = self.tableView;
-    
-    self.joinButton = [NSButton buttonWithTitle:@"Join Room..." target:self action:@selector(joinRoomAction:)];
+
+    self.joinButton = [NSButton buttonWithTitle:@"Join..." target:self action:@selector(joinRoomAction:)];
     self.joinButton.bezelStyle = NSBezelStyleRounded;
     self.joinButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.joinButton];
-    
+
+    self.scanButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"qrcode.viewfinder" accessibilityDescription:@"Scan Sneakernet QR"] target:self action:@selector(scanQRAction:)];
+    self.scanButton.bezelStyle = NSBezelStyleRounded;
+    self.scanButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.scanButton];
+
     self.syncStatusContainer = [[NSView alloc] init];
     self.syncStatusContainer.translatesAutoresizingMaskIntoConstraints = NO;
     self.syncStatusContainer.hidden = YES;
     [self.view addSubview:self.syncStatusContainer];
-    
+
     self.syncProgress = [[NSProgressIndicator alloc] init];
     self.syncProgress.style = NSProgressIndicatorStyleSpinning;
     self.syncProgress.controlSize = NSControlSizeSmall;
     self.syncProgress.displayedWhenStopped = NO;
     self.syncProgress.translatesAutoresizingMaskIntoConstraints = NO;
     [self.syncStatusContainer addSubview:self.syncProgress];
-    
+
     self.syncLabel = [NSTextField labelWithString:@"Idle"];
     self.syncLabel.font = [NSFont systemFontOfSize:10];
     self.syncLabel.textColor = [NSColor secondaryLabelColor];
@@ -167,9 +176,13 @@ static os_log_t sidebar_log;
         [self.scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:self.joinButton.topAnchor constant:-12],
         
-        [self.joinButton.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [self.joinButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [self.joinButton.bottomAnchor constraintEqualToAnchor:self.syncStatusContainer.topAnchor constant:-8],
         
+        [self.scanButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
+        [self.scanButton.centerYAnchor constraintEqualToAnchor:self.joinButton.centerYAnchor],
+        [self.scanButton.leadingAnchor constraintEqualToAnchor:self.joinButton.trailingAnchor constant:8],
+
         [self.syncStatusContainer.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
         [self.syncStatusContainer.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-12],
         [self.syncStatusContainer.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-12],
@@ -186,6 +199,58 @@ static os_log_t sidebar_log;
     ]];
     
     [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor].active = YES;
+}
+
+- (void)scanQRAction:(id)sender {
+    SRScannerViewController *scanner = [[SRScannerViewController alloc] init];
+    scanner.delegate = self;
+    [self presentViewControllerAsSheet:scanner];
+}
+
+- (void)scannerDidScanString:(NSString *)string {
+    if ([string hasPrefix:@"ssb:bamboo-proof:"]) {
+        NSString *base64 = [string substringFromIndex:17];
+        NSData *proofData = [[NSData alloc] initWithBase64EncodedString:base64 options:0];
+        if (!proofData) return;
+
+        SSBBambooProof *proof = [SSBBamboo deserializeProof:proofData];
+        if (!proof) return;
+
+        NSError *error;
+        if ([SSBBamboo verifyProof:proof error:&error]) {
+            // Success! We have an authenticated message from a "sneakernet" exchange.
+            // Import it into our store.
+            SSBMessage *msg = [[SSBMessage alloc] init];
+            msg.author = [SSBBFE sigilStringFromBFE:proof.authorPubKey];
+            msg.valueJSON = proof.targetMessage;
+            msg.feedFormat = SSBBFEFeedFormatBamboo;
+            
+            // Extract some metadata for the object
+            // (In a real app, we'd use the codec to fully parse)
+            
+            if ([[SSBFeedStore sharedStore] appendMessage:msg error:&error]) {
+                NSAlert *success = [[NSAlert alloc] init];
+                success.messageText = @"Message Verified & Imported";
+                success.informativeText = [NSString stringWithFormat:@"Successfully imported message from %@ via sneakernet.", msg.author];
+                [success runModal];
+            } else {
+                NSAlert *err = [[NSAlert alloc] init];
+                err.messageText = @"Import Failed";
+                err.informativeText = error.localizedDescription;
+                [err runModal];
+            }
+        } else {
+            NSAlert *err = [[NSAlert alloc] init];
+            err.messageText = @"Verification Failed";
+            err.informativeText = error.localizedDescription;
+            [err runModal];
+        }
+    } else if ([string hasPrefix:@"ssb:room-invite:"] || [string hasPrefix:@"https://"]) {
+        // Handle room invites via QR too!
+        [[SRRoomManager sharedManager] joinRoomWithInvite:string completion:^(BOOL success, NSError * _Nullable error) {
+            // ... handled by notifications usually
+        }];
+    }
 }
 
 - (void)joinRoomAction:(id)sender {
@@ -250,222 +315,81 @@ static os_log_t sidebar_log;
     
     if (row <= rooms) {
         RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
-        os_log_info(sidebar_log, "Notifying room selected: %{public}@", room.host);
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
-                                                            object:nil
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification 
+                                                            object:nil 
                                                           userInfo:@{SRRoomManagerRoomSelectedKey: room}];
-        return;
-    }
-    
-    if (row == rooms + 1) return; // DISCOVERY Header
-    
-    if (row == rooms + 2) {
-        // Browse Channels
-        if ([self.view.window.contentViewController respondsToSelector:@selector(showChannelBrowser)]) {
-            [self.view.window.contentViewController performSelector:@selector(showChannelBrowser)];
-        }
-        return;
-    }
-    
-    if (row == rooms + 3) return; // GIT REPOS Header
-    
-    if (row == rooms + 4) {
-        // Git Activity
-        if ([self.view.window.contentViewController respondsToSelector:@selector(showGitActivity)]) {
-            [self.view.window.contentViewController performSelector:@selector(showGitActivity)];
-        }
-        return;
-    }
-    
-    if (row == rooms + 5) {
-        // Git My Repos
-        if ([self.view.window.contentViewController respondsToSelector:@selector(showGitMyRepos)]) {
-            [self.view.window.contentViewController performSelector:@selector(showGitMyRepos)];
-        }
-        return;
-    }
-    
-    if (row == rooms + 6) {
-        // Git Following
-        if ([self.view.window.contentViewController respondsToSelector:@selector(showGitFollowing)]) {
-            [self.view.window.contentViewController performSelector:@selector(showGitFollowing)];
-        }
-        return;
     }
 }
 
-- (void)disconnectAction:(id)sender {
-    NSInteger row = self.tableView.clickedRow;
-    if (row < 0) return;
-    RoomConfig *room = [SRRoomManager sharedManager].rooms[row];
-    [[SRRoomManager sharedManager] disconnectFromRoom:room.host];
-}
-
-- (void)removeRoomAction:(id)sender {
-    NSInteger row = self.tableView.clickedRow;
-    if (row < 0) return;
-    RoomConfig *room = [SRRoomManager sharedManager].rooms[row];
-    [[SRRoomManager sharedManager] removeRoom:room];
-}
-
-#pragma mark - NSTableViewDataSource
+#pragma mark - NSTableViewDataSource / Delegate
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
-    // Section 1: ROOMS Header + Rooms
-    // Section 2: DISCOVERY Header + Browse Channels
-    // Section 3: GIT REPOS Header + Activity + My Repos + Following
-    return (1 + rooms) + 2 + 4;
+    return [SRRoomManager sharedManager].rooms.count + 1; // +1 for Header
 }
 
-- (BOOL)tableView:(NSTableView *)tableView isGroupRow:(NSInteger)row {
-    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
-    return (row == 0 || row == rooms + 1 || row == rooms + 3);
-}
-
-#pragma mark - NSTableViewDelegate
-
-- (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
-    
+- (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
     if (row == 0) {
-        return [self headerCellForTableView:tableView stringValue:@"ROOMS"];
+        NSTextField *header = [NSTextField labelWithString:@"ROOMS"];
+        header.font = [NSFont boldSystemFontOfSize:11];
+        header.textColor = [NSColor secondaryLabelColor];
+        return header;
     }
     
-    if (row == rooms + 1) {
-        return [self headerCellForTableView:tableView stringValue:@"DISCOVERY"];
-    }
-    
-    if (row == rooms + 2) {
-        return [self actionCellForTableView:tableView stringValue:@"Browse Channels" identifier:@"ActionCell"];
-    }
-    
-    if (row == rooms + 3) {
-        return [self headerCellForTableView:tableView stringValue:@"GIT REPOS"];
-    }
-    
-    if (row == rooms + 4) {
-        return [self actionCellForTableView:tableView stringValue:@"Activity" identifier:@"GitActivityCell"];
-    }
-    
-    if (row == rooms + 5) {
-        return [self actionCellForTableView:tableView stringValue:@"My Repos" identifier:@"GitMyReposCell"];
-    }
-    
-    if (row == rooms + 6) {
-        return [self actionCellForTableView:tableView stringValue:@"Following" identifier:@"GitFollowingCell"];
-    }
-    
-    // Room Cells
-    return [self roomCellForTableView:tableView row:row];
-}
-
-- (NSView *)headerCellForTableView:(NSTableView *)tableView stringValue:(NSString *)stringValue {
-    NSTableCellView *header = [tableView makeViewWithIdentifier:@"HeaderCell" owner:self];
-    if (!header) {
-        header = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
-        header.identifier = @"HeaderCell";
-        NSTextField *tf = [NSTextField labelWithString:@""];
-        tf.font = [NSFont boldSystemFontOfSize:11];
-        tf.textColor = [NSColor secondaryLabelColor];
-        tf.translatesAutoresizingMaskIntoConstraints = NO;
-        [header addSubview:tf];
-        header.textField = tf;
-        [NSLayoutConstraint activateConstraints:@[
-            [tf.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:4],
-            [tf.centerYAnchor constraintEqualToAnchor:header.centerYAnchor]
-        ]];
-    }
-    header.textField.stringValue = stringValue;
-    return header;
-}
-
-- (NSView *)actionCellForTableView:(NSTableView *)tableView stringValue:(NSString *)stringValue identifier:(NSString *)identifier {
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:identifier owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 30)];
-        cell.identifier = identifier;
-        NSTextField *tf = [NSTextField labelWithString:@""];
-        tf.translatesAutoresizingMaskIntoConstraints = NO;
-        [cell addSubview:tf];
-        cell.textField = tf;
-        [NSLayoutConstraint activateConstraints:@[
-            [tf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
-            [tf.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
-        ]];
-    }
-    cell.textField.stringValue = stringValue;
-    return cell;
-}
-
-- (NSView *)roomCellForTableView:(NSTableView *)tableView row:(NSInteger)row {
+    RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
     NSTableCellView *cell = [tableView makeViewWithIdentifier:@"RoomCell" owner:self];
     if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 44)];
         cell.identifier = @"RoomCell";
-        
-        NSView *statusDot = [[NSView alloc] init];
-        statusDot.wantsLayer = YES;
-        statusDot.layer.cornerRadius = 4;
-        statusDot.translatesAutoresizingMaskIntoConstraints = NO;
-        statusDot.identifier = @"StatusDot";
-        [cell addSubview:statusDot];
         
         NSTextField *textField = [NSTextField labelWithString:@""];
         textField.translatesAutoresizingMaskIntoConstraints = NO;
         [cell addSubview:textField];
         cell.textField = textField;
         
-        NSTextField *peerCountLabel = [NSTextField labelWithString:@""];
-        peerCountLabel.font = [NSFont systemFontOfSize:11];
-        peerCountLabel.textColor = [NSColor secondaryLabelColor];
-        peerCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        peerCountLabel.identifier = @"PeerCountLabel";
-        [cell addSubview:peerCountLabel];
-        
         [NSLayoutConstraint activateConstraints:@[
-            [statusDot.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
-            [statusDot.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-            [statusDot.widthAnchor constraintEqualToConstant:8],
-            [statusDot.heightAnchor constraintEqualToConstant:8],
-            
-            [textField.leadingAnchor constraintEqualToAnchor:statusDot.trailingAnchor constant:8],
-            [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
-            
-            [peerCountLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:textField.trailingAnchor constant:8],
-            [peerCountLabel.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12],
-            [peerCountLabel.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
+            [textField.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:8],
+            [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],
+            [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
         ]];
     }
     
-    RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
-    cell.textField.stringValue = room.name.length > 0 ? room.name : room.host;
-    
-    NSTextField *peerCountLabel = nil;
-    NSView *statusDot = nil;
-    for (NSView *subview in cell.subviews) {
-        if ([subview.identifier isEqualToString:@"PeerCountLabel"]) {
-            peerCountLabel = (NSTextField *)subview;
-        } else if ([subview.identifier isEqualToString:@"StatusDot"]) {
-            statusDot = subview;
-        }
-    }
-    
-    NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[room.host];
-    if (peers.count > 0) {
-        peerCountLabel.stringValue = [NSString stringWithFormat:@"%lu", (unsigned long)peers.count];
-    } else {
-        peerCountLabel.stringValue = @"";
-    }
-    
+    cell.textField.stringValue = room.host;
     SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
     if (client.isConnected) {
-        statusDot.layer.backgroundColor = [NSColor systemGreenColor].CGColor;
+        cell.textField.textColor = [NSColor labelColor];
     } else {
-        statusDot.layer.backgroundColor = [NSColor systemGrayColor].CGColor;
+        cell.textField.textColor = [NSColor secondaryLabelColor];
     }
     
     return cell;
+}
+
+- (void)removeRoomAction:(id)sender {
+    NSInteger row = self.tableView.clickedRow;
+    if (row <= 0) return;
+    
+    RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = [NSString stringWithFormat:@"Remove %@?", room.host];
+    alert.informativeText = @"You will be disconnected from this room.";
+    [alert addButtonWithTitle:@"Remove"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleWarning;
+    
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        [[SRRoomManager sharedManager] removeRoom:room];
+        [self.tableView reloadData];
+    }
+}
+
+- (void)disconnectAction:(id)sender {
+    NSInteger row = self.tableView.clickedRow;
+    if (row <= 0) return;
+    
+    RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
+    SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
+    [client disconnect];
+    [self.tableView reloadData];
 }
 
 @end

@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSButton *showCWButton;
 @property (nonatomic, strong) NSButton *replyButton;
 @property (nonatomic, strong) NSButton *likeButton;
+@property (nonatomic, strong) NSButton *qrButton;
 @property (nonatomic, strong) NSTextField *timestampLabel;
 @property (nonatomic, strong) NSImageView *blobImageView;
 @property (nonatomic, weak) id owner;

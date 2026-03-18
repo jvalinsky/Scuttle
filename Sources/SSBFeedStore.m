@@ -574,6 +574,84 @@ static const NSInteger kCurrentSchemaVersion = 4;
 
 #pragma mark - Queries
 
+- (nullable SSBBambooProof *)generateBambooProofForAuthor:(NSString *)author
+                                                  sequence:(NSInteger)sequence {
+    __block SSBBambooProof *proof = nil;
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT value_json, feed_format FROM messages WHERE author = ? AND sequence = ?";
+        sqlite3_stmt *stmt;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
+        
+        sqlite3_bind_text(stmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, (int)sequence);
+        
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            int format = sqlite3_column_int(stmt, 1);
+            if (format != SSBBFEFeedFormatBamboo) {
+                sqlite3_finalize(stmt);
+                return;
+            }
+            
+            proof = [[SSBBambooProof alloc] init];
+            const void *blob = sqlite3_column_blob(stmt, 0);
+            int size = sqlite3_column_bytes(stmt, 0);
+            proof.targetMessage = [NSData dataWithBytes:blob length:size];
+            proof.authorPubKey = [SSBBFE bfeDataFromSigilString:author];
+        }
+        sqlite3_finalize(stmt);
+        
+        if (!proof) return;
+        
+        // Build the Lipmaa path
+        NSMutableArray *path = [NSMutableArray array];
+        NSInteger currentSeq = sequence;
+        
+        while (currentSeq > 1) {
+            NSInteger nextSeq = [SSBBamboo lipmaaSequenceFor:currentSeq];
+            
+            // For a direct proof, we fetch the hashes (keys) of the Lipmaa targets
+            sqlite3_stmt *pathStmt;
+            const char *pathSql = "SELECT key FROM messages WHERE author = ? AND sequence = ?";
+            if (sqlite3_prepare_v2(_db, pathSql, -1, &pathStmt, NULL) == SQLITE_OK) {
+                sqlite3_bind_text(pathStmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int(pathStmt, 2, (int)nextSeq);
+                
+                if (sqlite3_step(pathStmt) == SQLITE_ROW) {
+                    const char *keyText = (const char *)sqlite3_column_text(pathStmt, 0);
+                    if (keyText) {
+                        NSString *key = [NSString stringWithUTF8String:keyText];
+                        NSData *keyData = [SSBBFE bfeDataFromSigilString:key];
+                        if (keyData) [path addObject:keyData];
+                    }
+                }
+                sqlite3_finalize(pathStmt);
+            }
+            
+            if (nextSeq >= currentSeq) break; // Should not happen with power-of-3 logic
+            currentSeq = nextSeq;
+        }
+        
+        proof.lipmaaPath = path;
+        
+        // Fetch root hash (seq 1)
+        sqlite3_stmt *rootStmt;
+        const char *rootSql = "SELECT key FROM messages WHERE author = ? AND sequence = 1";
+        if (sqlite3_prepare_v2(_db, rootSql, -1, &rootStmt, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(rootStmt, 1, author.UTF8String, -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(rootStmt) == SQLITE_ROW) {
+                const char *rootKeyText = (const char *)sqlite3_column_text(rootStmt, 0);
+                if (rootKeyText) {
+                    NSString *rootKey = [NSString stringWithUTF8String:rootKeyText];
+                    proof.rootHash = [SSBBFE bfeDataFromSigilString:rootKey];
+                }
+            }
+            sqlite3_finalize(rootStmt);
+        }
+    });
+    
+    return proof;
+}
+
 - (NSArray<SSBMessage *> *)messagesForAuthor:(NSString *)author fromSequence:(NSInteger)startSeq limit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{

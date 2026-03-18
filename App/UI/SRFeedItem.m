@@ -1,5 +1,7 @@
 #import "SRFeedItem.h"
 #import "SRMarkdownParser.h"
+#import "../Logic/SRQRUtils.h"
+#import "../../Sources/SSBFeedStore.h"
 #import <SSBNetwork/SSBBlobStore.h>
 
 @interface SRFeedItem ()
@@ -69,6 +71,11 @@
     _likeButton.bordered = NO;
     _likeButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_likeButton];
+
+    _qrButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"qrcode" accessibilityDescription:@"Share as QR"] target:self action:@selector(showQRAction:)];
+    _qrButton.bordered = NO;
+    _qrButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:_qrButton];
     
     _timestampLabel = [NSTextField labelWithString:@""];
     _timestampLabel.font = [NSFont systemFontOfSize:11];
@@ -111,8 +118,45 @@
         [_replyButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
         
         [_likeButton.leadingAnchor constraintEqualToAnchor:_replyButton.trailingAnchor constant:16],
-        [_likeButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8]
+        [_likeButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
+
+        [_qrButton.leadingAnchor constraintEqualToAnchor:_likeButton.trailingAnchor constant:16],
+        [_qrButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8]
     ]];
+}
+
+- (void)showQRAction:(id)sender {
+    SSBMessage *msg = self.representedObject;
+    if (![msg isKindOfClass:[SSBMessage class]]) return;
+
+    if (msg.feedFormat != SSBBFEFeedFormatBamboo) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"Bamboo Required";
+        alert.informativeText = @"Only messages in Bamboo format support logarithmic Lipmaa proofs for offline QR exchange.";
+        [alert runModal];
+        return;
+    }
+
+    SSBBambooProof *proof = [[SSBFeedStore sharedStore] generateBambooProofForAuthor:msg.author sequence:msg.sequence];
+    if (!proof) return;
+
+    NSData *proofData = [SSBBamboo serializeProof:proof];
+    if (!proofData) return;
+
+    // We use a URI scheme to identify this as a Bamboo proof
+    NSString *qrString = [NSString stringWithFormat:@"ssb:bamboo-proof:%@", [proofData base64EncodedStringWithOptions:0]];
+    NSImage *qrImage = [SRQRUtils generateQRCodeFromString:qrString size:CGSizeMake(450, 450)];
+    
+    if (qrImage) {
+        NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, 450, 450)];
+        iv.image = qrImage;
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = @"Share Message via QR (Sneakernet)";
+        alert.informativeText = @"This QR code contains the message and a Lipmaa inclusion proof, allowing it to be verified offline without your full history.";
+        [alert setAccessoryView:iv];
+        [alert addButtonWithTitle:@"Close"];
+        [alert runModal];
+    }
 }
 
 - (void)setRepresentedObject:(id)representedObject {

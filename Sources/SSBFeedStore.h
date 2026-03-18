@@ -106,6 +106,15 @@ NS_ASSUME_NONNULL_BEGIN
 /// Wipes all data from the store and resets the database file.
 - (void)wipeDatabase;
 
+/**
+ * Generate a Lipmaa Inclusion Proof for a specific Bamboo message.
+ * @param author The author's SSB ID.
+ * @param sequence The sequence number of the message.
+ * @return A proof object, or nil if the message is not found or not in Bamboo format.
+ */
+- (nullable SSBBambooProof *)generateBambooProofForAuthor:(NSString *)author
+                                                  sequence:(NSInteger)sequence;
+
 @end
 
 NS_ASSUME_NONNULL_END
