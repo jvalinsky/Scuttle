@@ -24,6 +24,10 @@ typedef void (^SSBBlobFetchCompletion)(NSString * _Nullable localPath, NSError *
 /// Returns the local path on success, nil on hash mismatch.
 - (nullable NSString *)storeBlob:(NSData *)data forBlobID:(NSString *)blobID;
 
+/// Adds a blob by calculating its hash and storing it.
+/// Returns the blob ID (&...sha256) on success, nil on failure.
+- (nullable NSString *)addBlobWithData:(NSData *)data;
+
 /// Fetches a blob from a peer via MuxRPC `blobs.get` and stores it locally.
 /// Calls completion on the main queue with the local file path or error.
 - (void)fetchBlob:(NSString *)blobID session:(SSBMuxRPCSession *)session completion:(SSBBlobFetchCompletion)completion;

@@ -71,6 +71,16 @@ static os_log_t blob_store_log;
     return [self localPathForBlobID:blobID] != nil;
 }
 
+- (nullable NSString *)addBlobWithData:(NSData *)data {
+    uint8_t digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
+    NSData *hashData = [NSData dataWithBytes:digest length:CC_SHA256_DIGEST_LENGTH];
+    NSString *blobID = [NSString stringWithFormat:@"&%@.sha256", [hashData base64EncodedStringWithOptions:0]];
+    
+    NSString *path = [self storeBlob:data forBlobID:blobID];
+    return path ? blobID : nil;
+}
+
 - (nullable NSString *)storeBlob:(NSData *)data forBlobID:(NSString *)blobID {
     uint8_t digest[CC_SHA256_DIGEST_LENGTH];
     CC_SHA256(data.bytes, (CC_LONG)data.length, digest);

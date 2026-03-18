@@ -1,9 +1,11 @@
 #import <Foundation/Foundation.h>
-#import "SSBMessage.h"
 #import "SSBFeedStore.h"
+#import "SSBMessage.h"
 #import "SSBGitObjectStore.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+@class SSBRoomClient;
 
 typedef void (^SSBGitRepoCompletion)(NSString * _Nullable msgID, NSError * _Nullable error);
 

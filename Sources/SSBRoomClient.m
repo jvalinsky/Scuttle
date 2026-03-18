@@ -570,6 +570,14 @@ static os_log_t ssb_room_log;
     return [self publishLocalMessageWithContent:content error:error];
 }
 
+- (void)publishLocalMessageWithContent:(NSDictionary<NSString *,id> *)content completion:(void (^)(NSError * _Nullable, SSBMessage * _Nullable))completion {
+    NSError *error = nil;
+    SSBMessage *msg = [self publishLocalMessageWithContent:content error:&error];
+    if (completion) {
+        completion(error, msg);
+    }
+}
+
 - (nullable SSBMessage *)publishLocalMessageWithContent:(NSDictionary *)content error:(NSError **)error {
     // Fork prevention: Queue message if our feed hasn't fully synced
     // This prevents creating forked feeds which can corrupt your identity

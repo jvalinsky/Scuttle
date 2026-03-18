@@ -88,6 +88,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Publishes a message with arbitrary content to the local feed.
 - (nullable SSBMessage *)publishLocalMessageWithContent:(NSDictionary<NSString *, id> *)content error:(NSError **)error;
 
+/// Publishes a message with arbitrary content to the local feed with a completion block.
+- (void)publishLocalMessageWithContent:(NSDictionary<NSString *, id> *)content completion:(void(^)(NSError * _Nullable error, SSBMessage * _Nullable msg))completion;
+
 /// Sends a generic MuxRPC request with a callback handler.
 - (int32_t)sendRPCRequest:(NSArray<NSString *> *)name
                       args:(NSArray<id> *)args

@@ -15,8 +15,8 @@ static os_log_t server_log;
 @property (nonatomic, readwrite) NSInteger port;
 @property (nonatomic, readwrite, copy, nullable) NSString *multiserverAddress;
 @property (nonatomic, readwrite, copy, nullable) NSData *serverPubKey;
-@property (nonatomic, strong) NSMutableSet<NSString *> *restrictedFeedIds;
-@property (nonatomic, strong) NSMutableSet<NSString *> *communityMemberFeedIds;
+@property (nonatomic, strong) NSMutableSet<NSString *> *restrictedFeedIdsSet;
+@property (nonatomic, strong) NSMutableSet<NSString *> *communityMemberFeedIdsSet;
 @end
 
 @implementation SSBHTTPInviteServer
@@ -50,8 +50,8 @@ static os_log_t server_log;
         _maxClaimsPerInvite = 1;
         _inviteCodes = [NSMutableDictionary dictionary];
         _claimedInvites = [NSMutableDictionary dictionary];
-        _restrictedFeedIds = [NSMutableSet set];
-        _communityMemberFeedIds = [NSMutableSet set];
+        _restrictedFeedIdsSet = [NSMutableSet set];
+        _communityMemberFeedIdsSet = [NSMutableSet set];
         _inviteQueue = dispatch_queue_create("com.ssb.httpinvite.server", DISPATCH_QUEUE_SERIAL);
         
         NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
@@ -82,7 +82,9 @@ static os_log_t server_log;
     
     for (int i = 0; i < 32; i++) {
         uint32_t randomIndex;
-        SecRandomCopyBytes(kSecRandomDefault, sizeof(randomIndex), &randomIndex);
+        if (SecRandomCopyBytes(kSecRandomDefault, sizeof(randomIndex), &randomIndex) != errSecSuccess) {
+            randomIndex = arc4random();
+        }
         unichar c = [alphabet characterAtIndex:randomIndex % length];
         [code appendFormat:@"%C", c];
     }
@@ -300,8 +302,8 @@ static os_log_t server_log;
 
 - (void)setRestrictedFeedIds:(NSArray<NSString *> *)feedIds {
     dispatch_sync(self.inviteQueue, ^{
-        [self.restrictedFeedIds removeAllObjects];
-        [self.restrictedFeedIds addObjectsFromArray:feedIds];
+        [self.restrictedFeedIdsSet removeAllObjects];
+        [self.restrictedFeedIdsSet addObjectsFromArray:feedIds];
     });
 }
 
@@ -314,7 +316,7 @@ static os_log_t server_log;
     
     dispatch_sync(self.inviteQueue, ^{
         NSString *normalizedId = [self normalizeFeedId:feedId];
-        for (NSString *allowedId in self.restrictedFeedIds) {
+        for (NSString *allowedId in self.restrictedFeedIdsSet) {
             if ([[self normalizeFeedId:allowedId] isEqualToString:normalizedId]) {
                 isAllowed = YES;
                 break;
@@ -327,8 +329,8 @@ static os_log_t server_log;
 
 - (void)setCommunityMemberFeedIds:(NSArray<NSString *> *)feedIds {
     dispatch_sync(self.inviteQueue, ^{
-        [self.communityMemberFeedIds removeAllObjects];
-        [self.communityMemberFeedIds addObjectsFromArray:feedIds];
+        [self.communityMemberFeedIdsSet removeAllObjects];
+        [self.communityMemberFeedIdsSet addObjectsFromArray:feedIds];
     });
 }
 
@@ -341,7 +343,7 @@ static os_log_t server_log;
     
     dispatch_sync(self.inviteQueue, ^{
         NSString *normalizedId = [self normalizeFeedId:feedId];
-        for (NSString *memberId in self.communityMemberFeedIds) {
+        for (NSString *memberId in self.communityMemberFeedIdsSet) {
             if ([[self normalizeFeedId:memberId] isEqualToString:normalizedId]) {
                 isMember = YES;
                 break;
@@ -511,7 +513,7 @@ static os_log_t server_log;
             "               border-radius: 8px; text-decoration: none; font-size: 18px; margin: 20px 0; }\n"
             "        .btn:hover { background: #0056b3; }\n"
             "        .info { color: #666; margin-top: 20px; font-size: 14px; }\n"
-            "        code { background: #e0e0e0; padding: 2px 6px; border-radius: 4px; }\}\n"
+            "        code { background: #e0e0e0; padding: 2px 6px; border-radius: 4px; }\n"
             "    </style>\n"
             "</head>\n"
             "<body>\n"

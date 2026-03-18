@@ -15,7 +15,6 @@ static os_log_t httpAuth_log;
 NSString * const SSBHTTPAuthErrorDomain = @"SSBHTTPAuth";
 
 static const NSUInteger kNonceBytesLength = 32;
-static const NSUInteger kSignatureMessagePrefixLength = 22;
 
 @implementation SSBHTTPAuthToken
 
@@ -543,7 +542,7 @@ static const NSUInteger kSignatureMessagePrefixLength = 22;
                     completion:(void (^)(NSString * _Nullable solution, NSError * _Nullable error))completion {
     [self requestSolutionForServerChallenge:serverChallenge
                               clientChallenge:clientChallenge
-                                    clientId:nil
+                                    clientId:@""
                                   completion:completion];
 }
 
@@ -554,7 +553,7 @@ static const NSUInteger kSignatureMessagePrefixLength = 22;
     [self receiveSolutionForServerChallenge:serverChallenge
                               clientChallenge:clientChallenge
                                      solution:solution
-                                    clientId:nil
+                                    clientId:@""
                                   completion:completion];
 }
 

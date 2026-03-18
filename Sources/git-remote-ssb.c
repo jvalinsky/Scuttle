@@ -9,7 +9,7 @@
 
 #define MAX_LINE 1024
 
-int connect_to_app() {
+int connect_to_app(void) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) return -1;
     
