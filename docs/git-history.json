@@ -1,0 +1,18 @@
+[
+  {
+    "hash": "d78381633345111c376ea7e799d95ea2763e6a4b",
+    "short_hash": "d783816",
+    "author": "Jack Valinsky",
+    "date": "2026-03-17T21:06:25-04:00",
+    "message": "feat: comprehensive git-ssb integration and protocol improvements\n\n- Implemented full cross-repo pull request workflow with fork discovery.\n- Added \"Fork\" button to repository UI and upstream support in data layer.\n- Fixed EBT bilateral replication with per-peer clock isolation.\n- Implemented causal ordering (repoBranch) in git-update messages.\n- Added committer parsing and display in Git diff view.\n- Improved SSB spec compliance (32-byte Bamboo entry IDs, GabbyGrove wire types).\n- Added comprehensive SSBMetafeed encryption tests.\n- Cleaned up debug code and misleading documentation comments.",
+    "files_changed": 21
+  },
+  {
+    "hash": "25d62d9598e42a6012143a4b3920f17f716d01d5",
+    "short_hash": "25d62d9",
+    "author": "Jack Valinsky",
+    "date": "2026-03-17T20:51:03-04:00",
+    "message": "Feature: Implement Bamboo-based sneakernet QR message exchange and pairing",
+    "files_changed": 11
+  }
+]
