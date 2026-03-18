@@ -20,7 +20,7 @@ typedef void (^SSBGitRepoCompletion)(NSString * _Nullable msgID, NSError * _Null
 - (instancetype)initWithRepoID:(NSString *)repoID feedStore:(SSBFeedStore *)feedStore objectStore:(SSBGitObjectStore *)objectStore;
 
 /// Publishes a new git-repo message.
-+ (void)publishRepoWithName:(NSString *)name client:(SSBRoomClient *)client completion:(SSBGitRepoCompletion)completion;
++ (void)publishRepoWithName:(NSString *)name upstream:(nullable NSString *)upstreamID client:(SSBRoomClient *)client completion:(SSBGitRepoCompletion)completion;
 
 /// Publishes a git-update message.
 - (void)publishUpdateWithRefs:(NSDictionary<NSString *, id> *)refs

@@ -12,6 +12,7 @@
 
 @interface SRGitRepoViewController () <NSTableViewDelegate, NSTableViewDataSource>
 @property (nonatomic, strong) NSSegmentedControl *segmentedControl;
+@property (nonatomic, strong) NSButton *forkButton;
 @property (nonatomic, strong) SRGitFileTreeViewController *fileTreeVC;
 @property (nonatomic, strong) SRGitFileViewController *fileVC;
 @property (nonatomic, strong) SRGitCommitLogViewController *commitLogVC;
@@ -91,6 +92,11 @@
     self.segmentedControl.selectedSegment = 0;
     self.segmentedControl.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.segmentedControl];
+
+    self.forkButton = [NSButton buttonWithTitle:@"Fork" target:self action:@selector(fork:)];
+    self.forkButton.bezelStyle = NSBezelStyleRounded;
+    self.forkButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.forkButton];
     
     self.containerView = [[NSView alloc] init];
     self.containerView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -99,6 +105,9 @@
     [NSLayoutConstraint activateConstraints:@[
         [self.segmentedControl.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
         [self.segmentedControl.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+
+        [self.forkButton.centerYAnchor constraintEqualToAnchor:self.segmentedControl.centerYAnchor],
+        [self.forkButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
         
         [self.containerView.topAnchor constraintEqualToAnchor:self.segmentedControl.bottomAnchor constant:10],
         [self.containerView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
@@ -117,6 +126,44 @@
         case 3: [self showIssuesView]; break;
         case 4: [self showPRsView]; break;
         default: break;
+    }
+}
+
+- (void)fork:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Fork Repository";
+    alert.informativeText = @"Enter a name for your new fork:";
+    [alert addButtonWithTitle:@"Fork"];
+    [alert addButtonWithTitle:@"Cancel"];
+    
+    NSTextField *input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 300, 24)];
+    // Default name is current repo name (needs investigation to get actual name, 
+    // but repoID is what we have. Let's assume we want a name.)
+    input.placeholderString = @"my-fork-name";
+    alert.accessoryView = input;
+    
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        NSString *name = input.stringValue;
+        if (name.length == 0) return;
+        
+        [self.forkButton setEnabled:NO];
+        [SSBGitRepo publishRepoWithName:name upstream:self.repo.repoID client:self.currentClient completion:^(NSString * _Nullable msgID, NSError * _Nullable error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.forkButton setEnabled:YES];
+                if (error) {
+                    NSAlert *err = [[NSAlert alloc] init];
+                    err.messageText = @"Fork Failed";
+                    err.informativeText = error.localizedDescription;
+                    [err runModal];
+                } else {
+                    NSAlert *success = [[NSAlert alloc] init];
+                    success.messageText = @"Repository Forked";
+                    success.informativeText = [NSString stringWithFormat:@"Successfully created fork: %@", name];
+                    [success runModal];
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"SRGitRepoCreatedNotification" object:nil];
+                }
+            });
+        }];
     }
 }
 

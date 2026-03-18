@@ -108,7 +108,43 @@ static int ssb_diff_find_histogram_anchor(const uint32_t *a, int n,
             if (freq < min_freq) {
                 min_freq = freq;
                 best_a = i;
-                best_b = first_b; // Just pick the first occurrence in B for now
+
+                /*
+                 * Line Matching Trade-off: First Occurrence Heuristic
+                 * ===================================================
+                 *
+                 * CURRENT BEHAVIOR:
+                 * When a line hash appears multiple times in sequence B, we simply
+                 * select the first occurrence (first_b) as our anchor point.
+                 *
+                 * WHY THIS IS A SIMPLIFICATION:
+                 * The ideal histogram diff would evaluate ALL possible pairings between
+                 * occurrences in A and B to find the alignment that minimizes the total
+                 * edit distance. For a line appearing k times in A and j times in B,
+                 * this would require considering k*j possible anchor combinations and
+                 * recursively computing the diff cost for each - an expensive O(k*j*n*m)
+                 * operation per candidate line.
+                 *
+                 * IDEAL BEHAVIOR:
+                 * A more sophisticated approach would use positional heuristics such as:
+                 * - "Patience diff" strategy: prefer matches that preserve relative order
+                 * - Closest-position matching: pick the B occurrence nearest to the
+                 *   corresponding relative position of A in its sequence
+                 * - LCS-aware selection: choose the occurrence that maximizes the length
+                 *   of the longest common subsequence in the surrounding context
+                 *
+                 * WHY THIS SIMPLIFICATION IS ACCEPTABLE:
+                 * 1. Low-frequency lines dominate: The histogram algorithm specifically
+                 *    selects the LEAST frequent lines as anchors. Lines appearing only
+                 *    once (count_a=1, count_b=1) have no ambiguity - first_b is optimal.
+                 * 2. Rare duplicates in practice: Source code rarely has many identical
+                 *    lines that are also low-frequency. Common duplicates (braces, blank
+                 *    lines, "return;") are filtered out by the frequency threshold.
+                 * 3. Bounded suboptimality: Even when suboptimal, the diff remains
+                 *    correct - it may just include slightly more edits than necessary.
+                 * 4. Performance: O(1) selection vs O(k*j) evaluation per anchor point.
+                 */
+                best_b = first_b;
             }
         }
     }

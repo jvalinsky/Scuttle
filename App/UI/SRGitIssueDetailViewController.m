@@ -158,13 +158,19 @@
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
     NSTableCellView *cell = [tableView makeViewWithIdentifier:@"ThreadCell" owner:self];
     if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+        cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 120)];
         cell.identifier = @"ThreadCell";
         
         NSTextField *authorTf = [NSTextField labelWithString:@""];
         authorTf.font = [NSFont boldSystemFontOfSize:12];
         authorTf.translatesAutoresizingMaskIntoConstraints = NO;
         [cell addSubview:authorTf];
+
+        NSTextField *prInfoTf = [NSTextField labelWithString:@""];
+        prInfoTf.font = [NSFont systemFontOfSize:11];
+        prInfoTf.textColor = [NSColor secondaryLabelColor];
+        prInfoTf.translatesAutoresizingMaskIntoConstraints = NO;
+        [cell addSubview:prInfoTf];
         
         NSTextField *bodyTf = [NSTextField labelWithString:@""];
         bodyTf.font = [NSFont systemFontOfSize:13];
@@ -177,9 +183,13 @@
             [authorTf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
             [authorTf.topAnchor constraintEqualToAnchor:cell.topAnchor constant:10],
             [authorTf.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12],
+
+            [prInfoTf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
+            [prInfoTf.topAnchor constraintEqualToAnchor:authorTf.bottomAnchor constant:4],
+            [prInfoTf.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12],
             
             [bodyTf.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
-            [bodyTf.topAnchor constraintEqualToAnchor:authorTf.bottomAnchor constant:6],
+            [bodyTf.topAnchor constraintEqualToAnchor:prInfoTf.bottomAnchor constant:8],
             [bodyTf.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12],
             [bodyTf.bottomAnchor constraintEqualToAnchor:cell.bottomAnchor constant:-10]
         ]];
@@ -189,7 +199,42 @@
     NSDictionary *content = msg.content;
     
     NSTextField *authorTf = (NSTextField *)cell.subviews[0];
+    NSTextField *prInfoTf = (NSTextField *)cell.subviews[1];
+    
     authorTf.stringValue = [[SRRoomManager sharedManager] displayNameForAuthor:msg.author];
+    
+    if ([content[@"type"] isEqualToString:@"pull-request"]) {
+        NSString *base = content[@"baseBranch"] ?: @"main";
+        NSString *head = content[@"headBranch"] ?: @"feature";
+        NSString *headRepo = content[@"headRepo"];
+        NSString *repo = content[@"repo"];
+        
+        if (headRepo && ![headRepo isEqualToString:repo]) {
+            // Cross-repo PR: find fork name and author
+            SSBMessage *forkMsg = nil;
+            NSArray *allRepos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:500];
+            for (SSBMessage *m in allRepos) {
+                if ([m.key isEqualToString:headRepo]) {
+                    forkMsg = m;
+                    break;
+                }
+            }
+            
+            if (forkMsg) {
+                NSString *forkName = forkMsg.content[@"name"] ?: @"fork";
+                NSString *forkAuthor = [[SRRoomManager sharedManager] displayNameForAuthor:forkMsg.author];
+                prInfoTf.stringValue = [NSString stringWithFormat:@"wants to merge %@/%@:%@ → %@", forkAuthor, forkName, head, base];
+            } else {
+                prInfoTf.stringValue = [NSString stringWithFormat:@"wants to merge fork:%@ → %@", head, base];
+            }
+        } else {
+            // Same-repo PR
+            prInfoTf.stringValue = [NSString stringWithFormat:@"wants to merge %@ → %@", head, base];
+        }
+        prInfoTf.hidden = NO;
+    } else {
+        prInfoTf.hidden = YES;
+    }
     
     cell.textField.stringValue = content[@"text"] ?: content[@"title"] ?: @"";
     

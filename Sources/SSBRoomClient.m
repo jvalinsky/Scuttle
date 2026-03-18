@@ -44,6 +44,13 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *internalPeerSyncProgress;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *internalPeerSyncStates;
 @property (nonatomic, assign) BOOL isEBTRunning;
+
+/// Tracks per-peer EBT state to handle bilateral replication properly.
+/// Key: peer ID, Value: dictionary with { @"requestID": NSNumber, @"clock": NSMutableDictionary }
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableDictionary *> *peerEBTState;
+
+/// The current session being used for EBT (to route bilateral requests correctly)
+@property (nonatomic, weak) SSBMuxRPCSession *currentEBTSession;
 @end
 
 @implementation SSBRoomClient
@@ -94,6 +101,7 @@ static os_log_t ssb_room_log;
         _pendingPublishQueue = [NSMutableArray array];
         _internalPeerSyncProgress = [NSMutableDictionary dictionary];
         _internalPeerSyncStates = [NSMutableDictionary dictionary];
+        _peerEBTState = [NSMutableDictionary dictionary];
         _isSyncingLocalFeed = NO;
         
         // Load local feed sequence from store
@@ -704,6 +712,8 @@ static os_log_t ssb_room_log;
 
 - (void)startEBTReplicationWithSession:(SSBMuxRPCSession *)session {
     if (self.isEBTRunning) return;
+    
+    self.currentEBTSession = session;
 
     NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
     NSDictionary *args = @{@"version": @3};
@@ -717,79 +727,133 @@ static os_log_t ssb_room_log;
             strongSelf.isEBTRunning = NO;
             return;
         }
-        [strongSelf handleEBTMessage:response requestID:0 flags:0];
-    };
+        [strongSelf handleEBTMessage:response requestID:0 flags:0 session:session];
+        };
 
-    self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
-    
-    session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
-        [weakSelf handleEBTMessage:payload requestID:requestID flags:flags];
-    };
-    
-    self.isEBTRunning = YES;
-    self.remoteClock = [NSMutableDictionary dictionary];
-    
-    // Send initial clock
-    [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
-    os_log_info(ssb_room_log, "Started EBT replication with clock of %lu feeds", (unsigned long)clock.count);
-}
+        self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
 
-- (void)startEBTReplication {
-    [self startEBTReplicationWithSession:self.rpcSession];
-}
+        session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
+        [weakSelf handleEBTMessage:payload requestID:requestID flags:flags session:session];
+        };
 
-- (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags {
-    if (reqID != 0) {
-        os_log_debug(ssb_room_log, "handleEBTMessage: REMOTE REQUEST req=%d flags=%u", reqID, flags);
+        self.isEBTRunning = YES;
+        self.remoteClock = [NSMutableDictionary dictionary];
+
+        // Send initial clock
+        [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
+        os_log_info(ssb_room_log, "Started EBT replication with clock of %lu feeds", (unsigned long)clock.count);
+        }
+
+        - (void)startEBTReplication {
+        [self startEBTReplicationWithSession:self.rpcSession];
+        }
+
+        - (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags session:(SSBMuxRPCSession *)session {
+            if (reqID != 0) {
+                os_log_debug(ssb_room_log, "handleEBTMessage: REMOTE REQUEST req=%d flags=%u", reqID, flags);
+            } else {
+                os_log_debug(ssb_room_log, "handleEBTMessage: RESPONSE");
+            }
+
+            // Identify which peer this message is from
+            NSString *peerID = nil;
+            for (NSString *pid in self.activeTunnels) {
+                if (self.activeTunnels[pid].rpcSession == session) {
+                    peerID = pid;
+                    break;
+                }
+            }
+            if (!peerID) peerID = self.host;
+
+            if ([message isKindOfClass:[NSDictionary class]]) {
+                NSDictionary *dict = (NSDictionary *)message;
+
+                // Check if this is an RPC request rather than an EBT payload
+                if (dict[@"name"] && dict[@"args"]) {
+                    NSArray *name = dict[@"name"];
+                    if ([name isKindOfClass:[NSArray class]] && name.count >= 2 && 
+                        [name[0] isEqualToString:@"ebt"] && [name[1] isEqualToString:@"replicate"]) {
+                        [self handleBilateralEBT:dict requestID:reqID session:session];
+                    } else {
+                        os_log_debug(ssb_room_log, "Ignoring non-EBT RPC request: %{public}@", name);
+                    }
+                    return;
+                }
+
+                if (dict[@"key"] && dict[@"value"]) {
+                    [self processIncomingMessage:dict fromPeer:peerID];
+                } else {
+                    [self handleRemoteClockUpdate:dict fromPeer:peerID];
+                }
+            } else if ([message isKindOfClass:[NSData class]]) {
+                NSData *data = (NSData *)message;
+                os_log_debug(ssb_room_log, "Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
+                // Try to parse as JSON first in case it's a clock update in binary form
+                NSError *jsonError = nil;
+                id parsed = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&jsonError];
+                if (!jsonError && [parsed isKindOfClass:[NSDictionary class]]) {
+                     os_log_debug(ssb_room_log, "Successfully parsed binary EBT data as JSON dictionary");
+                     [self handleEBTMessage:parsed requestID:reqID flags:flags session:session];
+                } else {
+                     [self processIncomingMessage:data fromPeer:peerID];
+                }
+            }
+        }
+        - (void)handleBilateralEBT:(NSDictionary *)req requestID:(int32_t)reqID session:(SSBMuxRPCSession *)session {
+        os_log_info(ssb_room_log, "Handling bilateral EBT request (ID=%d)", reqID);
+
+        // We need to know who this peer is. If this is a tunnel, we know the peerID.
+        NSString *peerID = nil;
+        for (NSString *pid in self.activeTunnels) {
+        if (self.activeTunnels[pid].rpcSession == session) {
+            peerID = pid;
+            break;
+        }
+        }
+
+        if (!peerID) {
+        // If not a tunnel, it's the room itself (acting as a peer)
+        peerID = self.host; 
+        }
+
+        // Store state for this bilateral session
+        self.peerEBTState[peerID] = [@{
+        @"requestID": @(reqID),
+        @"clock": [NSMutableDictionary dictionary]
+        } mutableCopy];
+
+        // Send our clock as the response (duplex stream)
+        NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
+        [session sendData:clock forRequest:reqID isEnd:NO];
+        os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (%lu feeds)", peerID, (unsigned long)clock.count);
+        }
+
+        - (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID {
+    os_log_debug(ssb_room_log, "Received clock update from %{public}@ with %lu entries", peerID, (unsigned long)update.count);
+    
+    NSMutableDictionary *targetClock;
+    if (peerID && self.peerEBTState[peerID]) {
+        targetClock = self.peerEBTState[peerID][@"clock"];
     } else {
-        os_log_debug(ssb_room_log, "handleEBTMessage: RESPONSE");
+        targetClock = self.remoteClock;
     }
 
-    if ([message isKindOfClass:[NSDictionary class]]) {
-        NSDictionary *dict = (NSDictionary *)message;
-        
-        // Check if this is an RPC request rather than an EBT payload
-        if (dict[@"name"] && dict[@"args"]) {
-            NSArray *name = dict[@"name"];
-            os_log_debug(ssb_room_log, "Ignoring non-EBT RPC request: %{public}@", name);
-            // If it was ebt.replicate, we should handle it bilaterally, but for now we just skip to avoid clock corruption
-            return;
-        }
-        
-        if (dict[@"key"] && dict[@"value"]) {
-            [self processIncomingMessage:dict];
-        } else {
-            [self handleRemoteClockUpdate:dict];
-        }
-    } else if ([message isKindOfClass:[NSData class]]) {
-        NSData *data = (NSData *)message;
-        os_log_debug(ssb_room_log, "Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
-        // Try to parse as JSON first in case it's a clock update in binary form
-        NSError *jsonError = nil;
-        id parsed = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&jsonError];
-        if (!jsonError && [parsed isKindOfClass:[NSDictionary class]]) {
-             os_log_debug(ssb_room_log, "Successfully parsed binary EBT data as JSON dictionary");
-             [self handleEBTMessage:parsed requestID:reqID flags:flags];
-        } else {
-             [self processIncomingMessage:data];
-        }
-    }
-}
-
-- (void)handleRemoteClockUpdate:(NSDictionary *)update {
-    os_log_debug(ssb_room_log, "Received clock update with %lu entries", (unsigned long)update.count);
     [update enumerateKeysAndObjectsUsingBlock:^(id key, id val, BOOL *stop) {
         if ([key isKindOfClass:[NSString class]] && [val isKindOfClass:[NSNumber class]]) {
             NSString *author = (NSString *)key;
             NSInteger seq = [val integerValue];
             os_log_debug(ssb_room_log, "Valid clock for %{public}@ is %ld", author, (long)seq);
-            self.remoteClock[author] = @(ABS(seq));
+            targetClock[author] = @(ABS(seq));
             [self updateSyncProgressForAuthor:author];
         }
     }];
 }
 
-- (void)processIncomingMessage:(id)response {
+- (void)handleRemoteClockUpdate:(NSDictionary *)update {
+    [self handleRemoteClockUpdate:update fromPeer:nil];
+}
+
+- (void)processIncomingMessage:(id)response fromPeer:(NSString *)peerID {
     NSDictionary *dict = nil;
     if ([response isKindOfClass:[NSData class]]) {
         dict = [NSJSONSerialization JSONObjectWithData:(NSData *)response options:0 error:nil];
@@ -821,9 +885,25 @@ static os_log_t ssb_room_log;
                     [self.delegate roomClient:self didReplicateMessagesFromPeer:msg.author count:1];
                 }
             });
-            [self updateSyncProgressForAuthor:msg.author];
+            
+            // Update the correct clock
+            NSMutableDictionary *targetClock;
+            if (peerID && self.peerEBTState[peerID]) {
+                targetClock = self.peerEBTState[peerID][@"clock"];
+            } else {
+                targetClock = self.remoteClock;
+            }
+            if (msg.author) {
+                targetClock[msg.author] = @(msg.sequence);
+            }
+            
+            [self updateSyncProgressForAuthor:msg.author fromPeer:peerID];
         }
     }
+}
+
+- (void)processIncomingMessage:(id)response {
+    [self processIncomingMessage:response fromPeer:nil];
 }
 
 - (void)updateSyncProgressForAuthor:(NSString *)author {

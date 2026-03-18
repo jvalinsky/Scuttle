@@ -102,10 +102,11 @@
     // Add Metadata Header
     NSString *commitMsg = @"";
     NSString *author = @"";
+    NSString *committer = @"";
     NSString *date = @"";
     for (NSString *line in lines) {
         if ([line hasPrefix:@"author "]) author = [line substringFromIndex:7];
-        else if ([line hasPrefix:@"committer "]) {} // Skip committer for now
+        else if ([line hasPrefix:@"committer "]) committer = [line substringFromIndex:10];
         else if (line.length == 0) {
             NSUInteger idx = [lines indexOfObject:line];
             if (idx + 1 < lines.count) {
@@ -126,6 +127,25 @@
     
     [as appendAttributedString:[[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"%@\n", commitMsg] attributes:msgAttr]];
     [as appendAttributedString:[[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"Authored by %@\n", author] attributes:metaAttr]];
+
+    // Display committer if different from author (compare name/email portion before timestamp)
+    if (committer.length > 0) {
+        // Extract name/email portion (everything before the timestamp, which starts after the last '>')
+        NSRange authorEmailEnd = [author rangeOfString:@">" options:NSBackwardsSearch];
+        NSRange committerEmailEnd = [committer rangeOfString:@">" options:NSBackwardsSearch];
+
+        NSString *authorIdentity = (authorEmailEnd.location != NSNotFound)
+            ? [author substringToIndex:NSMaxRange(authorEmailEnd)]
+            : author;
+        NSString *committerIdentity = (committerEmailEnd.location != NSNotFound)
+            ? [committer substringToIndex:NSMaxRange(committerEmailEnd)]
+            : committer;
+
+        if (![authorIdentity isEqualToString:committerIdentity]) {
+            [as appendAttributedString:[[NSAttributedString alloc] initWithString:[NSString stringWithFormat:@"Committed by %@\n", committer] attributes:metaAttr]];
+        }
+    }
+
     [as appendAttributedString:[[NSAttributedString alloc] initWithString:@"\n------------------------------------------------------------\n\n" attributes:metaAttr]];
 
     for (SSBDiffHunk *hunk in hunks) {

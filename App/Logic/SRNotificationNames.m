@@ -19,3 +19,5 @@ NSString * const SRGitRepoSelectedKey                  = @"SRGitRepoSelectedKey"
 
 NSString * const SRGitRepoUpdatedNotification          = @"SRGitRepoUpdatedNotification";
 NSString * const SRGitRepoUpdatedKey                   = @"SRGitRepoUpdatedKey";
+
+NSString * const SRGitRepoCreatedNotification          = @"SRGitRepoCreatedNotification";

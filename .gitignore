@@ -74,3 +74,4 @@ go.sum
 .dolt/
 *.db
 sips/
+.gemini/

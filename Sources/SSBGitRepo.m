@@ -14,11 +14,15 @@
     return self;
 }
 
-+ (void)publishRepoWithName:(NSString *)name client:(SSBRoomClient *)client completion:(SSBGitRepoCompletion)completion {
-    NSDictionary *content = @{
++ (void)publishRepoWithName:(NSString *)name upstream:(nullable NSString *)upstreamID client:(SSBRoomClient *)client completion:(SSBGitRepoCompletion)completion {
+    NSMutableDictionary *content = [NSMutableDictionary dictionaryWithDictionary:@{
         @"type": @"git-repo",
         @"name": name
-    };
+    }];
+    if (upstreamID) {
+        content[@"upstream"] = upstreamID;
+    }
+    
     [client publishLocalMessageWithContent:content completion:^(NSError *error, SSBMessage *msg) {
         if (error) {
             completion(nil, error);
@@ -26,6 +30,10 @@
             completion(msg.key, nil);
         }
     }];
+}
+
++ (void)publishRepoWithName:(NSString *)name client:(SSBRoomClient *)client completion:(SSBGitRepoCompletion)completion {
+    [self publishRepoWithName:name upstream:nil client:client completion:completion];
 }
 
 - (void)publishUpdateWithRefs:(NSDictionary<NSString *, id> *)refs
@@ -44,13 +52,19 @@
         [indexes addObject:@{@"link": blobID}];
     }
     
-    NSDictionary *content = @{
+    NSMutableDictionary *content = [NSMutableDictionary dictionaryWithDictionary:@{
         @"type": @"git-update",
         @"repo": self.repoID,
         @"refs": refs,
         @"packs": packs,
         @"indexes": indexes
-    };
+    }];
+    
+    // Add causal ordering (repoBranch)
+    NSArray<SSBMessage *> *recent = [self updateMessages];
+    if (recent.count > 0) {
+        content[@"repoBranch"] = @[recent.firstObject.key];
+    }
     
     [client publishLocalMessageWithContent:content completion:^(NSError *error, SSBMessage *msg) {
         if (error) {

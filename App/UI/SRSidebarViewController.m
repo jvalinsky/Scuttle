@@ -14,6 +14,7 @@ static os_log_t sidebar_log;
 @property (nonatomic, strong) NSVisualEffectView *effectView;
 @property (nonatomic, strong) SRProfileHeaderView *profileHeader;
 @property (nonatomic, strong) NSTableView *tableView;
+@property (nonatomic, strong) NSArray<SSBMessage *> *gitRepos;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSButton *joinButton;
 @property (nonatomic, strong) NSButton *scanButton;
@@ -41,6 +42,7 @@ static os_log_t sidebar_log;
 - (void)viewDidLoad {
     [super viewDidLoad];
     [self setupUI];
+    [self loadGitRepos];
     
     [[NSNotificationCenter defaultCenter] addObserver:self 
                                              selector:@selector(roomsDidUpdate:) 
@@ -61,6 +63,27 @@ static os_log_t sidebar_log;
                                              selector:@selector(syncStatusDidUpdate:) 
                                                  name:SRRoomSyncStatusChangedNotification
                                                object:nil];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(gitReposDidUpdate:)
+                                                 name:SRGitRepoCreatedNotification
+                                               object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(gitReposDidUpdate:)
+                                                 name:SRNewMessageNotification
+                                               object:nil];
+}
+
+- (void)gitReposDidUpdate:(NSNotification *)notification {
+    [self loadGitRepos];
+}
+
+- (void)loadGitRepos {
+    self.gitRepos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.tableView reloadData];
+    });
 }
 
 - (void)endpointsDidUpdate:(NSNotification *)notification {
@@ -309,25 +332,41 @@ static os_log_t sidebar_log;
     NSInteger row = self.tableView.selectedRow;
     if (row < 0) return;
     
-    NSInteger rooms = [SRRoomManager sharedManager].rooms.count;
+    NSInteger roomsCount = [SRRoomManager sharedManager].rooms.count;
     
     if (row == 0) return; // ROOMS Header
     
-    if (row <= rooms) {
+    if (row <= roomsCount) {
         RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification 
                                                             object:nil 
                                                           userInfo:@{SRRoomManagerRoomSelectedKey: room}];
+        return;
+    }
+
+    if (row == roomsCount + 1) return; // REPOSITORIES Header
+
+    NSInteger repoIdx = row - roomsCount - 2;
+    if (repoIdx >= 0 && repoIdx < self.gitRepos.count) {
+        SSBMessage *repoMsg = self.gitRepos[repoIdx];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRGitRepoSelectedNotification 
+                                                            object:nil 
+                                                          userInfo:@{SRGitRepoSelectedKey: repoMsg.key}];
     }
 }
 
 #pragma mark - NSTableViewDataSource / Delegate
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return [SRRoomManager sharedManager].rooms.count + 1; // +1 for Header
+    NSInteger roomsCount = [SRRoomManager sharedManager].rooms.count;
+    NSInteger reposCount = self.gitRepos.count;
+    // Header (ROOMS) + rooms + Header (REPOSITORIES) + repos
+    return 1 + roomsCount + 1 + reposCount;
 }
 
 - (nullable NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(nullable NSTableColumn *)tableColumn row:(NSInteger)row {
+    NSInteger roomsCount = [SRRoomManager sharedManager].rooms.count;
+    
     if (row == 0) {
         NSTextField *header = [NSTextField labelWithString:@"ROOMS"];
         header.font = [NSFont boldSystemFontOfSize:11];
@@ -335,33 +374,70 @@ static os_log_t sidebar_log;
         return header;
     }
     
-    RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
-    NSTableCellView *cell = [tableView makeViewWithIdentifier:@"RoomCell" owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 44)];
-        cell.identifier = @"RoomCell";
+    if (row <= roomsCount) {
+        RoomConfig *room = [SRRoomManager sharedManager].rooms[row - 1];
+        NSTableCellView *cell = [tableView makeViewWithIdentifier:@"RoomCell" owner:self];
+        if (!cell) {
+            cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 44)];
+            cell.identifier = @"RoomCell";
+            
+            NSTextField *textField = [NSTextField labelWithString:@""];
+            textField.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell addSubview:textField];
+            cell.textField = textField;
+            
+            [NSLayoutConstraint activateConstraints:@[
+                [textField.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:8],
+                [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],
+                [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
+            ]];
+        }
         
-        NSTextField *textField = [NSTextField labelWithString:@""];
-        textField.translatesAutoresizingMaskIntoConstraints = NO;
-        [cell addSubview:textField];
-        cell.textField = textField;
+        cell.textField.stringValue = room.host;
+        SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
+        if (client.isConnected) {
+            cell.textField.textColor = [NSColor labelColor];
+        } else {
+            cell.textField.textColor = [NSColor secondaryLabelColor];
+        }
         
-        [NSLayoutConstraint activateConstraints:@[
-            [textField.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:8],
-            [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],
-            [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
-        ]];
+        return cell;
     }
-    
-    cell.textField.stringValue = room.host;
-    SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
-    if (client.isConnected) {
+
+    if (row == roomsCount + 1) {
+        NSTextField *header = [NSTextField labelWithString:@"REPOSITORIES"];
+        header.font = [NSFont boldSystemFontOfSize:11];
+        header.textColor = [NSColor secondaryLabelColor];
+        return header;
+    }
+
+    NSInteger repoIdx = row - roomsCount - 2;
+    if (repoIdx >= 0 && repoIdx < self.gitRepos.count) {
+        SSBMessage *repoMsg = self.gitRepos[repoIdx];
+        NSTableCellView *cell = [tableView makeViewWithIdentifier:@"RepoCell" owner:self];
+        if (!cell) {
+            cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 44)];
+            cell.identifier = @"RepoCell";
+            
+            NSTextField *textField = [NSTextField labelWithString:@""];
+            textField.translatesAutoresizingMaskIntoConstraints = NO;
+            [cell addSubview:textField];
+            cell.textField = textField;
+            
+            [NSLayoutConstraint activateConstraints:@[
+                [textField.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:8],
+                [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-8],
+                [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
+            ]];
+        }
+        
+        NSString *repoName = repoMsg.content[@"name"] ?: @"Unnamed Repo";
+        cell.textField.stringValue = repoName;
         cell.textField.textColor = [NSColor labelColor];
-    } else {
-        cell.textField.textColor = [NSColor secondaryLabelColor];
+        return cell;
     }
     
-    return cell;
+    return nil;
 }
 
 - (void)removeRoomAction:(id)sender {

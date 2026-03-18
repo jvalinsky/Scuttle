@@ -79,11 +79,7 @@ static os_log_t ssb_shs_log;
         return hello;
     } else {
         os_log_info(ssb_shs_log, "Generating Server Hello");
-        // For server, b is generated in processHello when A's hello arrives, 
-        // but if createHello is called, we should ensure it's generated.
-        if (NSData.data.length == 0) { // Check if already generated
-             // Dummy check for clarity, b should be generated in processHello
-        }
+        // Server ephemeral key (b) is generated in processHello when client's hello arrives.
         unsigned char hmacOut[64];
         CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, _serverEphPubKey, 32, hmacOut);
         self.localAppMac = [NSData dataWithBytes:hmacOut length:32];

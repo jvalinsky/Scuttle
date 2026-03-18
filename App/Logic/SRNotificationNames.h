@@ -30,4 +30,6 @@ extern NSString * const SRGitRepoSelectedKey;
 extern NSString * const SRGitRepoUpdatedNotification;
 extern NSString * const SRGitRepoUpdatedKey;
 
+extern NSString * const SRGitRepoCreatedNotification;
+
 NS_ASSUME_NONNULL_END
