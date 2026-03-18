@@ -1,0 +1,10 @@
+include $(GNUSTEP_MAKEFILES)/common.make
+
+APP_NAME = ScuttleDemo
+ScuttleDemo_OBJC_FILES = Sources/GNUstepDemo.m
+
+# 2026: Enable modern Objective-C features
+ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks
+ADDITIONAL_LDFLAGS += -ldispatch -lobjc
+
+include $(GNUSTEP_MAKEFILES)/application.make
