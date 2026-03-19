@@ -19,6 +19,35 @@
 #import <os/log.h>
 
 static os_log_t split_log;
+static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
+
+static void SRPeerDiscoveryAppend(NSString *line) {
+    if (line.length == 0) return;
+    static dispatch_queue_t q;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        q = dispatch_queue_create("com.scuttlebutt.room.peerdiag.mainsplit", DISPATCH_QUEUE_SERIAL);
+    });
+    NSString *full = [NSString stringWithFormat:@"[%@] mainsplit %@\n", [NSDate date], line];
+    NSData *data = [full dataUsingEncoding:NSUTF8StringEncoding];
+    dispatch_async(q, ^{
+        @autoreleasepool {
+            NSFileManager *fm = [NSFileManager defaultManager];
+            if (![fm fileExistsAtPath:kSRPeerDiscoveryLogPath]) {
+                [fm createFileAtPath:kSRPeerDiscoveryLogPath contents:nil attributes:nil];
+            }
+            NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:kSRPeerDiscoveryLogPath];
+            if (!h) return;
+            @try {
+                [h seekToEndOfFile];
+                [h writeData:data];
+            } @catch (__unused NSException *exception) {
+            } @finally {
+                [h closeFile];
+            }
+        }
+    });
+}
 
 @interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate>
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
@@ -152,6 +181,9 @@ static os_log_t split_log;
     RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
     self.selectedRoom = room;
     os_log_info(split_log, "Selected room: %{public}@ (name: %{public}@)", room.host, room.name);
+    SRPeerDiscoveryAppend([NSString stringWithFormat:@"room selected host=%@ name=%@",
+                           room.host ?: @"<unknown>",
+                           room.name ?: @"<none>"]);
 
     [self.homeVC.headerView updateWithIdentity:room.host name:room.name];
 
@@ -175,6 +207,10 @@ static os_log_t split_log;
     if (![peers isKindOfClass:[NSArray class]]) {
         peers = [SRRoomManager sharedManager].roomEndpoints[host];
     }
+    SRPeerDiscoveryAppend([NSString stringWithFormat:@"endpointsDidUpdate host=%@ selected=%@ peers=%lu",
+                           host ?: @"<unknown>",
+                           self.selectedRoom.host ?: @"<none>",
+                           (unsigned long)peers.count]);
 
     os_log_debug(split_log,
                  "Endpoints notification host=%{public}@ selected=%{public}@ peers=%lu",
@@ -194,13 +230,20 @@ static os_log_t split_log;
             os_log_debug(split_log, "No room selected, auto-selected %{public}@", self.selectedRoom.host);
         }
         if (peers) {
+            SRPeerDiscoveryAppend([NSString stringWithFormat:@"peerListVC updatePeers host=%@ peers=%lu",
+                                   host ?: @"<unknown>",
+                                   (unsigned long)peers.count]);
             [self.peerListVC updatePeers:peers];
         } else {
             os_log_debug(split_log, "No endpoints payload for %{public}@; falling back to cached lookup", host);
+            SRPeerDiscoveryAppend([NSString stringWithFormat:@"no payload for host=%@, fallback to cached lookup", host ?: @"<unknown>"]);
             [self updatePeerList];
         }
     } else {
         os_log_debug(split_log, "Endpoint notification ignored (host mismatch for %{public}@)", host);
+        SRPeerDiscoveryAppend([NSString stringWithFormat:@"endpoint notification ignored host=%@ selected=%@",
+                               host ?: @"<unknown>",
+                               self.selectedRoom.host ?: @"<none>"]);
     }
 }
 
@@ -249,11 +292,15 @@ static os_log_t split_log;
 - (void)updatePeerList {
     if (!self.selectedRoom) {
         os_log_debug(split_log, "updatePeerList called but no room selected");
+        SRPeerDiscoveryAppend(@"updatePeerList no selected room");
         [self.peerListVC updatePeers:@[]];
         return;
     }
     NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[self.selectedRoom.host];
     os_log_debug(split_log, "updatePeerList for %{public}@ - found %lu peers", self.selectedRoom.host, (unsigned long)peers.count);
+    SRPeerDiscoveryAppend([NSString stringWithFormat:@"updatePeerList host=%@ peers=%lu",
+                           self.selectedRoom.host ?: @"<unknown>",
+                           (unsigned long)peers.count]);
     [self.peerListVC updatePeers:peers ?: @[]];
 }
 

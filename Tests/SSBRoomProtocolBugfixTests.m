@@ -505,6 +505,80 @@
     XCTAssertEqualObjects(currentAttendants[1], @"@peer2.ed25519");
 }
 
+- (void)testRoomAttendantsStateEventParsesTupleAndNestedPeerObjects {
+    NSMutableArray *attendantsList = [NSMutableArray array];
+    [self.client setValue:attendantsList forKey:@"attendantsList"];
+
+    NSDictionary *stateEvent = @{
+        @"type": @"state",
+        @"peers": @[
+            @[@"@peer1.ed25519", @{@"presence": @"online"}],
+            @{@"peer": @{@"id": @"@peer2.ed25519"}},
+            @{@"value": @{@"key": @"@peer3.ed25519"}}
+        ]
+    };
+
+    [self.client handleAttendantsResponse:stateEvent];
+
+    NSArray *currentAttendants = [self.client valueForKey:@"attendantsList"];
+    XCTAssertEqual(currentAttendants.count, 3, @"tuple/nested peer payloads should normalize to 3 peer IDs");
+    XCTAssertTrue([currentAttendants containsObject:@"@peer1.ed25519"]);
+    XCTAssertTrue([currentAttendants containsObject:@"@peer2.ed25519"]);
+    XCTAssertTrue([currentAttendants containsObject:@"@peer3.ed25519"]);
+}
+
+- (void)testRoomAttendantsStateEventParsesJSONStringPayload {
+    NSMutableArray *attendantsList = [NSMutableArray array];
+    [self.client setValue:attendantsList forKey:@"attendantsList"];
+
+    NSString *jsonPayload = @"{\"type\":\"state\",\"ids\":[\"@peer1.ed25519\",\"@peer2.ed25519\"]}";
+    [self.client handleAttendantsResponse:jsonPayload];
+
+    NSArray *currentAttendants = [self.client valueForKey:@"attendantsList"];
+    XCTAssertEqual(currentAttendants.count, 2, @"JSONString attendants payload should parse into peer IDs");
+    XCTAssertTrue([currentAttendants containsObject:@"@peer1.ed25519"]);
+    XCTAssertTrue([currentAttendants containsObject:@"@peer2.ed25519"]);
+}
+
+- (void)testRoomAttendantsStateEventParsesWrappedPayload {
+    NSMutableArray *attendantsList = [NSMutableArray array];
+    [self.client setValue:attendantsList forKey:@"attendantsList"];
+
+    NSDictionary *wrappedPayload = @{
+        @"value": @{
+            @"type": @"state",
+            @"peers": @[
+                @{@"id": @"@peer1.ed25519"},
+                @{@"peer": @{@"key": @"@peer2.ed25519"}}
+            ]
+        }
+    };
+
+    [self.client handleAttendantsResponse:wrappedPayload];
+
+    NSArray *currentAttendants = [self.client valueForKey:@"attendantsList"];
+    XCTAssertEqual(currentAttendants.count, 2, @"Wrapped attendants payload should unwrap and parse");
+    XCTAssertTrue([currentAttendants containsObject:@"@peer1.ed25519"]);
+    XCTAssertTrue([currentAttendants containsObject:@"@peer2.ed25519"]);
+}
+
+- (void)testRoomAttendantsParsesArrayOfEventDictionaries {
+    NSMutableArray *attendantsList = [NSMutableArray array];
+    [self.client setValue:attendantsList forKey:@"attendantsList"];
+
+    NSArray *events = @[
+        @{@"event": @"state", @"ids": @[@"@peer1.ed25519"]},
+        @{@"event": @"joined", @"peer": @{@"id": @"@peer2.ed25519"}}
+    ];
+
+    [self.client handleAttendantsResponse:events];
+
+    NSArray *currentAttendants = [self.client valueForKey:@"attendantsList"];
+    XCTAssertEqual(currentAttendants.count, 2, @"Event dictionary batches should be applied sequentially");
+    XCTAssertTrue([currentAttendants containsObject:@"@peer1.ed25519"]);
+    XCTAssertTrue([currentAttendants containsObject:@"@peer2.ed25519"]);
+}
+
 #pragma mark - Task 1.3: Test room.attendants Joined Event Parsing
 
 /**
@@ -1159,6 +1233,30 @@
     [self.client setValue:@{
         @"tunnel": @{@"endpoints": @"source"},
         @"room": @{@"attendants": @"source"}
+    } forKey:@"serverManifest"];
+
+    NSArray<NSString *> *method = [self.client preferredEndpointDiscoveryMethod];
+    XCTAssertEqualObjects(method, (@[@"room", @"attendants"]));
+}
+
+- (void)testPreferredEndpointDiscoveryMethodUsesFlatManifestKeysWhenMetadataIsUnavailable {
+    [self.client setValue:nil forKey:@"roomFeatures"];
+    [self.client setValue:@{
+        @"tunnel.endpoints": @"source",
+        @"room.attendants": @"source"
+    } forKey:@"serverManifest"];
+
+    NSArray<NSString *> *method = [self.client preferredEndpointDiscoveryMethod];
+    XCTAssertEqualObjects(method, (@[@"room", @"attendants"]));
+}
+
+- (void)testPreferredEndpointDiscoveryMethodUsesWrappedManifestDictionary {
+    [self.client setValue:nil forKey:@"roomFeatures"];
+    [self.client setValue:@{
+        @"manifest": @{
+            @"tunnel.endpoints": @"source",
+            @"room.attendants": @"source"
+        }
     } forKey:@"serverManifest"];
 
     NSArray<NSString *> *method = [self.client preferredEndpointDiscoveryMethod];

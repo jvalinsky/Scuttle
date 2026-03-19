@@ -16,6 +16,7 @@
 #import "SSBFeedCodecRegistry.h"
 
 static os_log_t ssb_room_log;
+static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
 
 @interface SSBRoomClient ()
 @property (nonatomic, copy) NSString *host;
@@ -35,6 +36,8 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) SSBFeedStore *feedStore;
 @property (nonatomic, readwrite, nullable) NSArray<NSString *> *roomFeatures;
 @property (nonatomic, copy, nullable) NSArray<NSString *> *endpointDiscoveryMethodInUse;
+@property (nonatomic, assign) uint64_t endpointDiscoverySubscriptionGeneration;
+@property (nonatomic, assign) BOOL endpointDiscoveryReceivedEvent;
 @property (nonatomic, readwrite) BOOL isInternalUser;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBTunnelConnection *> *activeTunnels;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingPublishQueue;
@@ -60,6 +63,44 @@ static os_log_t ssb_room_log;
     if (self == [SSBRoomClient class]) {
         ssb_room_log = os_log_create("com.scuttlebutt.room", "Client");
     }
+}
+
+- (void)appendPeerDiscoveryDiagnostic:(NSString *)message {
+    if (message.length == 0) {
+        return;
+    }
+
+    static dispatch_queue_t diagQueue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        diagQueue = dispatch_queue_create("com.scuttlebutt.room.peerdiag", DISPATCH_QUEUE_SERIAL);
+    });
+
+    NSString *host = self.host ?: @"<unknown-host>";
+    NSString *line = [NSString stringWithFormat:@"[%@] host=%@ %@\n", [NSDate date], host, message];
+    NSData *lineData = [line dataUsingEncoding:NSUTF8StringEncoding];
+
+    dispatch_async(diagQueue, ^{
+        @autoreleasepool {
+            NSFileManager *fm = [NSFileManager defaultManager];
+            if (![fm fileExistsAtPath:kSRPeerDiscoveryLogPath]) {
+                [fm createFileAtPath:kSRPeerDiscoveryLogPath contents:nil attributes:nil];
+            }
+
+            NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:kSRPeerDiscoveryLogPath];
+            if (!handle) {
+                return;
+            }
+            @try {
+                [handle seekToEndOfFile];
+                [handle writeData:lineData];
+            } @catch (__unused NSException *exception) {
+                // Ignore diagnostic write failures.
+            } @finally {
+                [handle closeFile];
+            }
+        }
+    });
 }
 
 - (instancetype)initWithHost:(NSString *)host 
@@ -143,10 +184,31 @@ static os_log_t ssb_room_log;
     if ([item isKindOfClass:[NSString class]]) {
         return [(NSString *)item length] > 0 ? item : nil;
     }
+    if ([item isKindOfClass:[NSArray class]]) {
+        for (id candidate in (NSArray *)item) {
+            NSString *peerID = [self peerIDFromEndpointItem:candidate];
+            if (peerID.length > 0) {
+                return peerID;
+            }
+        }
+        return nil;
+    }
     if ([item isKindOfClass:[NSDictionary class]]) {
         NSDictionary *dict = (NSDictionary *)item;
-        NSString *peerID = dict[@"id"] ?: dict[@"key"] ?: dict[@"peer"] ?: dict[@"feed"];
-        return peerID.length > 0 ? peerID : nil;
+        id direct = dict[@"id"] ?: dict[@"key"] ?: dict[@"feed"];
+        if ([direct isKindOfClass:[NSString class]] && [(NSString *)direct length] > 0) {
+            return (NSString *)direct;
+        }
+
+        // Some room implementations wrap identity under nested "peer" or "value" objects.
+        NSString *nestedPeer = [self peerIDFromEndpointItem:dict[@"peer"]];
+        if (nestedPeer.length > 0) {
+            return nestedPeer;
+        }
+        NSString *nestedValue = [self peerIDFromEndpointItem:dict[@"value"]];
+        if (nestedValue.length > 0) {
+            return nestedValue;
+        }
     }
     return nil;
 }
@@ -162,18 +224,183 @@ static os_log_t ssb_room_log;
     return [peerIDs copy];
 }
 
-- (BOOL)manifestSupportsRPCPath:(NSArray<NSString *> *)path {
-    id cursor = self.serverManifest;
+- (BOOL)isAttendantsEventDictionary:(NSDictionary *)dict {
+    return (dict[@"type"] != nil ||
+            dict[@"event"] != nil ||
+            dict[@"ids"] != nil ||
+            dict[@"peers"] != nil ||
+            dict[@"attendants"] != nil ||
+            dict[@"id"] != nil ||
+            dict[@"key"] != nil ||
+            dict[@"feed"] != nil);
+}
+
+- (nullable id)jsonObjectFromDataIfPossible:(NSData *)data {
+    if (data.length == 0) {
+        return nil;
+    }
+    return [NSJSONSerialization JSONObjectWithData:data
+                                           options:NSJSONReadingAllowFragments
+                                             error:nil];
+}
+
+- (id)normalizedAttendantsPayloadFromResponse:(id)response {
+    id current = response;
+    for (NSUInteger depth = 0; depth < 4 && current; depth++) {
+        if ([current isKindOfClass:[NSData class]]) {
+            NSData *data = (NSData *)current;
+            id parsed = [self jsonObjectFromDataIfPossible:data];
+            if (parsed) {
+                current = parsed;
+                continue;
+            }
+            NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            if (text.length > 0) {
+                current = text;
+                continue;
+            }
+            break;
+        }
+
+        if ([current isKindOfClass:[NSString class]]) {
+            NSString *trimmed = [(NSString *)current stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if (([trimmed hasPrefix:@"{"] && [trimmed hasSuffix:@"}"]) ||
+                ([trimmed hasPrefix:@"["] && [trimmed hasSuffix:@"]"])) {
+                NSData *jsonData = [trimmed dataUsingEncoding:NSUTF8StringEncoding];
+                id parsed = [self jsonObjectFromDataIfPossible:jsonData];
+                if (parsed) {
+                    current = parsed;
+                    continue;
+                }
+            }
+            break;
+        }
+
+        if ([current isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *dict = (NSDictionary *)current;
+            if ([self isAttendantsEventDictionary:dict]) {
+                if (!dict[@"type"] && [dict[@"event"] isKindOfClass:[NSString class]]) {
+                    NSMutableDictionary *mutable = [dict mutableCopy];
+                    mutable[@"type"] = dict[@"event"];
+                    return [mutable copy];
+                }
+                return dict;
+            }
+
+            id wrapped = dict[@"value"] ?: dict[@"payload"] ?: dict[@"data"] ?: dict[@"result"];
+            if (wrapped && wrapped != [NSNull null]) {
+                current = wrapped;
+                continue;
+            }
+        }
+
+        break;
+    }
+
+    return current;
+}
+
+- (BOOL)applyAttendantsEventDictionary:(NSDictionary *)dict {
+    NSString *type = [dict[@"type"] isKindOfClass:[NSString class]] ? dict[@"type"] : nil;
+    if (type.length == 0 && [dict[@"event"] isKindOfClass:[NSString class]]) {
+        type = dict[@"event"];
+    }
+    NSString *normalizedType = [type.lowercaseString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+
+    if ([normalizedType isEqualToString:@"state"] ||
+        (normalizedType.length == 0 && (dict[@"ids"] || dict[@"peers"] || dict[@"attendants"]))) {
+        id items = dict[@"ids"] ?: dict[@"peers"] ?: dict[@"attendants"];
+        NSArray *normalizedItems = nil;
+        if ([items isKindOfClass:[NSArray class]]) {
+            normalizedItems = (NSArray *)items;
+        } else if ([items isKindOfClass:[NSDictionary class]]) {
+            NSDictionary *itemsDict = (NSDictionary *)items;
+            NSMutableArray *flattened = [NSMutableArray arrayWithArray:itemsDict.allKeys];
+            [flattened addObjectsFromArray:itemsDict.allValues];
+            normalizedItems = [flattened copy];
+        } else if (items && items != [NSNull null]) {
+            normalizedItems = @[items];
+        }
+
+        BOOL explicitEmpty = ([items isKindOfClass:[NSArray class]] && [(NSArray *)items count] == 0) ||
+                             ([items isKindOfClass:[NSDictionary class]] && [(NSDictionary *)items count] == 0);
+        if (normalizedItems || explicitEmpty) {
+            NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:normalizedItems ?: @[]];
+            [self.attendantsList removeAllObjects];
+            [self.attendantsList addObjectsFromArray:peerIDs];
+            for (NSString *peerID in peerIDs) {
+                [self replicateFromPeer:peerID viaRoom:self.host];
+            }
+            return YES;
+        }
+        return NO;
+    }
+
+    if ([normalizedType isEqualToString:@"joined"] ||
+        [normalizedType isEqualToString:@"join"] ||
+        [normalizedType isEqualToString:@"added"]) {
+        NSString *peerID = [self peerIDFromEndpointItem:dict];
+        if (peerID.length > 0 && ![self.attendantsList containsObject:peerID]) {
+            [self.attendantsList addObject:peerID];
+        }
+        if (peerID.length > 0) {
+            [self replicateFromPeer:peerID viaRoom:self.host];
+            return YES;
+        }
+        return NO;
+    }
+
+    if ([normalizedType isEqualToString:@"left"] ||
+        [normalizedType isEqualToString:@"leave"] ||
+        [normalizedType isEqualToString:@"removed"]) {
+        NSString *peerID = [self peerIDFromEndpointItem:dict];
+        if (peerID.length > 0) {
+            [self.attendantsList removeObject:peerID];
+            return YES;
+        }
+        return NO;
+    }
+
+    return NO;
+}
+
+- (BOOL)manifestDictionary:(NSDictionary *)manifest supportsRPCPath:(NSArray<NSString *> *)path {
+    id cursor = manifest;
     for (NSString *component in path) {
         if (![cursor isKindOfClass:[NSDictionary class]]) {
-            return NO;
+            cursor = nil;
+            break;
         }
         cursor = ((NSDictionary *)cursor)[component];
         if (!cursor || cursor == [NSNull null]) {
-            return NO;
+            cursor = nil;
+            break;
         }
     }
-    return YES;
+    if (cursor != nil) {
+        return YES;
+    }
+
+    NSString *dottedPath = [path componentsJoinedByString:@"."];
+    id dottedValue = manifest[dottedPath];
+    return (dottedValue && dottedValue != [NSNull null]);
+}
+
+- (BOOL)manifestSupportsRPCPath:(NSArray<NSString *> *)path {
+    if (![self.serverManifest isKindOfClass:[NSDictionary class]]) {
+        return NO;
+    }
+
+    NSDictionary *manifest = (NSDictionary *)self.serverManifest;
+    if ([self manifestDictionary:manifest supportsRPCPath:path]) {
+        return YES;
+    }
+
+    NSDictionary *wrappedManifest = [manifest[@"manifest"] isKindOfClass:[NSDictionary class]] ? manifest[@"manifest"] : nil;
+    if (wrappedManifest && [self manifestDictionary:wrappedManifest supportsRPCPath:path]) {
+        return YES;
+    }
+    return NO;
 }
 
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod {
@@ -195,6 +422,160 @@ static os_log_t ssb_room_log;
         return NO;
     }
     return [preferredMethod isEqualToArray:@[@"room", @"attendants"]];
+}
+
+- (BOOL)isRoomAttendantsMethod:(NSArray<NSString *> *)method {
+    return [method isEqualToArray:@[@"room", @"attendants"]];
+}
+
+- (BOOL)isTunnelEndpointsMethod:(NSArray<NSString *> *)method {
+    return [method isEqualToArray:@[@"tunnel", @"endpoints"]];
+}
+
+- (void)probeRoomAttendantsSnapshotWithReason:(NSString *)reason {
+    if (!self.isConnected) {
+        return;
+    }
+
+    [self log:[NSString stringWithFormat:@"Probing room.attendants snapshot (%@)", reason ?: @"no reason"]];
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"probe room.attendants (async) reason=%@",
+                                         reason ?: @"<none>"]];
+
+    __weak typeof(self) weakSelf = self;
+    [self sendRPCRequest:@[@"room", @"attendants"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        if (error) {
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"room.attendants probe error: %@",
+                                                       error.localizedDescription ?: @"<unknown>"]];
+            return;
+        }
+        [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"room.attendants probe response class=%@",
+                                                   NSStringFromClass([response class])]];
+        [strongSelf handleAttendantsResponse:response];
+    }];
+}
+
+- (void)armEndpointDiscoveryFallbackTimerForMethod:(NSArray<NSString *> *)method generation:(uint64_t)generation {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), self.clientQueue, ^{
+        if (!self.isConnected) {
+            return;
+        }
+        if (self.endpointDiscoverySubscriptionGeneration != generation) {
+            return;
+        }
+        if (![self.endpointDiscoveryMethodInUse isEqualToArray:method]) {
+            return;
+        }
+        if (self.endpointDiscoveryReceivedEvent) {
+            return;
+        }
+
+        if ([self isRoomAttendantsMethod:method]) {
+            [self log:@"No room.attendants events received; falling back to legacy tunnel.endpoints"];
+            [self appendPeerDiscoveryDiagnostic:@"fallback: room.attendants timed out without events; switching to tunnel.endpoints"];
+            self.endpointDiscoveryMethodInUse = nil;
+            [self subscribeToEndpointDiscoveryMethod:@[@"tunnel", @"endpoints"] reason:@"room.attendants timeout"];
+            return;
+        }
+
+        if ([self isTunnelEndpointsMethod:method]) {
+            [self log:@"No tunnel.endpoints events received; probing room.attendants snapshot"];
+            [self appendPeerDiscoveryDiagnostic:@"fallback: tunnel.endpoints timed out without events; probing room.attendants snapshot"];
+            [self probeRoomAttendantsSnapshotWithReason:@"tunnel.endpoints timeout"];
+            return;
+        }
+    });
+}
+
+- (void)subscribeToEndpointDiscoveryMethod:(NSArray<NSString *> *)method reason:(nullable NSString *)reason {
+    if (!self.isConnected) {
+        [self log:@"Cannot subscribe: Not connected"];
+        return;
+    }
+
+    if ([self.endpointDiscoveryMethodInUse isEqualToArray:method]) {
+        [self log:@"Endpoint discovery subscription already active"];
+        [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"subscription skipped (already active): %@.%@",
+                                             method.firstObject ?: @"?",
+                                             method.count > 1 ? method[1] : @"?"]];
+        return;
+    }
+
+    if (reason.length > 0) {
+        [self log:[NSString stringWithFormat:@"Switching endpoint discovery to %@.%@ (%@)",
+                   method.firstObject ?: @"?",
+                   method.count > 1 ? method[1] : @"?",
+                   reason]];
+        [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"subscription switch -> %@.%@ reason=%@",
+                                             method.firstObject ?: @"?",
+                                             method.count > 1 ? method[1] : @"?",
+                                             reason]];
+    } else {
+        [self log:[NSString stringWithFormat:@"Subscribing to attendants/endpoints for %@", self.host]];
+        [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"subscription start -> %@.%@",
+                                             method.firstObject ?: @"?",
+                                             method.count > 1 ? method[1] : @"?"]];
+    }
+
+    uint64_t generation = self.endpointDiscoverySubscriptionGeneration + 1;
+    self.endpointDiscoverySubscriptionGeneration = generation;
+    self.endpointDiscoveryReceivedEvent = NO;
+
+    __weak typeof(self) weakSelf = self;
+    SSBRPCCallback handler = ^(id _Nullable response, NSError * _Nullable error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        if (strongSelf.endpointDiscoverySubscriptionGeneration != generation) {
+            os_log_debug(ssb_room_log, "Ignoring stale endpoint discovery event for %{public}@", strongSelf.host);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"ignored stale endpoint event generation=%llu current=%llu",
+                                                       generation,
+                                                       strongSelf.endpointDiscoverySubscriptionGeneration]];
+            return;
+        }
+
+        if (!error) {
+            strongSelf.endpointDiscoveryReceivedEvent = YES;
+            os_log_debug(ssb_room_log, "Got stream event for %{public}@", strongSelf.host);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"stream event received for %@.%@ (class=%@)",
+                                                       method.firstObject ?: @"?",
+                                                       method.count > 1 ? method[1] : @"?",
+                                                       NSStringFromClass([response class])]];
+            [strongSelf handleAttendantsResponse:response];
+            return;
+        }
+
+        if ([strongSelf.endpointDiscoveryMethodInUse isEqualToArray:method]) {
+            strongSelf.endpointDiscoveryMethodInUse = nil;
+        }
+        [strongSelf log:[NSString stringWithFormat:@"Stream error for %@: %@", strongSelf.host, error.localizedDescription]];
+        [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"stream error on %@.%@: %@",
+                                                   method.firstObject ?: @"?",
+                                                   method.count > 1 ? method[1] : @"?",
+                                                   error.localizedDescription ?: @"<unknown>"]];
+
+        if ([strongSelf isRoomAttendantsMethod:method]) {
+            [strongSelf subscribeToEndpointDiscoveryMethod:@[@"tunnel", @"endpoints"] reason:@"room.attendants stream error"];
+        }
+    };
+
+    if ([self isRoomAttendantsMethod:method]) {
+        if ([self.roomFeatures containsObject:@"room2"]) {
+            [self log:@"Using Room v2 attendants discovery"];
+        } else {
+            [self log:@"Using manifest-discovered attendants discovery"];
+        }
+    } else {
+        [self log:@"Using legacy tunnel.endpoints discovery"];
+    }
+
+    self.endpointDiscoveryMethodInUse = [method copy];
+    [self sendRPCRequest:method args:@[] type:@"source" completion:handler];
+    [self armEndpointDiscoveryFallbackTimerForMethod:method generation:generation];
 }
 
 - (void)refreshEndpointDiscoverySubscriptionIfNeeded {
@@ -236,6 +617,7 @@ static os_log_t ssb_room_log;
     if (self.isConnected) return;
     
     os_log_info(ssb_room_log, "Connecting to %{public}@:%d", self.host, self.port);
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connect requested port=%u", self.port]];
     self.endpointDiscoveryMethodInUse = nil;
     
     nw_endpoint_t endpoint = nw_endpoint_create_host(self.host.UTF8String, [[NSString stringWithFormat:@"%d", self.port] UTF8String]);
@@ -262,6 +644,7 @@ static os_log_t ssb_room_log;
 
         if (state == nw_connection_state_ready) {
             os_log_info(ssb_room_log, "Connection state: READY");
+            [strongSelf appendPeerDiscoveryDiagnostic:@"connection state READY"];
             [strongSelf log:@"Connected and secured."];
             strongSelf.isConnected = YES;
             if ([strongSelf.delegate respondsToSelector:@selector(roomClientDidConnect:)]) {
@@ -273,6 +656,7 @@ static os_log_t ssb_room_log;
             [strongSelf performInitialSetup];
         } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
             os_log_info(ssb_room_log, "Connection state changed: %d", state);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%d", state]];
             strongSelf.isConnected = NO;
             strongSelf.endpointDiscoveryMethodInUse = nil;
             if (strongSelf.autoReconnect && state == nw_connection_state_failed) {
@@ -280,6 +664,7 @@ static os_log_t ssb_room_log;
             }
         } else {
             os_log_info(ssb_room_log, "Connection state changed: %d", state);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%d", state]];
         }
     });
     
@@ -1188,85 +1573,64 @@ static os_log_t ssb_room_log;
 }
 
 - (void)subscribeToEndpoints {
-    if (!self.isConnected) {
-        [self log:@"Cannot subscribe: Not connected"];
-        return;
-    }
-    
-    [self log:[NSString stringWithFormat:@"Subscribing to attendants/endpoints for %@", self.host]];
     NSArray<NSString *> *method = [self preferredEndpointDiscoveryMethod];
-    if ([self.endpointDiscoveryMethodInUse isEqualToArray:method]) {
-        [self log:@"Endpoint discovery subscription already active"];
-        return;
-    }
-    
-    __weak typeof(self) weakSelf = self;
-    SSBRPCCallback handler = ^(id _Nullable response, NSError * _Nullable error) {
-        if (!error) {
-            os_log_debug(ssb_room_log, "Got stream event for %{public}@", weakSelf.host);
-            [weakSelf handleAttendantsResponse:response];
-        } else {
-            if ([weakSelf.endpointDiscoveryMethodInUse isEqualToArray:method]) {
-                weakSelf.endpointDiscoveryMethodInUse = nil;
-            }
-            [weakSelf log:[NSString stringWithFormat:@"Stream error for %@: %@", weakSelf.host, error.localizedDescription]];
-        }
-    };
-    
-    if ([method isEqualToArray:@[@"room", @"attendants"]]) {
-        if ([self.roomFeatures containsObject:@"room2"]) {
-            [self log:@"Using Room v2 attendants discovery"];
-        } else {
-            [self log:@"Using manifest-discovered attendants discovery"];
-        }
-    } else {
-        [self log:@"Using legacy tunnel.endpoints discovery"];
-    }
-    self.endpointDiscoveryMethodInUse = [method copy];
-    [self sendRPCRequest:method args:@[] type:@"source" completion:handler];
+    [self subscribeToEndpointDiscoveryMethod:method reason:nil];
 }
 
 - (void)handleAttendantsResponse:(id)response {
-    os_log_debug(ssb_room_log, "Received attendants response: %{public}@", response);
+    id normalizedResponse = [self normalizedAttendantsPayloadFromResponse:response];
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"handleAttendantsResponse rawClass=%@ normalizedClass=%@",
+                                         NSStringFromClass([response class]),
+                                         NSStringFromClass([normalizedResponse class])]];
+    os_log_debug(ssb_room_log,
+                 "Received attendants response (%{public}@): %{public}@",
+                 NSStringFromClass([normalizedResponse class]),
+                 normalizedResponse);
+
+    BOOL handled = NO;
     // Legacy `tunnel.endpoints` (Room v1) returns a direct NSArray of peer IDs.
-    if ([response isKindOfClass:[NSArray class]]) {
-        NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:(NSArray *)response];
-        [self.attendantsList removeAllObjects];
-        [self.attendantsList addObjectsFromArray:peerIDs];
-        for (NSString *peerID in peerIDs) {
-            [self replicateFromPeer:peerID viaRoom:self.host];
+    if ([normalizedResponse isKindOfClass:[NSArray class]]) {
+        NSArray *items = (NSArray *)normalizedResponse;
+        BOOL sawEventDictionaries = NO;
+        for (id item in items) {
+            if ([item isKindOfClass:[NSDictionary class]] && [self isAttendantsEventDictionary:(NSDictionary *)item]) {
+                sawEventDictionaries = YES;
+                NSDictionary *event = (NSDictionary *)[self normalizedAttendantsPayloadFromResponse:item];
+                if ([event isKindOfClass:[NSDictionary class]] && [self applyAttendantsEventDictionary:event]) {
+                    handled = YES;
+                }
+            }
         }
-    } else if ([response isKindOfClass:[NSDictionary class]]) {
-        // Room v2 `room.attendants` returns dictionary events.
-        NSDictionary *dict = (NSDictionary *)response;
-        NSString *type = dict[@"type"];
-        
-        if ([type isEqualToString:@"state"]) {
-            // "state" has either a "peers" array or "ids" array.
-            NSArray *items = dict[@"ids"] ?: dict[@"peers"];
-            if ([items isKindOfClass:[NSArray class]]) {
-                NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:items];
+
+        if (!sawEventDictionaries || !handled) {
+            NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:items];
+            if (peerIDs.count > 0 || items.count == 0) {
                 [self.attendantsList removeAllObjects];
                 [self.attendantsList addObjectsFromArray:peerIDs];
                 for (NSString *peerID in peerIDs) {
                     [self replicateFromPeer:peerID viaRoom:self.host];
                 }
-            }
-        } else if ([type isEqualToString:@"joined"]) {
-            NSString *peerID = [self peerIDFromEndpointItem:dict];
-            if (peerID && ![self.attendantsList containsObject:peerID]) {
-                [self.attendantsList addObject:peerID];
-            }
-            if (peerID) {
-                [self replicateFromPeer:peerID viaRoom:self.host];
-            }
-        } else if ([type isEqualToString:@"left"]) {
-            NSString *peerID = [self peerIDFromEndpointItem:dict];
-            if (peerID) {
-                [self.attendantsList removeObject:peerID];
+                handled = YES;
             }
         }
+    } else if ([normalizedResponse isKindOfClass:[NSDictionary class]]) {
+        handled = [self applyAttendantsEventDictionary:(NSDictionary *)normalizedResponse];
     }
+
+    if (!handled) {
+        os_log_info(ssb_room_log,
+                    "Unhandled attendants payload (%{public}@) for %{public}@",
+                    NSStringFromClass([normalizedResponse class]),
+                    self.host);
+        [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"unhandled attendants payload class=%@ payload=%@",
+                                             NSStringFromClass([normalizedResponse class]),
+                                             normalizedResponse]];
+    }
+
+    os_log_info(ssb_room_log, "Parsed attendants for %{public}@: %lu peers", self.host, (unsigned long)self.attendantsList.count);
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"parsed attendants peers=%lu list=%@",
+                                         (unsigned long)self.attendantsList.count,
+                                         self.attendantsList]];
     
     if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateEndpoints:)]) {
         os_log_debug(ssb_room_log, "Notifying delegate of %lu endpoints for %{public}@", (unsigned long)self.attendantsList.count, self.host);
@@ -1346,6 +1710,9 @@ static os_log_t ssb_room_log;
     self.isConnected = NO;
     self.isSyncingLocalFeed = NO;
     self.endpointDiscoveryMethodInUse = nil;
+    self.endpointDiscoverySubscriptionGeneration += 1;
+    self.endpointDiscoveryReceivedEvent = NO;
+    [self appendPeerDiscoveryDiagnostic:@"disconnect called"];
 }
 
 - (int32_t)sendRPCRequest:(NSArray<NSString *> *)name args:(NSArray *)args type:(NSString *)type completion:(SSBRPCCallback)completion {

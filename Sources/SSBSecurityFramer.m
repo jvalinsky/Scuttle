@@ -8,6 +8,35 @@ static const char *kSSBSecurityLocalKey = "LocalKey";
 static const char *kSSBSecurityRemoteKey = "RemoteKey";
 static const char *kSSBSecurityAsClient = "AsClient";
 static os_log_t ssb_sec_log;
+static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
+
+static void SRPeerDiscoveryAppend(NSString *line) {
+    if (line.length == 0) return;
+    static dispatch_queue_t q;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        q = dispatch_queue_create("com.scuttlebutt.room.peerdiag.security", DISPATCH_QUEUE_SERIAL);
+    });
+    NSString *full = [NSString stringWithFormat:@"[%@] security %@\n", [NSDate date], line];
+    NSData *data = [full dataUsingEncoding:NSUTF8StringEncoding];
+    dispatch_async(q, ^{
+        @autoreleasepool {
+            NSFileManager *fm = [NSFileManager defaultManager];
+            if (![fm fileExistsAtPath:kSRPeerDiscoveryLogPath]) {
+                [fm createFileAtPath:kSRPeerDiscoveryLogPath contents:nil attributes:nil];
+            }
+            NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:kSRPeerDiscoveryLogPath];
+            if (!h) return;
+            @try {
+                [h seekToEndOfFile];
+                [h writeData:data];
+            } @catch (__unused NSException *exception) {
+            } @finally {
+                [h closeFile];
+            }
+        }
+    });
+}
 
 typedef NS_ENUM(NSInteger, SSBSecurityState) {
     SSBSecurityStateHandshakeHelloWait, // New state for server
@@ -58,9 +87,14 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             NSData *remoteKey = nw_framer_options_copy_object_value(options, kSSBSecurityRemoteKey);
             NSNumber *asClientNum = nw_framer_options_copy_object_value(options, kSSBSecurityAsClient);
             BOOL asClient = asClientNum ? [asClientNum boolValue] : YES; 
+            SRPeerDiscoveryAppend([NSString stringWithFormat:@"framer start asClient=%d localKeyLen=%lu remoteKeyLen=%lu",
+                                   asClient,
+                                   (unsigned long)localKey.length,
+                                   (unsigned long)remoteKey.length]);
             
             if (!localKey || (!remoteKey && asClient)) {
                 os_log_error(ssb_sec_log, "Missing keys in security framer options");
+                SRPeerDiscoveryAppend(@"framer missing key options");
                 return nw_framer_start_result_ready;
             }
             
@@ -74,8 +108,10 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                 dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, helloData);
                 context.state = SSBSecurityStateHandshakeHelloSent;
+                SRPeerDiscoveryAppend([NSString stringWithFormat:@"client hello queued len=%lu", (unsigned long)hello.length]);
             } else {
                 context.state = SSBSecurityStateHandshakeHelloWait;
+                SRPeerDiscoveryAppend(@"server mode waiting for client hello");
             }
             
             nw_framer_set_input_handler(framer, ^size_t(nw_framer_t inner_framer) {
@@ -107,6 +143,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             });
             if (success) {
                 os_log_info(ssb_sec_log, "Client Hello processed. Sending Server Hello.");
+                SRPeerDiscoveryAppend(@"processed client hello; sending server hello");
                 NSData *hello = [context.handshake createHello];
                 dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, helloData);
@@ -127,6 +164,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             });
             if (success) {
                 os_log_info(ssb_sec_log, "Server Hello processed. Sending Auth.");
+                SRPeerDiscoveryAppend(@"processed server hello; sending client auth");
                 NSData *auth = [context.handshake createAuth];
                 dispatch_data_t authData = dispatch_data_create(auth.bytes, auth.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, authData);
@@ -147,6 +185,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             });
             if (success) {
                 os_log_info(ssb_sec_log, "Client Auth processed. Sending Server Accept.");
+                SRPeerDiscoveryAppend(@"processed client auth; sending server accept; mark ready");
                 NSData *accept = [context.handshake createAccept];
                 dispatch_data_t acceptData = dispatch_data_create(accept.bytes, accept.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, acceptData);
@@ -174,6 +213,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
             });
             if (success) {
                 os_log_info(ssb_sec_log, "Server Accept processed. Handshake COMPLETE.");
+                SRPeerDiscoveryAppend(@"processed server accept; handshake complete; mark ready");
                 context.boxStream = [[SSBBoxStream alloc] initWithClientToServerKey:context.handshake.clientToServerKey
                                                                   serverToClientKey:context.handshake.serverToClientKey
                                                                 clientToServerNonce:context.handshake.clientToServerNonce
@@ -210,6 +250,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                                                                  outBodyMac:&bodyMac];
                             if (!headerParsed) {
                                 os_log_error(ssb_sec_log, "Box header decrypt FAILED");
+                                SRPeerDiscoveryAppend(@"box header decrypt failed");
                             }
                             return headerReq;
                         }
@@ -232,6 +273,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                     size_t bodyLen = context.pendingBodyLen;
                     if (bodyLen == 0) {
                         os_log_info(ssb_sec_log, "Goodbye packet received");
+                        SRPeerDiscoveryAppend(@"goodbye packet received");
                         nw_framer_mark_failed_with_error(framer, 0); // Goodbye
                         return 0;
                     }
@@ -242,6 +284,7 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                                                                expectedMac:context.pendingBodyMac];
                             if (!decryptedBody) {
                                 os_log_error(ssb_sec_log, "Box body decrypt FAILED");
+                                SRPeerDiscoveryAppend(@"box body decrypt failed");
                             }
                             return bodyLen;
                         }
