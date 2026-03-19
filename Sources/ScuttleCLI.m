@@ -46,7 +46,8 @@
     printf("  unfollow <id>    Unfollow a feed by ID\n");
     printf("  following        List feeds you follow\n");
     printf("  publish <text>   Publish a post to your feed\n");
-    printf("  timeline         Show recent messages\n");
+    printf("  feed            Show your own messages\n");
+    printf("  timeline         Show messages from followed feeds\n");
     printf("\n");
     printf("Rooms:\n");
     printf("  invite <code>    Parse/resolve a room invite\n");
@@ -264,6 +265,38 @@
     self.shouldExit = YES;
 }
 
+- (void)cmdFeed {
+    NSData *secret = [SSBKeychain loadIdentitySecret];
+    if (!secret) {
+        printf("Error: No identity. Run 'scuttle-cli init' first.\n");
+        self.shouldExit = YES;
+        return;
+    }
+    NSString *localId = [SSBKeychain publicIDFromSecret:secret];
+    NSArray<SSBMessage *> *messages = [self.feedStore messagesForAuthor:localId fromSequence:1 limit:50];
+    if (messages.count == 0) {
+        printf("No messages yet. Run 'scuttle-cli publish \"Hello\"' to post.\n");
+        self.shouldExit = YES;
+        return;
+    }
+    for (SSBMessage *msg in [messages reverseObjectEnumerator]) {
+        NSString *contentStr = @"";
+        NSDictionary *content = msg.content;
+        if (content) {
+            contentStr = content[@"text"] ?: content[@"type"] ?: @"";
+        }
+        NSDate *date = [NSDate dateWithTimeIntervalSince1970:msg.claimedTimestamp / 1000.0];
+        NSDateFormatter *fmt = [[NSDateFormatter alloc] init];
+        fmt.dateFormat = @"yyyy-MM-dd HH:mm:ss";
+        NSString *dateStr = [fmt stringFromDate:date];
+        printf("[%s] seq=%ld: %s\n",
+               [dateStr UTF8String],
+               (long)msg.sequence,
+               [contentStr UTF8String]);
+    }
+    self.shouldExit = YES;
+}
+
 #pragma mark - Rooms
 
 - (void)cmdInviteWithArgs:(NSArray *)args {
@@ -448,6 +481,7 @@
     else if ([command isEqualToString:@"unfollow"])   { [self cmdUnfollowWithArgs:args]; }
     else if ([command isEqualToString:@"following"])  { [self cmdFollowing]; }
     else if ([command isEqualToString:@"publish"])    { [self cmdPublishWithArgs:args]; }
+    else if ([command isEqualToString:@"feed"])        { [self cmdFeed]; }
     else if ([command isEqualToString:@"timeline"])   { [self cmdTimeline]; }
     else if ([command isEqualToString:@"invite"])     { [self cmdInviteWithArgs:args]; }
     else if ([command isEqualToString:@"rooms"])      { [self cmdRooms]; }
