@@ -4,6 +4,14 @@
 
 ## Quick Reference
 
+- **Start here:** [Master Plan — Executive Summary](plans/PLAN_00_MASTER.md#executive-summary) and [Task Completion Summary](plans/PLAN_00_MASTER.md#task-completion-summary) for current status (last updated 2026-03-18).
+- **Active logs:** [debug_journal.md](debug_journal.md) — see 2026-03-11 and 2026-03-12 entries for EBT/tunnel fixes and investigation chronology.
+- **Feed / codec work:** [docs/FEED_FORMAT_REPORT.md](docs/FEED_FORMAT_REPORT.md#spec-corrections-vs-this-codebase) plus [BUTTWOO_PRODUCTION_PLAN.md](BUTTWOO_PRODUCTION_PLAN.md) and [NEXT_STEPS_PLAN.md](NEXT_STEPS_PLAN.md) for Buttwoo/Bamboo/Bendy tasks and remaining deltas.
+- **Git over SSB:** [GIT_SSB_PLAN.md](GIT_SSB_PLAN.md#part-1--the-git-ssb-wire-protocol) and [GIT_DIFF_IMPLEMENTATION_PLAN.md](GIT_DIFF_IMPLEMENTATION_PLAN.md#3-implementation-steps) for transport + diff engine expectations.
+- **Sneakernet / QR proofs:** [docs/sneakernet/README.md](docs/sneakernet/README.md#documentation-suite) (links to THEORY, PROTOCOL, UX guides).
+- **Debugging rooms/tunnels:** [docs/debugging/peer_discovery_resolution.md](docs/debugging/peer_discovery_resolution.md#implementation-of-the-solution) and [Technical_Report_Local_Server_Debug.md](Technical_Report_Local_Server_Debug.md#implemented-solutions).
+- **ObjC safety:** [REVIEW_OBJC_PATTERNS.md](REVIEW_OBJC_PATTERNS.md#critical-issues) for retain-cycle, keychain, and threading pitfalls.
+
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
@@ -32,6 +40,8 @@ cp -rf source dest          # NOT: cp -r source dest
 ## Decision Tracking with deciduous
 
 **IMPORTANT**: This project uses **deciduous** for tracking technical decisions, goals, and architectural changes. Use it to document *why* changes are made, not just *what* was changed.
+
+See `CLAUDE.md` for the full workflow: [Decision Graph Workflow](CLAUDE.md#decision-graph-workflow) and [The Core Rule](CLAUDE.md#the-core-rule) explain the required node flow and prompt-capture rules. `/work` should always precede implementation; link every node as you create it.
 
 ### Why deciduous?
 
