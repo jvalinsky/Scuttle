@@ -16,6 +16,8 @@ static os_log_t ssb_room_log;
 NSString * const SRRoomManagerDidUpdateRoomsNotification = @"SRRoomManagerDidUpdateRoomsNotification";
 NSString * const SRRoomManagerDidUpdateEndpointsNotification = @"SRRoomManagerDidUpdateEndpointsNotification";
 NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomManagerConnectionStatusChangedNotification";
+NSString * const SRRoomManagerEndpointsHostKey = @"SRRoomManagerEndpointsHostKey";
+NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey";
 
 @interface SRRoomManager () <SSBRoomClientDelegate>
 @property (nonatomic, strong) NSMutableArray<RoomConfig *> *internalRooms;
@@ -155,24 +157,42 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 - (void)roomClientDidConnect:(SSBRoomClient *)client {
     os_log_info(ssb_room_log, "Client connected to %{public}@", client.host);
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification object:client];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification
+                                                            object:client
+                                                          userInfo:@{
+                                                              @"host": client.host ?: @"",
+                                                              @"connected": @YES
+                                                          }];
     });
 }
 
 - (void)roomClient:(SSBRoomClient *)client didUpdateEndpoints:(NSArray<NSString *> *)endpoints {
-    os_log_info(ssb_room_log, "Client %{public}@ updated endpoints: %lu peers", client.host, (unsigned long)endpoints.count);
+    NSArray<NSString *> *snapshot = [endpoints copy] ?: @[];
+    os_log_info(ssb_room_log, "Client %{public}@ updated endpoints: %lu peers", client.host, (unsigned long)snapshot.count);
     dispatch_async(self.managerQueue, ^{
-        self.internalRoomEndpoints[client.host] = endpoints;
-    });
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateEndpointsNotification object:client];
+        self.internalRoomEndpoints[client.host] = snapshot;
+        os_log_debug(ssb_room_log, "Cached %lu endpoints for %{public}@; posting notification", (unsigned long)snapshot.count, client.host);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateEndpointsNotification
+                                                                object:client
+                                                              userInfo:@{
+                                                                  SRRoomManagerEndpointsHostKey: client.host ?: @"",
+                                                                  SRRoomManagerEndpointsListKey: snapshot
+                                                              }];
+        });
     });
 }
 
 - (void)roomClient:(SSBRoomClient *)client didEncounterError:(NSError *)error {
     os_log_error(ssb_room_log, "Client %{public}@ encountered error: %{public}@", client.host, error.localizedDescription);
     dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification object:client];
+        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification
+                                                            object:client
+                                                          userInfo:@{
+                                                              @"host": client.host ?: @"",
+                                                              @"connected": @NO,
+                                                              @"error": error.localizedDescription ?: @"Unknown error"
+                                                          }];
     });
 }
 

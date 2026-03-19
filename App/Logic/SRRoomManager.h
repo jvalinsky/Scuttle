@@ -6,6 +6,8 @@ NS_ASSUME_NONNULL_BEGIN
 extern NSString * const SRRoomManagerDidUpdateRoomsNotification;
 extern NSString * const SRRoomManagerDidUpdateEndpointsNotification;
 extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
+extern NSString * const SRRoomManagerEndpointsHostKey;
+extern NSString * const SRRoomManagerEndpointsListKey;
 
 @interface SRRoomManager : NSObject
 

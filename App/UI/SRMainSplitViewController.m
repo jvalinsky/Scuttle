@@ -166,15 +166,41 @@ static os_log_t split_log;
 
 - (void)endpointsDidUpdate:(NSNotification *)notification {
     SSBRoomClient *client = notification.object;
-    os_log_debug(split_log, "Endpoints notification from %{public}@ (selected: %{public}@)", client.host, self.selectedRoom.host);
-    if (!self.selectedRoom || [client.host isEqualToString:self.selectedRoom.host]) {
+    NSString *host = notification.userInfo[SRRoomManagerEndpointsHostKey];
+    if (host.length == 0) {
+        host = client.host;
+    }
+
+    NSArray<NSString *> *peers = notification.userInfo[SRRoomManagerEndpointsListKey];
+    if (![peers isKindOfClass:[NSArray class]]) {
+        peers = [SRRoomManager sharedManager].roomEndpoints[host];
+    }
+
+    os_log_debug(split_log,
+                 "Endpoints notification host=%{public}@ selected=%{public}@ peers=%lu",
+                 host, self.selectedRoom.host, (unsigned long)peers.count);
+
+    if (!self.selectedRoom || [host isEqualToString:self.selectedRoom.host]) {
         if (!self.selectedRoom) {
-            os_log_debug(split_log, "No room selected, auto-selecting %{public}@", client.host);
-            self.selectedRoom = [[SRRoomManager sharedManager].rooms firstObject];
+            for (RoomConfig *candidate in [SRRoomManager sharedManager].rooms) {
+                if ([candidate.host isEqualToString:host]) {
+                    self.selectedRoom = candidate;
+                    break;
+                }
+            }
+            if (!self.selectedRoom) {
+                self.selectedRoom = [[SRRoomManager sharedManager].rooms firstObject];
+            }
+            os_log_debug(split_log, "No room selected, auto-selected %{public}@", self.selectedRoom.host);
         }
-        [self updatePeerList];
+        if (peers) {
+            [self.peerListVC updatePeers:peers];
+        } else {
+            os_log_debug(split_log, "No endpoints payload for %{public}@; falling back to cached lookup", host);
+            [self updatePeerList];
+        }
     } else {
-        os_log_debug(split_log, "Endpoint notification ignored (host mismatch)");
+        os_log_debug(split_log, "Endpoint notification ignored (host mismatch for %{public}@)", host);
     }
 }
 
