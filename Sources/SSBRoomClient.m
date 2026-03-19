@@ -34,6 +34,7 @@ static os_log_t ssb_room_log;
 @property (nonatomic, strong) NSMutableArray<NSString *> *attendantsList;
 @property (nonatomic, strong) SSBFeedStore *feedStore;
 @property (nonatomic, readwrite, nullable) NSArray<NSString *> *roomFeatures;
+@property (nonatomic, copy, nullable) NSArray<NSString *> *endpointDiscoveryMethodInUse;
 @property (nonatomic, readwrite) BOOL isInternalUser;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBTunnelConnection *> *activeTunnels;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingPublishQueue;
@@ -138,6 +139,73 @@ static os_log_t ssb_room_log;
     return snapshot;
 }
 
+- (nullable NSString *)peerIDFromEndpointItem:(id)item {
+    if ([item isKindOfClass:[NSString class]]) {
+        return [(NSString *)item length] > 0 ? item : nil;
+    }
+    if ([item isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)item;
+        NSString *peerID = dict[@"id"] ?: dict[@"key"] ?: dict[@"peer"] ?: dict[@"feed"];
+        return peerID.length > 0 ? peerID : nil;
+    }
+    return nil;
+}
+
+- (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items {
+    NSMutableArray<NSString *> *peerIDs = [NSMutableArray array];
+    for (id item in items) {
+        NSString *peerID = [self peerIDFromEndpointItem:item];
+        if (peerID.length > 0 && ![peerIDs containsObject:peerID]) {
+            [peerIDs addObject:peerID];
+        }
+    }
+    return [peerIDs copy];
+}
+
+- (BOOL)manifestSupportsRPCPath:(NSArray<NSString *> *)path {
+    id cursor = self.serverManifest;
+    for (NSString *component in path) {
+        if (![cursor isKindOfClass:[NSDictionary class]]) {
+            return NO;
+        }
+        cursor = ((NSDictionary *)cursor)[component];
+        if (!cursor || cursor == [NSNull null]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+- (NSArray<NSString *> *)preferredEndpointDiscoveryMethod {
+    if ([self.roomFeatures containsObject:@"room2"]) {
+        return @[@"room", @"attendants"];
+    }
+    if ([self manifestSupportsRPCPath:@[@"room", @"attendants"]]) {
+        return @[@"room", @"attendants"];
+    }
+    return @[@"tunnel", @"endpoints"];
+}
+
+- (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod {
+    NSArray<NSString *> *preferredMethod = [self preferredEndpointDiscoveryMethod];
+    if (self.endpointDiscoveryMethodInUse.count == 0) {
+        return NO;
+    }
+    if ([self.endpointDiscoveryMethodInUse isEqualToArray:preferredMethod]) {
+        return NO;
+    }
+    return [preferredMethod isEqualToArray:@[@"room", @"attendants"]];
+}
+
+- (void)refreshEndpointDiscoverySubscriptionIfNeeded {
+    if (![self shouldResubscribeForPreferredEndpointDiscoveryMethod]) {
+        return;
+    }
+    [self log:@"Upgrading endpoint discovery subscription"];
+    self.endpointDiscoveryMethodInUse = nil;
+    [self subscribeToEndpoints];
+}
+
 - (NSDictionary<NSString *, NSNumber *> *)currentRemoteClock {
     __block NSDictionary *snapshot;
     dispatch_sync(self.clientQueue, ^{
@@ -168,6 +236,7 @@ static os_log_t ssb_room_log;
     if (self.isConnected) return;
     
     os_log_info(ssb_room_log, "Connecting to %{public}@:%d", self.host, self.port);
+    self.endpointDiscoveryMethodInUse = nil;
     
     nw_endpoint_t endpoint = nw_endpoint_create_host(self.host.UTF8String, [[NSString stringWithFormat:@"%d", self.port] UTF8String]);
     
@@ -205,6 +274,7 @@ static os_log_t ssb_room_log;
         } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
             os_log_info(ssb_room_log, "Connection state changed: %d", state);
             strongSelf.isConnected = NO;
+            strongSelf.endpointDiscoveryMethodInUse = nil;
             if (strongSelf.autoReconnect && state == nw_connection_state_failed) {
                 [strongSelf scheduleReconnect];
             }
@@ -279,7 +349,10 @@ static os_log_t ssb_room_log;
     __weak typeof(self) weakSelf = self;
     
     [self sendRPCRequest:@[@"manifest"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
-        if ([response isKindOfClass:[NSDictionary class]]) weakSelf.serverManifest = response;
+        if ([response isKindOfClass:[NSDictionary class]]) {
+            weakSelf.serverManifest = response;
+            [weakSelf refreshEndpointDiscoverySubscriptionIfNeeded];
+        }
     }];
     
     [self sendRPCRequest:@[@"whoami"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
@@ -1094,7 +1167,10 @@ static os_log_t ssb_room_log;
 }
 
 - (void)announce {
-    [self announceWithCompletion:nil];
+    __weak typeof(self) weakSelf = self;
+    [self announceWithCompletion:^{
+        [weakSelf subscribeToEndpoints];
+    }];
 }
 
 - (void)announceWithCompletion:(void(^ _Nullable)(void))completion {
@@ -1108,8 +1184,6 @@ static os_log_t ssb_room_log;
             // Still proceed? some servers might return error if already announced
             if (completion) completion();
         }
-        // Always subscribe to endpoints regardless of announce status
-        [weakSelf subscribeToEndpoints];
     }];
 }
 
@@ -1120,6 +1194,11 @@ static os_log_t ssb_room_log;
     }
     
     [self log:[NSString stringWithFormat:@"Subscribing to attendants/endpoints for %@", self.host]];
+    NSArray<NSString *> *method = [self preferredEndpointDiscoveryMethod];
+    if ([self.endpointDiscoveryMethodInUse isEqualToArray:method]) {
+        [self log:@"Endpoint discovery subscription already active"];
+        return;
+    }
     
     __weak typeof(self) weakSelf = self;
     SSBRPCCallback handler = ^(id _Nullable response, NSError * _Nullable error) {
@@ -1127,26 +1206,34 @@ static os_log_t ssb_room_log;
             os_log_debug(ssb_room_log, "Got stream event for %{public}@", weakSelf.host);
             [weakSelf handleAttendantsResponse:response];
         } else {
+            if ([weakSelf.endpointDiscoveryMethodInUse isEqualToArray:method]) {
+                weakSelf.endpointDiscoveryMethodInUse = nil;
+            }
             [weakSelf log:[NSString stringWithFormat:@"Stream error for %@: %@", weakSelf.host, error.localizedDescription]];
         }
     };
     
-    if ([self.roomFeatures containsObject:@"room2"]) {
-        [self log:@"Using Room v2 attendants discovery"];
-        [self sendRPCRequest:@[@"room", @"attendants"] args:@[] type:@"source" completion:handler];
+    if ([method isEqualToArray:@[@"room", @"attendants"]]) {
+        if ([self.roomFeatures containsObject:@"room2"]) {
+            [self log:@"Using Room v2 attendants discovery"];
+        } else {
+            [self log:@"Using manifest-discovered attendants discovery"];
+        }
     } else {
         [self log:@"Using legacy tunnel.endpoints discovery"];
-        [self sendRPCRequest:@[@"tunnel", @"endpoints"] args:@[] type:@"source" completion:handler];
     }
+    self.endpointDiscoveryMethodInUse = [method copy];
+    [self sendRPCRequest:method args:@[] type:@"source" completion:handler];
 }
 
 - (void)handleAttendantsResponse:(id)response {
     os_log_debug(ssb_room_log, "Received attendants response: %{public}@", response);
     // Legacy `tunnel.endpoints` (Room v1) returns a direct NSArray of peer IDs.
     if ([response isKindOfClass:[NSArray class]]) {
+        NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:(NSArray *)response];
         [self.attendantsList removeAllObjects];
-        [self.attendantsList addObjectsFromArray:response];
-        for (NSString *peerID in response) {
+        [self.attendantsList addObjectsFromArray:peerIDs];
+        for (NSString *peerID in peerIDs) {
             [self replicateFromPeer:peerID viaRoom:self.host];
         }
     } else if ([response isKindOfClass:[NSDictionary class]]) {
@@ -1156,27 +1243,28 @@ static os_log_t ssb_room_log;
         
         if ([type isEqualToString:@"state"]) {
             // "state" has either a "peers" array or "ids" array.
-            NSArray *ids = dict[@"ids"] ?: dict[@"peers"];
-            if ([ids isKindOfClass:[NSArray class]]) {
+            NSArray *items = dict[@"ids"] ?: dict[@"peers"];
+            if ([items isKindOfClass:[NSArray class]]) {
+                NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:items];
                 [self.attendantsList removeAllObjects];
-                [self.attendantsList addObjectsFromArray:ids];
+                [self.attendantsList addObjectsFromArray:peerIDs];
+                for (NSString *peerID in peerIDs) {
+                    [self replicateFromPeer:peerID viaRoom:self.host];
+                }
             }
         } else if ([type isEqualToString:@"joined"]) {
-            NSString *peerID = dict[@"id"] ?: dict[@"key"];
+            NSString *peerID = [self peerIDFromEndpointItem:dict];
             if (peerID && ![self.attendantsList containsObject:peerID]) {
                 [self.attendantsList addObject:peerID];
             }
+            if (peerID) {
+                [self replicateFromPeer:peerID viaRoom:self.host];
+            }
         } else if ([type isEqualToString:@"left"]) {
-            NSString *peerID = dict[@"id"] ?: dict[@"key"];
+            NSString *peerID = [self peerIDFromEndpointItem:dict];
             if (peerID) {
                 [self.attendantsList removeObject:peerID];
             }
-        }
-        
-        // Auto-sync from newly joined or state-updated peers in Room v2
-        NSString *peerID = dict[@"id"] ?: dict[@"key"];
-        if (([type isEqualToString:@"joined"] || [type isEqualToString:@"state"]) && peerID) {
-            [self replicateFromPeer:peerID viaRoom:self.host];
         }
     }
     
@@ -1257,6 +1345,7 @@ static os_log_t ssb_room_log;
     if (self.connection) nw_connection_cancel(self.connection);
     self.isConnected = NO;
     self.isSyncingLocalFeed = NO;
+    self.endpointDiscoveryMethodInUse = nil;
 }
 
 - (int32_t)sendRPCRequest:(NSArray<NSString *> *)name args:(NSArray *)args type:(NSString *)type completion:(SSBRPCCallback)completion {

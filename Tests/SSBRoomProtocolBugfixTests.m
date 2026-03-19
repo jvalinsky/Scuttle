@@ -30,6 +30,9 @@
 @interface SSBRoomClient (TestAccess)
 - (void)handleDecryptedMuxRPCData:(NSData *)data;
 - (void)handleAttendantsResponse:(id)response;
+- (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items;
+- (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
+- (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, strong) NSMutableData *rpcBuffer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallState *> *pendingRequests;
@@ -479,6 +482,27 @@
     
     // Log for debugging
     NSLog(@"[TEST STATE EVENT] attendantsList: %@", currentAttendants);
+}
+
+- (void)testRoomAttendantsStateEventParsesPeerObjects {
+    NSMutableArray *attendantsList = [NSMutableArray array];
+    [self.client setValue:attendantsList forKey:@"attendantsList"];
+
+    NSDictionary *stateEvent = @{
+        @"type": @"state",
+        @"peers": @[
+            @{@"id": @"@peer1.ed25519"},
+            @{@"key": @"@peer2.ed25519"},
+            @{@"id": @"@peer1.ed25519"}
+        ]
+    };
+
+    [self.client handleAttendantsResponse:stateEvent];
+
+    NSArray *currentAttendants = [self.client valueForKey:@"attendantsList"];
+    XCTAssertEqual(currentAttendants.count, 2, @"peer object state events should normalize to 2 unique peer IDs");
+    XCTAssertEqualObjects(currentAttendants[0], @"@peer1.ed25519");
+    XCTAssertEqualObjects(currentAttendants[1], @"@peer2.ed25519");
 }
 
 #pragma mark - Task 1.3: Test room.attendants Joined Event Parsing
@@ -1128,6 +1152,28 @@
     NSLog(@"[TEST ROOM PROTOCOL BRANCHING] Expected: Branch behavior based on detected features");
     
     XCTAssertTrue(YES, @"Test documents the expected protocol branching based on room features per SIP 7");
+}
+
+- (void)testPreferredEndpointDiscoveryMethodUsesManifestAttendantsWhenMetadataIsUnavailable {
+    [self.client setValue:nil forKey:@"roomFeatures"];
+    [self.client setValue:@{
+        @"tunnel": @{@"endpoints": @"source"},
+        @"room": @{@"attendants": @"source"}
+    } forKey:@"serverManifest"];
+
+    NSArray<NSString *> *method = [self.client preferredEndpointDiscoveryMethod];
+    XCTAssertEqualObjects(method, (@[@"room", @"attendants"]));
+}
+
+- (void)testShouldResubscribeWhenManifestUnlocksRoomAttendantsAfterLegacyFallback {
+    [self.client setValue:@[@"tunnel", @"endpoints"] forKey:@"endpointDiscoveryMethodInUse"];
+    [self.client setValue:nil forKey:@"roomFeatures"];
+    [self.client setValue:@{
+        @"tunnel": @{@"endpoints": @"source"},
+        @"room": @{@"attendants": @"source"}
+    } forKey:@"serverManifest"];
+
+    XCTAssertTrue([self.client shouldResubscribeForPreferredEndpointDiscoveryMethod]);
 }
 
 #pragma mark - Task 2.1: Test Genuine Error Handling Preservation (Property-Based)

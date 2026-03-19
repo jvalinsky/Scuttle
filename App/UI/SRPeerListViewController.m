@@ -103,6 +103,7 @@ static os_log_t peer_list_log;
     NSView *view = [[NSView alloc] init];
     view.wantsLayer = YES;
     view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
+    NSLayoutGuide *safeArea = view.safeAreaLayoutGuide;
     
     self.headerLabel = [NSTextField labelWithString:@"PEERS"];
     self.headerLabel.font = [NSFont boldSystemFontOfSize:11];
@@ -117,14 +118,14 @@ static os_log_t peer_list_log;
     [view addSubview:self.scrollView];
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.headerLabel.topAnchor constraintEqualToAnchor:view.topAnchor constant:40],
+        [self.headerLabel.topAnchor constraintEqualToAnchor:safeArea.topAnchor constant:12],
         [self.headerLabel.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:12],
         [self.headerLabel.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-12],
 
         [self.scrollView.topAnchor constraintEqualToAnchor:self.headerLabel.bottomAnchor constant:8],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:view.trailingAnchor],
-        [self.scrollView.bottomAnchor constraintEqualToAnchor:view.bottomAnchor]
+        [self.scrollView.bottomAnchor constraintEqualToAnchor:safeArea.bottomAnchor]
     ]];
     
     self.view = view;
