@@ -24,6 +24,7 @@ static os_log_t ssb_shs_log;
 @property (nonatomic, readwrite, nullable) NSData *clientToServerNonce;
 @property (nonatomic, readwrite, nullable) NSData *serverToClientNonce;
 @property (nonatomic, strong) NSData *networkIdentifier;
+@property (nonatomic, strong) NSData *appKey;
 
 @property (nonatomic, strong) NSData *localIdentitySecret;
 @property (nonatomic, strong) NSData *localIdentityPublic;
@@ -55,7 +56,7 @@ static os_log_t ssb_shs_log;
         }
         _remoteIdentityPublic = remotePublicKey;
         
-        // Default SSB network identifier
+        // Default SSB network identifier = SHA256("net")
         unsigned char defaultNetId[32] = {
             0xd4, 0xa1, 0xcb, 0x88, 0xa6, 0x6f, 0x02, 0xf8,
             0xdb, 0x63, 0x5c, 0xe2, 0x64, 0x41, 0xcc, 0x5d,
@@ -63,6 +64,12 @@ static os_log_t ssb_shs_log;
             0x08, 0x39, 0xb7, 0x55, 0x84, 0x5a, 0x9f, 0xfb
         };
         _networkIdentifier = [NSData dataWithBytes:defaultNetId length:32];
+        
+        // Derive appKey from networkIdentifier: HMAC-SHA512(netId, "appkey"), first 32 bytes
+        unsigned char appKeyOut[64];
+        const char *appKeyMsg = "appkey";
+        CCHmac(kCCHmacAlgSHA512, defaultNetId, 32, appKeyMsg, strlen(appKeyMsg), appKeyOut);
+        _appKey = [NSData dataWithBytes:appKeyOut length:32];
     }
     return self;
 }
@@ -72,7 +79,7 @@ static os_log_t ssb_shs_log;
         os_log_info(ssb_shs_log, "Generating Client Hello");
         crypto_box_curve25519xsalsa20poly1305_keypair(_clientEphPubKey, _clientEphSecKey);
         unsigned char hmacOut[64];
-        CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, _clientEphPubKey, 32, hmacOut);
+        CCHmac(kCCHmacAlgSHA512, self.appKey.bytes, self.appKey.length, _clientEphPubKey, 32, hmacOut);
         self.localAppMac = [NSData dataWithBytes:hmacOut length:32];
         NSMutableData *hello = [NSMutableData dataWithBytes:hmacOut length:32];
         [hello appendBytes:_clientEphPubKey length:32];
@@ -81,7 +88,7 @@ static os_log_t ssb_shs_log;
         os_log_info(ssb_shs_log, "Generating Server Hello");
         // Server ephemeral key (b) is generated in processHello when client's hello arrives.
         unsigned char hmacOut[64];
-        CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, _serverEphPubKey, 32, hmacOut);
+        CCHmac(kCCHmacAlgSHA512, self.appKey.bytes, self.appKey.length, _serverEphPubKey, 32, hmacOut);
         self.localAppMac = [NSData dataWithBytes:hmacOut length:32];
         NSMutableData *hello = [NSMutableData dataWithBytes:hmacOut length:32];
         [hello appendBytes:_serverEphPubKey length:32];
@@ -95,7 +102,7 @@ static os_log_t ssb_shs_log;
     const unsigned char *receivedPubKey = helloData.bytes + 32;
     
     unsigned char expectedMac[64];
-    CCHmac(kCCHmacAlgSHA512, _networkIdentifier.bytes, _networkIdentifier.length, receivedPubKey, 32, expectedMac);
+    CCHmac(kCCHmacAlgSHA512, self.appKey.bytes, self.appKey.length, receivedPubKey, 32, expectedMac);
     if (memcmp(receivedMac, expectedMac, 32) != 0) {
         os_log_error(ssb_shs_log, "Hello HMAC failure");
         return NO;

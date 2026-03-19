@@ -6,8 +6,17 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    let
+      overlays = import ./overlays { inherit nixpkgs; };
+    in
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs {
           inherit system;
@@ -20,15 +29,18 @@
         # Define specific versions/overrides for GNUstep to ensure ARC and Dispatch
         libobjc = pkgs.gnustep-libobjc; # libobjc2
         libdispatch = pkgs.swift-corelibs-libdispatch;
-        
+
         # Override gnustep-base to ensure it builds with the features we need
         gnustep-base-custom = pkgs.gnustep-base.overrideAttrs (old: {
-          configureFlags = (old.configureFlags or []) ++ [
+          configureFlags = (old.configureFlags or [ ]) ++ [
             "--enable-libdispatch"
             "--enable-objc-arc"
             "--with-layout=gnustep"
           ];
-          buildInputs = (old.buildInputs or []) ++ [ libobjc libdispatch ];
+          buildInputs = (old.buildInputs or [ ]) ++ [
+            libobjc
+            libdispatch
+          ];
         });
 
         commonDeps = with pkgs; [
@@ -59,18 +71,22 @@
           darwin.apple_sdk.frameworks.Network
         ];
 
+        # Go for building go-ssb-room
+        goDeps = with pkgs; [
+          go
+        ];
+
       in
       {
         devShells.default = stdenv.mkDerivation {
           name = "scuttle-dev-shell";
-          
-          buildInputs = commonDeps 
-            ++ (if pkgs.stdenv.isDarwin then darwinDeps else linuxDeps);
+
+          buildInputs = commonDeps ++ (if pkgs.stdenv.isDarwin then darwinDeps else linuxDeps);
 
           shellHook = ''
             export PS1="\[\e[1;32m\][scuttle-dev]\[\e[0m\] \w \$ "
             export PATH="$HOME/.local/bin:$PATH"
-            
+
             if [ -e /etc/NIXOS ]; then
               # Linux/GNUstep specific setup
               . ${pkgs.gnustep-make}/share/GNUstep/Makefiles/GNUstep.sh
@@ -86,12 +102,34 @@
             else
               echo "Objective-C environment active on Darwin."
             fi
-            
+
             echo "Dependencies: Foundation, OpenSSL, SQLite, libdispatch."
           '';
 
           # Optimization: Export GNUSTEP_MAKEFILES for the build system
-          GNUSTEP_MAKEFILES = if pkgs.stdenv.isDarwin then "" else "${pkgs.gnustep-make}/share/GNUstep/Makefiles";
+          GNUSTEP_MAKEFILES =
+            if pkgs.stdenv.isDarwin then "" else "${pkgs.gnustep-make}/share/GNUstep/Makefiles";
+        };
+
+        devShells.go-ssb-room = stdenv.mkDerivation {
+          name = "go-ssb-room-dev";
+
+          buildInputs = with pkgs; [
+            go
+            gcc
+            pkg-config
+          ];
+
+          shellHook = ''
+            export PS1="\[\e[1;35m\][go-ssb-room]\[\e[0m\] \w \$ "
+            export GOPATH=$HOME/go
+            export PATH="$GOPATH/bin:$PATH"
+
+            echo "Go environment for go-ssb-room (Go $(go version | awk '{print $3}'))"
+            echo "To build the room server:"
+            echo "  cd third-party/go-ssb-room/cmd/server && go build -tags dev"
+            echo "  ./server -mode open -lishttp :3000 -lismux :8008"
+          '';
         };
       }
     );
