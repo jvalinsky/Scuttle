@@ -69,10 +69,8 @@ typedef NS_ENUM(NSInteger, SSBSecurityState) {
                                                          remotePublicKey:remoteKey];
             
             if (asClient) {
-                // Send Client Hello (Step 1)
                 NSData *hello = [context.handshake createHello];
                 if (!hello) return nw_framer_start_result_ready;
-                
                 dispatch_data_t helloData = dispatch_data_create(hello.bytes, hello.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
                 nw_framer_write_output_data(framer, helloData);
                 context.state = SSBSecurityStateHandshakeHelloSent;

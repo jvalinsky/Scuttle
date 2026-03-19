@@ -90,6 +90,8 @@ static dispatch_queue_t shim_queue(void) {
 
 #pragma mark - SSBFramerContext
 
+@class SSBFramerOptions;
+
 @interface SSBFramerContext : NSObject
 @property (nonatomic, strong) id framer;
 @property (nonatomic, copy) nw_framer_start_handler_t startHandler;
@@ -98,8 +100,27 @@ static dispatch_queue_t shim_queue(void) {
 @property (nonatomic, strong) SSBFramerContext *nextFramer;
 @property (nonatomic, strong) NSMutableData *inputBuffer;
 @property (nonatomic, assign) BOOL isReady;
+@property (nonatomic, strong) SSBFramerOptions *options;
 @property (nonatomic, copy) void (^feedHandler)(const uint8_t *bytes, size_t len);
 - (instancetype)init;
+@end
+
+#pragma mark - SSBFramerOptions
+
+@interface SSBFramerOptions : NSObject
+@property (nonatomic, strong) SSBFramerContext *context;
+@property (nonatomic, strong) NSMutableDictionary *values;
+- (instancetype)init;
+@end
+
+@implementation SSBFramerOptions
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _values = [NSMutableDictionary dictionary];
+    }
+    return self;
+}
 @end
 
 @implementation SSBFramerContext
@@ -414,8 +435,8 @@ void nw_connection_start(nw_connection_t connection) {
             c.bottomFramer = nil;
 
             for (id options in stack) {
-                SSBFramerContext *(^defBlock)(void) = (id)options;
-                SSBFramerContext *ctx = defBlock();
+                SSBFramerOptions *framerOpts = (SSBFramerOptions *)options;
+                SSBFramerContext *ctx = framerOpts.context;
                 ctx.inputBuffer = [NSMutableData data];
 
                 dispatch_sync(shim_queue(), ^{
@@ -431,7 +452,11 @@ void nw_connection_start(nw_connection_t connection) {
                     c.bottomFramer.nextFramer = ctx;
                 }
                 c.bottomFramer = ctx;
+            }
 
+            for (id options in stack) {
+                SSBFramerOptions *framerOpts = (SSBFramerOptions *)options;
+                SSBFramerContext *ctx = framerOpts.context;
                 if (ctx.startHandler) {
                     ctx.startHandler(ctx.framer);
                 }
@@ -540,18 +565,35 @@ nw_protocol_definition_t nw_framer_create_definition(const char *identifier,
 
 nw_protocol_options_t nw_framer_create_options(nw_protocol_definition_t definition) {
     SSBFramerContext *(^defBlock)(void) = (id)definition;
-    return (nw_protocol_options_t)defBlock();
+    SSBFramerContext *ctx = defBlock();
+    SSBFramerOptions *options = [[SSBFramerOptions alloc] init];
+    options.context = ctx;
+    ctx.options = options;
+    return (nw_protocol_options_t)options;
 }
 
 nw_protocol_options_t nw_framer_copy_options(nw_framer_t framer) {
-    return framer;
+    __block SSBFramerOptions *result = nil;
+    dispatch_sync(framer_queue(), ^{
+        SSBFramerContext *ctx = _framerContextMap[[NSValue valueWithPointer:(__bridge const void *)framer]];
+        if (ctx && ctx.options) {
+            result = ctx.options;
+        }
+    });
+    return (nw_protocol_options_t)(result ?: framer);
 }
 
 void nw_framer_options_set_object_value(nw_protocol_options_t options,
-                                        const char *key, id value) {}
+                                        const char *key, id value) {
+    SSBFramerOptions *opts = (SSBFramerOptions *)options;
+    NSValue *nskey = [NSValue valueWithPointer:key];
+    opts.values[nskey] = value;
+}
 
 id nw_framer_options_copy_object_value(nw_protocol_options_t options, const char *key) {
-    return nil;
+    SSBFramerOptions *opts = (SSBFramerOptions *)options;
+    NSValue *nskey = [NSValue valueWithPointer:key];
+    return opts.values[nskey];
 }
 
 void nw_framer_set_input_handler(nw_framer_t framer,
