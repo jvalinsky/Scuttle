@@ -2,8 +2,7 @@
 #import "SSBBFE.h"
 #import "SSBMessageCodec.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonDigest.h>
-#import <CommonCrypto/CommonHMAC.h>
+#import "SSBCommonCryptoCompat.h"
 
 static NSString *const kMetafeedSeedSalt = @"ssb";
 static NSString *const kRootMetafeedInfo = @"ssb-meta-feed-seed-v1:metafeed";
@@ -61,10 +60,15 @@ static NSInteger const kNumberOfShards = 16;
     NSMutableData *seed = [NSMutableData dataWithLength:32];
     if (!seed) return nil;
     
+#ifdef __APPLE__
     int result = SecRandomCopyBytes(kSecRandomDefault, 32, seed.mutableBytes);
     if (result != errSecSuccess) {
         return nil;
     }
+#else
+    extern void randombytes(unsigned char *, unsigned long long);
+    randombytes(seed.mutableBytes, 32);
+#endif
     
     return seed;
 }
@@ -305,7 +309,12 @@ static NSInteger const kNumberOfShards = 16;
     NSData *recipientKey = [recipientKeyData subdataWithRange:NSMakeRange(2, 32)];
 
     unsigned char ephemeralSK[crypto_box_SECRETKEYBYTES];
+#ifdef __APPLE__
     SecRandomCopyBytes(kSecRandomDefault, crypto_box_SECRETKEYBYTES, ephemeralSK);
+#else
+    extern void randombytes(unsigned char *, unsigned long long);
+    randombytes(ephemeralSK, crypto_box_SECRETKEYBYTES);
+#endif
 
     // Derive ephemeral public key from ephemeral secret key
     unsigned char ephemeralPubKey[crypto_box_PUBLICKEYBYTES];

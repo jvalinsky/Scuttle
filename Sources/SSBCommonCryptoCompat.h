@@ -21,16 +21,27 @@
 
     // Map CCHmac Algorithm constants
     enum {
-        kCCHmacAlgSHA256 = 1
+        kCCHmacAlgSHA256 = 1,
+        kCCHmacAlgSHA512 = 2
     };
     typedef uint32_t CCHmacAlgorithm;
+
+    #define CC_SHA512_DIGEST_LENGTH 64
 
     // Map CCHmac directly to OpenSSL's HMAC
     static inline void CCHmac(CCHmacAlgorithm alg, const void *key, size_t keyLength, 
                               const void *data, size_t dataLength, void *macOut) {
+        const EVP_MD *md = NULL;
+        unsigned int len = 0;
         if (alg == kCCHmacAlgSHA256) {
-            unsigned int len = CC_SHA256_DIGEST_LENGTH;
-            HMAC(EVP_sha256(), key, (int)keyLength, (const unsigned char *)data, dataLength, (unsigned char *)macOut, &len);
+            md = EVP_sha256();
+            len = CC_SHA256_DIGEST_LENGTH;
+        } else if (alg == kCCHmacAlgSHA512) {
+            md = EVP_sha512();
+            len = CC_SHA512_DIGEST_LENGTH;
+        }
+        if (md) {
+            HMAC(md, key, (int)keyLength, (const unsigned char *)data, dataLength, (unsigned char *)macOut, &len);
         }
     }
 

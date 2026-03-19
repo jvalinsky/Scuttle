@@ -31,7 +31,7 @@ scuttle-cli_OBJC_FILES = \
     Sources/SSBButtwoo.m \
     Sources/SSBBendyButt.m \
     Sources/SSBBFE.m \
-    Sources/SSBBIPF.m \
+    Sources/SSBMessage.m \
     Sources/SSBBamboo.m \
     Sources/SSBBencode.m \
     Sources/SSBBitset.m \
@@ -48,7 +48,8 @@ scuttle-cli_OBJC_FILES = \
     Sources/SSBGitIssueStore.m \
     Sources/SSBGitPRStore.m \
     Sources/SSBNetworkShim.m \
-    Sources/SSBURLSessionShim.m
+    Sources/SSBURLSessionShim.m \
+    App/Logic/SRNotificationNames.m
 
 scuttle-cli_C_FILES = \
     Sources/tweetnacl.c \
@@ -58,7 +59,7 @@ scuttle-cli_C_FILES = \
     Sources/SSBDiffCore.c
 
 # 2026: Enable modern Objective-C features
-ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks -I./Sources
-ADDITIONAL_LDFLAGS += -ldispatch -lobjc -lcrypto -lsqlite3
+ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks -I./Sources -I./App/Logic
+ADDITIONAL_LDFLAGS += -ldispatch -lobjc -lcrypto -lsqlite3 -lz
 
 include $(GNUSTEP_MAKEFILES)/tool.make

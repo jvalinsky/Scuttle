@@ -3,6 +3,12 @@
 #import "SSBBFE.h"
 #import "tweetnacl.h"
 #import "blake2b.h"
+#ifndef __APPLE__
+#include <arpa/inet.h>
+static inline uint64_t CFSwapInt64BigToHost(uint64_t x) {
+    return be64toh(x);
+}
+#endif
 
 // Bamboo binary entry layout (seq > 1):
 //   author_public_key   bytes  0-31   (32 bytes, Ed25519 public key)
@@ -83,7 +89,107 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 
 @implementation SSBBamboo
 
-...
++ (void)load {
+    [[SSBFeedCodecRegistry sharedRegistry] registerCodec:[self sharedCodec]];
+}
+
++ (instancetype)sharedCodec {
+    static SSBBamboo *instance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        instance = [[SSBBamboo alloc] init];
+    });
+    return instance;
+}
+
+@synthesize feedFormat = _feedFormat;
+@synthesize messageFormat = _messageFormat;
+
+- (SSBBFEFeedFormat)feedFormat {
+    return SSBBFEFeedFormatBamboo;
+}
+
+- (SSBBFEMessageFormat)messageFormat {
+    return SSBBFEMessageFormatBamboo;
+}
+
+- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
+    BOOL valid = [SSBBamboo validateEntry:messageData];
+    if (!valid && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
+                                userInfo:@{NSLocalizedDescriptionKey: @"Bamboo entry invalid or signature mismatch"}];
+    }
+    return valid;
+}
+
+- (nullable NSData *)computeMessageKeyFromData:(NSData *)messageData error:(NSError **)error {
+    NSData *key = [SSBBamboo computeEntryID:messageData];
+    if (!key && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:2
+                                userInfo:@{NSLocalizedDescriptionKey: @"Failed to compute Bamboo entry ID"}];
+    }
+    return key;
+}
+
+#pragma mark - Lipmaa
+
++ (NSInteger)lipmaaSequenceFor:(NSInteger)seq {
+    if (seq <= 1) return 1;
+    NSInteger n = seq;
+    while (n > 1) {
+        NSInteger p = 1;
+        while (p * 3 <= n) p *= 3;
+        n -= p;
+    }
+    return seq - (seq - n) - 1;
+}
+
+#pragma mark - Hashing
+
++ (nullable NSData *)hashData:(NSData *)data {
+    uint8_t hash[32];
+    if (blake2b256(hash, data.bytes, data.length) != 0) return nil;
+    return [NSData dataWithBytes:hash length:sizeof(hash)];
+}
+
+#pragma mark - Entry Validation
+
++ (BOOL)validateEntry:(NSData *)entryData {
+    if (entryData.length < kBambooMinSize) return NO;
+    const uint8_t *bytes = (const uint8_t *)entryData.bytes;
+    uint64_t seqBE = 0;
+    memcpy(&seqBE, bytes + kSeqOffset, 8);
+    uint64_t seq = CFSwapInt64BigToHost(seqBE);
+    if (seq < 1) return NO;
+    BOOL hasLinks = (seq > 1);
+    NSUInteger expectedSize = hasLinks ? 241 : 177;
+    if (entryData.length < expectedSize) return NO;
+    uint64_t payloadSizeBE = 0;
+    memcpy(&payloadSizeBE, bytes + (hasLinks ? kPayloadSizeSeqN : kPayloadSizeSeq1), 8);
+    uint64_t payloadSize = CFSwapInt64BigToHost(payloadSizeBE);
+    if (payloadSize > 65536) return NO;
+    NSUInteger sigOffset = hasLinks ? kSigOffsetSeqN : kSigOffsetSeq1;
+    NSData *author = [entryData subdataWithRange:NSMakeRange(kAuthorOffset, 32)];
+    NSData *signature = [entryData subdataWithRange:NSMakeRange(sigOffset, 64)];
+    NSData *signedData = [entryData subdataWithRange:NSMakeRange(0, sigOffset)];
+    return [self verifySignature:signature forData:signedData withAuthor:author];
+}
+
++ (BOOL)verifySignature:(NSData *)signature forData:(NSData *)data withAuthor:(NSData *)author {
+    if (signature.length != 64 || author.length != 32) return NO;
+    NSMutableData *sm = [NSMutableData dataWithData:signature];
+    [sm appendData:data];
+    unsigned char m[data.length];
+    unsigned long long mlen;
+    int ret = crypto_sign_open(m, &mlen, sm.bytes, (unsigned long long)sm.length, author.bytes);
+    return (ret == 0 && mlen == data.length && memcmp(m, data.bytes, data.length) == 0);
+}
+
+#pragma mark - Entry ID
+
++ (nullable NSData *)computeEntryID:(NSData *)entryData {
+    return [self hashData:entryData];
+}
 
 #pragma mark - Lipmaa Proofs
 
@@ -148,11 +254,19 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 }
 
 + (nullable NSData *)serializeProof:(SSBBambooProof *)proof {
+#if __has_include(<os/log.h>)
     return [NSKeyedArchiver archivedDataWithRootObject:proof requiringSecureCoding:YES error:nil];
+#else
+    return [NSKeyedArchiver archivedDataWithRootObject:proof];
+#endif
 }
 
 + (nullable SSBBambooProof *)deserializeProof:(NSData *)data {
+#if __has_include(<os/log.h>)
     return [NSKeyedUnarchiver unarchivedObjectOfClass:[SSBBambooProof class] fromData:data error:nil];
+#else
+    return [NSKeyedUnarchiver unarchiveObjectWithData:data];
+#endif
 }
 
 @end

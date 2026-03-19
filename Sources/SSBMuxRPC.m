@@ -1,4 +1,11 @@
 #import "SSBMuxRPC.h"
+#ifdef __APPLE__
+#import <CoreFoundation/CFByteOrder.h>
+#else
+#include <arpa/inet.h>
+#define CFSwapInt32HostToBig(x) htonl(x)
+#define CFSwapInt32BigToHost(x) ntohl(x)
+#endif
 
 @implementation SSBMuxRPCMessage
 

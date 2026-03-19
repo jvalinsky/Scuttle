@@ -2,7 +2,9 @@
 #import "SSBURI.h"
 #import "tweetnacl.h"
 #import "SSBLogCompat.h"
+#ifdef __APPLE__
 #import <Security/Security.h>
+#endif
 
 static os_log_t httpAuth_log;
 

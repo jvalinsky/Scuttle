@@ -2,8 +2,7 @@
 #import "SSBFeedCodecRegistry.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonCrypto.h>
-#import <CommonCrypto/CommonHMAC.h>
+#import "SSBCommonCryptoCompat.h"
 
 static const NSUInteger kMaxMessageSize = 8192;
 

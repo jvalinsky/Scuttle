@@ -37,7 +37,11 @@ typedef NS_ENUM(NSInteger, SSBIndexFeedType) {
 
 + (nullable NSDictionary<NSString *, id> *)createQueryWithAuthor:(nullable NSString *)author
                                        messageType:(nullable NSString *)messageType
-                                           channel:(nullable NSString *)channel __deprecated_msg("Use createQueryWithAuthor:messageType:isPrivate:");
+                                            channel:(nullable NSString *)channel
+#ifdef __APPLE__
+    __deprecated_msg("Use createQueryWithAuthor:messageType:isPrivate:")
+#endif
+    ;
 
 + (NSString *)queryLanguageIdentifier;
 

@@ -235,7 +235,11 @@ static os_log_t ssb_room_log;
                 NSNumber *reqNumObj = nw_framer_message_copy_object_value(metadata, "RequestNumber");
 
                 if (flagsObj && reqNumObj) {
-                    NSData *body = (NSData *)content;
+                    // Convert dispatch_data_t to NSData (not toll-free bridged on GNUstep)
+                    const void *buf = NULL; size_t sz = 0;
+                    dispatch_data_t contiguous = dispatch_data_create_map(content, &buf, &sz);
+                    NSData *body = [NSData dataWithBytes:buf length:sz];
+                    (void)contiguous; // safe to release; body owns its copy
                     SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:[flagsObj unsignedIntValue]
                                                                       requestNumber:[reqNumObj intValue]
                                                                                body:body];
@@ -931,7 +935,7 @@ static os_log_t ssb_room_log;
                 targetClock[msg.author] = @(msg.sequence);
             }
             
-            [self updateSyncProgressForAuthor:msg.author fromPeer:peerID];
+            [self updateSyncProgressForAuthor:msg.author];
         }
     }
 }

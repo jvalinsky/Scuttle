@@ -239,8 +239,11 @@
         if (!strongSelf) return;
         
         if (content) {
-                // Data successfully processed by the client framer stack, now encrypted/framed bytes to send to the real network (room)
-                NSData *data = (NSData *)content;
+                // Convert dispatch_data_t to NSData (not toll-free bridged on GNUstep)
+                const void *buf = NULL; size_t sz = 0;
+                dispatch_data_t contiguous = dispatch_data_create_map(content, &buf, &sz);
+                NSData *data = [NSData dataWithBytes:buf length:sz];
+                (void)contiguous;
                 os_log_debug(strongSelf.log, "readFromServerConnection: received %lu bytes from local socket, piping to room", (unsigned long)data.length);
                 if (data.length > 0) {
                     int32_t transportID = strongSelf.isServer ? -strongSelf.tunnelReqID : strongSelf.tunnelReqID;
@@ -282,7 +285,11 @@
                     reqNum = [reqNumNum intValue];
                     os_log_debug(strongSelf.log, "Extracted flags=%u reqNum=%d", flags, reqNum);
                     
-                    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:reqNum body:(NSData *)content];
+                    const void *cBuf = NULL; size_t cSz = 0;
+                    dispatch_data_t cContiguous = dispatch_data_create_map(content, &cBuf, &cSz);
+                    NSData *bodyData = [NSData dataWithBytes:cBuf length:cSz];
+                    (void)cContiguous;
+                    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:flags requestNumber:reqNum body:bodyData];
                     [strongSelf.rpcSession handleIncomingMessage:msg];
                 } else {
                     os_log_error(strongSelf.log, "FAILED to extract flags/reqNum from metadata");

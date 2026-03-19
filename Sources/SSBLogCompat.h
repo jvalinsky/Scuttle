@@ -13,6 +13,8 @@
 
     // Simple NSLog wrapper that identifies the category and level.
     // Note: We ignore the Apple-specific %{public} modifiers as NSLog handles strings normally.
+    #define OS_LOG_DEFAULT @"default"
+
     #define os_log_info(log, format, ...)  NSLog((@"[%@] INFO: " format), log, ##__VA_ARGS__)
     #define os_log_error(log, format, ...) NSLog((@"[%@] ERROR: " format), log, ##__VA_ARGS__)
     #define os_log_debug(log, format, ...) NSLog((@"[%@] DEBUG: " format), log, ##__VA_ARGS__)

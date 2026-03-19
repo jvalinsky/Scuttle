@@ -3,14 +3,13 @@
 #import "SSBGitPackIDXParser.h"
 
 @interface SSBGitObjectStore ()
-
 @property (nonatomic, strong) SSBBlobStore *blobStore;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *packs;
-@property (nonatomic, strong) dispatch_queue_t packsQueue;
-
 @end
 
-@implementation SSBGitObjectStore
+@implementation SSBGitObjectStore {
+    dispatch_queue_t _packsQueue;
+}
 
 - (instancetype)initWithBlobStore:(SSBBlobStore *)blobStore {
     if (self = [super init]) {
@@ -24,7 +23,7 @@
 - (void)registerPackBlob:(NSString *)packBlobID idxBlob:(NSString *)idxBlobID {
     if (!packBlobID || !idxBlobID) return;
     
-    dispatch_sync(self.packsQueue, ^{
+        dispatch_sync(_packsQueue, ^{
         // Check if we already have it
         for (NSDictionary *dict in self.packs) {
             if ([dict[@"pack"] isEqualToString:packBlobID]) {
@@ -43,7 +42,7 @@
     if (sha1.length != 40) return nil;
     
     __block NSArray *packsCopy;
-    dispatch_sync(self.packsQueue, ^{
+        dispatch_sync(_packsQueue, ^{
         packsCopy = [self.packs copy];
     });
     
@@ -53,7 +52,7 @@
         
         if (!idxPath) continue;
         
-        NSData *idxData = [NSData dataWithContentsOfFile:idxPath options:NSDataReadingMappedIfSafe error:nil];
+        NSData *idxData = [NSData dataWithContentsOfFile:idxPath];
         if (!idxData) continue;
         
         SSBGitPackIDXParser *parser = [[SSBGitPackIDXParser alloc] initWithData:idxData];
@@ -65,7 +64,7 @@
             NSString *packPath = [self.blobStore localPathForBlobID:packBlobID];
             if (!packPath) continue;
             
-            NSData *packData = [NSData dataWithContentsOfFile:packPath options:NSDataReadingMappedIfSafe error:nil];
+            NSData *packData = [NSData dataWithContentsOfFile:packPath];
             if (!packData) continue;
             
             SSBGitPackDecoder *decoder = [[SSBGitPackDecoder alloc] initWithData:packData];
@@ -83,7 +82,7 @@
     if (sha1.length != 40) return nil;
     
     __block NSArray *packsCopy;
-    dispatch_sync(self.packsQueue, ^{
+        dispatch_sync(_packsQueue, ^{
         packsCopy = [self.packs copy];
     });
     
@@ -92,7 +91,7 @@
         NSString *idxPath = [self.blobStore localPathForBlobID:idxBlobID];
         if (!idxPath) continue;
         
-        NSData *idxData = [NSData dataWithContentsOfFile:idxPath options:NSDataReadingMappedIfSafe error:nil];
+        NSData *idxData = [NSData dataWithContentsOfFile:idxPath];
         if (!idxData) continue;
         
         SSBGitPackIDXParser *parser = [[SSBGitPackIDXParser alloc] initWithData:idxData];

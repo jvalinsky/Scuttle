@@ -1,6 +1,8 @@
 #import "SSBBitset.h"
+#ifdef __APPLE__
 #import <Accelerate/Accelerate.h>
 #import <simd/simd.h>
+#endif
 
 @interface SSBBitset () {
     NSMutableData *_buffer;
@@ -53,26 +55,16 @@
     NSData *otherData = other.data;
     size_t selfLen  = _buffer.length;
     size_t otherLen = otherData.length;
-    size_t simdCount = MIN(selfLen, otherLen) / sizeof(simd_ulong4);
+    size_t commonLen = MIN(selfLen, otherLen);
 
-    simd_ulong4 *dest       = (simd_ulong4 *)_buffer.mutableBytes;
-    const simd_ulong4 *src  = (const simd_ulong4 *)otherData.bytes;
-    for (size_t i = 0; i < simdCount; i++) {
+    uint8_t *dest = (uint8_t *)_buffer.mutableBytes;
+    const uint8_t *src = (const uint8_t *)otherData.bytes;
+    for (size_t i = 0; i < commonLen; i++) {
         dest[i] &= src[i];
     }
 
-    // Handle tail bytes not covered by the SIMD loop.
-    size_t simdBytes = simdCount * sizeof(simd_ulong4);
-    size_t commonLen = MIN(selfLen, otherLen);
-    uint8_t       *destTail = (uint8_t *)_buffer.mutableBytes + simdBytes;
-    const uint8_t *srcTail  = (const uint8_t *)otherData.bytes  + simdBytes;
-    for (size_t i = simdBytes; i < commonLen; i++) {
-        *destTail++ &= *srcTail++;
-    }
-
-    // AND with 0 for any self bytes that extend beyond other's length.
     if (selfLen > otherLen) {
-        memset((uint8_t *)_buffer.mutableBytes + otherLen, 0, selfLen - otherLen);
+        memset(dest + otherLen, 0, selfLen - otherLen);
     }
 }
 
@@ -80,30 +72,19 @@
     NSData *otherData = other.data;
     size_t selfLen  = _buffer.length;
     size_t otherLen = otherData.length;
-    size_t simdCount = MIN(selfLen, otherLen) / sizeof(simd_ulong4);
+    size_t commonLen = MIN(selfLen, otherLen);
 
-    simd_ulong4 *dest       = (simd_ulong4 *)_buffer.mutableBytes;
-    const simd_ulong4 *src  = (const simd_ulong4 *)otherData.bytes;
-    for (size_t i = 0; i < simdCount; i++) {
+    uint8_t *dest = (uint8_t *)_buffer.mutableBytes;
+    const uint8_t *src = (const uint8_t *)otherData.bytes;
+    for (size_t i = 0; i < commonLen; i++) {
         dest[i] |= src[i];
     }
-
-    // Handle tail bytes not covered by the SIMD loop.
-    size_t simdBytes = simdCount * sizeof(simd_ulong4);
-    size_t commonLen = MIN(selfLen, otherLen);
-    uint8_t       *destTail = (uint8_t *)_buffer.mutableBytes + simdBytes;
-    const uint8_t *srcTail  = (const uint8_t *)otherData.bytes  + simdBytes;
-    for (size_t i = simdBytes; i < commonLen; i++) {
-        *destTail++ |= *srcTail++;
-    }
-    // OR never needs to zero-extend self; bits beyond other's range remain unchanged.
 }
 
 - (void)not {
-    size_t count = _buffer.length / sizeof(simd_ulong4);
-    simd_ulong4 *dest = (simd_ulong4 *)_buffer.mutableBytes;
-    
-    for (size_t i = 0; i < count; i++) {
+    size_t len = _buffer.length;
+    uint8_t *dest = (uint8_t *)_buffer.mutableBytes;
+    for (size_t i = 0; i < len; i++) {
         dest[i] = ~dest[i];
     }
 }

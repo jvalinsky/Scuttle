@@ -5,7 +5,7 @@
 #import "SSBMetafeed.h"
 #import "SSBURI.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonDigest.h>
+#import "SSBCommonCryptoCompat.h"
 
 static NSString *const kIndexedV1Format = @"indexed-v1";
 static NSString *const kQueryLanguageV0 = @"ssb-ql-0";
@@ -439,10 +439,15 @@ static NSString *const kMetafeedAddDerivedType = @"metafeed/add/derived";
         return nil;
     }
 
+#ifdef __APPLE__
     int result = SecRandomCopyBytes(kSecRandomDefault, 32, nonce.mutableBytes);
     if (result != errSecSuccess) {
         return nil;
     }
+#else
+    extern void randombytes(unsigned char *, unsigned long long);
+    randombytes(nonce.mutableBytes, 32);
+#endif
 
     return nonce;
 }

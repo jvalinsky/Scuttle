@@ -2,7 +2,7 @@
 #import "SSBURI.h"
 #import "SSBURLSessionCompat.h"
 #import "SSBLogCompat.h"
-#import <CommonCrypto/CommonCrypto.h>
+#import "SSBCommonCryptoCompat.h"
 
 static os_log_t server_log;
 

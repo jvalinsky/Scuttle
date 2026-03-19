@@ -90,6 +90,7 @@ void nw_connection_set_queue(nw_connection_t connection, dispatch_queue_t queue)
 void nw_connection_set_state_changed_handler(nw_connection_t connection, nw_connection_state_changed_handler_t handler);
 void nw_connection_start(nw_connection_t connection);
 void nw_connection_receive_message(nw_connection_t connection, nw_connection_receive_completion_t completion);
+void nw_connection_receive(nw_connection_t connection, uint32_t minimum_incomplete_length, uint32_t maximum_length, nw_connection_receive_completion_t completion);
 void nw_connection_send(nw_connection_t connection, dispatch_data_t content, nw_content_context_t _Nullable context, bool is_complete, nw_connection_send_completion_t completion);
 void nw_connection_cancel(nw_connection_t connection);
 

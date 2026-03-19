@@ -1,6 +1,6 @@
 #import "SSBBlobStore.h"
 #import "SSBMuxRPCSession.h"
-#import <CommonCrypto/CommonDigest.h>
+#import "SSBCommonCryptoCompat.h"
 #import "SSBLogCompat.h"
 
 static os_log_t blob_store_log;

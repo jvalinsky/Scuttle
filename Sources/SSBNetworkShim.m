@@ -46,6 +46,10 @@ void nw_connection_receive_message(nw_connection_t connection, nw_connection_rec
     NSLog(@"STUB: nw_connection_receive_message");
 }
 
+void nw_connection_receive(nw_connection_t connection, uint32_t minimum_incomplete_length, uint32_t maximum_length, nw_connection_receive_completion_t completion) {
+    NSLog(@"STUB: nw_connection_receive(%u, %u)", minimum_incomplete_length, maximum_length);
+}
+
 void nw_connection_send(nw_connection_t connection, dispatch_data_t content, nw_content_context_t _Nullable context, bool is_complete, nw_connection_send_completion_t completion) {
     NSLog(@"STUB: nw_connection_send");
 }

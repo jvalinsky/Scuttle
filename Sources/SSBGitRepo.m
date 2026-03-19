@@ -77,7 +77,12 @@
 
 + (void)uploadBlobAtURL:(NSURL *)url completion:(void(^)(NSString * _Nullable blobID, NSError * _Nullable error))completion {
     NSError *error = nil;
-    NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:&error];
+    NSData *data = nil;
+    @try {
+        data = [NSData dataWithContentsOfURL:url];
+    } @catch (NSException *exc) {
+        error = [NSError errorWithDomain:@"SSBGitRepoError" code:500 userInfo:@{NSLocalizedDescriptionKey: exc.reason ?: @"Read failed"}];
+    }
     if (!data) {
         completion(nil, error);
         return;

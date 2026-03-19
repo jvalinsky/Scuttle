@@ -3,6 +3,12 @@
 #import "SSBBIPF.h"
 #import "SSBBFE.h"
 #import "tweetnacl.h"
+#ifndef __APPLE__
+#include <arpa/inet.h>
+static inline uint64_t CFSwapInt64HostToBig(uint64_t x) {
+    return htobe64(x);
+}
+#endif
 #import "blake3.h"
 
 // Buttwoo wire format (BIPF):

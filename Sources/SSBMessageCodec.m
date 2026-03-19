@@ -1,7 +1,7 @@
 #import "SSBMessageCodec.h"
 #import "SSBFeedCodecRegistry.h"
 #import "tweetnacl.h"
-#import <CommonCrypto/CommonDigest.h>
+#import "SSBCommonCryptoCompat.h"
 #import "SSBLogCompat.h"
 
 @interface SSBChannel : NSObject
@@ -515,7 +515,21 @@ static os_log_t codecLog(void) {
     
     NSMutableString *normalized = [name mutableCopy];
     
+#ifdef __APPLE__
     CFStringTransform((__bridge CFMutableStringRef)normalized, NULL, kCFStringTransformStripDiacritics, false);
+#else
+    // GNUstep: strip diacritics via decomposition + removing combining marks
+    NSString *decomposed = [normalized decomposedStringWithCanonicalMapping];
+    NSMutableString *stripped = [NSMutableString string];
+    for (NSUInteger i = 0; i < decomposed.length; i++) {
+        unichar ch = [decomposed characterAtIndex:i];
+        // Skip Unicode combining marks (category Mn: 0x0300-0x036F common range)
+        if (ch < 0x0300 || ch > 0x036F) {
+            [stripped appendFormat:@"%C", ch];
+        }
+    }
+    [normalized setString:stripped];
+#endif
     
     NSCharacterSet *disallowed = [NSCharacterSet characterSetWithCharactersInString:@"#,.\"!?()[] "];
     NSString *filtered = @"";

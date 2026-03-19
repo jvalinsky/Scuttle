@@ -20,8 +20,15 @@
         [rooms addObject:config];
     }
     
+    NSData *data;
+#if __has_include(<os/log.h>)
+    // macOS: use secure coding APIs
     NSError *error;
-    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:rooms requiringSecureCoding:YES error:&error];
+    data = [NSKeyedArchiver archivedDataWithRootObject:rooms requiringSecureCoding:YES error:&error];
+#else
+    // GNUstep: fall back to non-secure archiver
+    data = [NSKeyedArchiver archivedDataWithRootObject:rooms];
+#endif
     if (data) {
         [[NSUserDefaults standardUserDefaults] setObject:data forKey:@"JoinedRooms"];
         [[NSUserDefaults standardUserDefaults] synchronize];
@@ -41,8 +48,13 @@
     
     if (existingIdx != -1) {
         [rooms removeObjectAtIndex:existingIdx];
+        NSData *data;
+#if __has_include(<os/log.h>)
         NSError *error;
-        NSData *data = [NSKeyedArchiver archivedDataWithRootObject:rooms requiringSecureCoding:YES error:&error];
+        data = [NSKeyedArchiver archivedDataWithRootObject:rooms requiringSecureCoding:YES error:&error];
+#else
+        data = [NSKeyedArchiver archivedDataWithRootObject:rooms];
+#endif
         if (data) {
             [[NSUserDefaults standardUserDefaults] setObject:data forKey:@"JoinedRooms"];
             [[NSUserDefaults standardUserDefaults] synchronize];
@@ -54,8 +66,13 @@
     NSData *data = [[NSUserDefaults standardUserDefaults] objectForKey:@"JoinedRooms"];
     if (!data) return @[];
     
+    NSArray *rooms;
+#if __has_include(<os/log.h>)
     NSError *error;
-    NSArray *rooms = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [RoomConfig class]]] fromData:data error:&error];
+    rooms = [NSKeyedUnarchiver unarchivedObjectOfClasses:[NSSet setWithArray:@[[NSArray class], [RoomConfig class]]] fromData:data error:&error];
+#else
+    rooms = [NSKeyedUnarchiver unarchiveObjectWithData:data];
+#endif
     return rooms ?: @[];
 }
 
