@@ -2,17 +2,7 @@
 
 **Minimum macOS Version: 13.0 (Ventura)** - This project requires macOS 13 or later.
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
-
 ## Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd sync               # Sync with git
-```
 
 ## Non-Interactive Shell Commands
 
@@ -38,92 +28,56 @@ cp -rf source dest          # NOT: cp -r source dest
 - `apt-get` - use `-y` flag
 - `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
-<!-- BEGIN BEADS INTEGRATION -->
-## Issue Tracking with bd (beads)
+<!-- BEGIN DECIDUOUS INTEGRATION -->
+## Decision Tracking with deciduous
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+**IMPORTANT**: This project uses **deciduous** for tracking technical decisions, goals, and architectural changes. Use it to document *why* changes are made, not just *what* was changed.
 
-### Why bd?
+### Why deciduous?
 
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Auto-syncs to JSONL for version control
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
+- Visualizes the "decision tree" of the project.
+- Links goals to specific actions and observations.
+- Provides context for future agents on the reasoning behind the current architecture.
 
 ### Quick Start
 
-**Check for ready work:**
-
+**List current nodes:**
 ```bash
-bd ready --json
+deciduous nodes
 ```
 
-**Create new issues:**
-
+**Add a new goal or action:**
 ```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
+deciduous add goal "Title" -d "Description"
+deciduous add action "Title" -d "Description" -f "file1.m,file2.h"
 ```
 
-**Claim and update:**
-
+**Link nodes (e.g., an action to a goal):**
 ```bash
-bd update <id> --claim --json
-bd update bd-42 --priority 1 --json
+deciduous link <source_id> <target_id>
 ```
 
-**Complete work:**
-
+**Update status:**
 ```bash
-bd close bd-42 --reason "Completed" --json
+deciduous status <id> active|completed|blocked
 ```
-
-### Issue Types
-
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
-
-### Priorities
-
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
 
 ### Workflow for AI Agents
 
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
-
-### Auto-Sync
-
-bd automatically syncs with git:
-
-- Exports to `.beads/issues.jsonl` after changes (5s debounce)
-- Imports from JSONL when newer (e.g., after `git pull`)
-- No manual export/import needed!
+1. **Review the graph**: Run `deciduous nodes` to understand the current technical context.
+2. **Document new goals**: When starting a new major task, add a `goal` node.
+3. **Record actions**: As you implement parts of the goal, add `action` nodes and link them to the goal.
+4. **Link to code**: Use the `-f` flag to associate specific files with actions.
+5. **Update statuses**: Keep the graph accurate as you progress.
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
+- ✅ Document the **reasoning** (observations) that lead to a decision.
+- ✅ Link related nodes to maintain a coherent graph.
+- ✅ Use `deciduous` for technical architecture.
+- ❌ Do NOT let the graph fall out of sync with your actual work.
 
-For more details, see README.md and docs/QUICKSTART.md.
-
-<!-- END BEADS INTEGRATION -->
+<!-- END DECIDUOUS INTEGRATION -->
 
 ## Landing the Plane (Session Completion)
 
@@ -135,12 +89,11 @@ For more details, see README.md and docs/QUICKSTART.md.
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
+    ```bash
+    git pull --rebase
+    git push
+    git status  # MUST show "up to date with origin"
+    ```
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session

@@ -70,8 +70,14 @@ go.sum
 # Cadmus build data
 .cadmus/
 
-# Dolt database files (added by bd init)
-.dolt/
-*.db
+
 sips/
 .gemini/
+
+# Deciduous database (local)
+.deciduous/
+
+# GNUstep build artifacts
+obj/
+Library/
+ScuttleDemo.app/
