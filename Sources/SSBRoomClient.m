@@ -319,7 +319,7 @@ static os_log_t ssb_room_log;
         }
     });
     
-    if (self.usedHTTPInvite && self.inviteToken) {
+    if (self.inviteToken) {
         [self redeemInvite:self.inviteToken completion:nil];
     }
 }
