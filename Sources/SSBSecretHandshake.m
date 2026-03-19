@@ -1,7 +1,7 @@
 #import "SSBSecretHandshake.h"
 #import "tweetnacl.h"
 #import <CommonCrypto/CommonCrypto.h>
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static os_log_t ssb_shs_log;
 

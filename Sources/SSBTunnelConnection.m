@@ -1,8 +1,8 @@
 #import "SSBTunnelConnection.h"
 #import "SSBSecurityFramer.h"
 #import "SSBMuxRPCFramer.h"
-#import <os/log.h>
-#import <Network/Network.h>
+#import "SSBLogCompat.h"
+#import "SSBNetworkCompat.h"
 
 #define NW_MAX_FRAME_SIZE 65535
 
@@ -20,7 +20,7 @@
 @property (nonatomic, strong) nw_listener_t listener;
 @property (nonatomic, strong) nw_connection_t serverConnection;
 @property (nonatomic, strong) nw_connection_t clientConnection;
-@property (nonatomic, strong) dispatch_queue_t tunnelQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t tunnelQueue;
 @property (nonatomic, strong) os_log_t log;
 @property (nonatomic, assign) BOOL isHandshakeComplete;
 @property (nonatomic, strong) NSMutableArray<SSBMuxRPCMessage *> *pendingMessages;

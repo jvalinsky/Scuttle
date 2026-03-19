@@ -1,7 +1,7 @@
 #import "SSBSecurityFramer.h"
 #import "SSBSecretHandshake.h"
 #import "SSBBoxStream.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static const char *kSSBSecurityFramerName = "SSBSecurity";
 static const char *kSSBSecurityLocalKey = "LocalKey";

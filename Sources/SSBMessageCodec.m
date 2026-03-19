@@ -2,7 +2,7 @@
 #import "SSBFeedCodecRegistry.h"
 #import "tweetnacl.h"
 #import <CommonCrypto/CommonDigest.h>
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 @interface SSBChannel : NSObject
 @property (nonatomic, copy) NSString *name;

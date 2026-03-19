@@ -1,7 +1,7 @@
 #import "SSBHTTPAuth.h"
 #import "SSBURI.h"
 #import "tweetnacl.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 #import <Security/Security.h>
 
 static os_log_t httpAuth_log;
@@ -105,7 +105,7 @@ static const NSUInteger kNonceBytesLength = 32;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *serverInitiatedAuths;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, dispatch_semaphore_t> *sseSemaphores;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *sseResults;
-@property (nonatomic, strong) dispatch_queue_t authQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t authQueue;
 @end
 
 @implementation SSBHTTPAuth

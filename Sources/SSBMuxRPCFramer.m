@@ -1,6 +1,6 @@
 #import "SSBMuxRPCFramer.h"
 #import "SSBMuxRPC.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static const char *kSSBMuxRPCFramerName = "SSBMuxRPC";
 static os_log_t ssb_rpc_log;

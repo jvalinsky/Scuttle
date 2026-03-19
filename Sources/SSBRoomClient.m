@@ -1,6 +1,6 @@
 #import "SSBRoomClient.h"
-#import <os/log.h>
-#import <Network/Network.h>
+#import "SSBLogCompat.h"
+#import "SSBNetworkCompat.h"
 #import "SSBSecurityFramer.h"
 #import "SSBMuxRPCFramer.h"
 #import "SSBMuxRPCSession.h"
@@ -29,7 +29,7 @@ static os_log_t ssb_room_log;
 
 @property (nonatomic, strong) nw_connection_t connection;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
-@property (nonatomic, strong) dispatch_queue_t clientQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t clientQueue;
 @property (nonatomic, strong) NSDictionary *serverManifest;
 @property (nonatomic, strong) NSMutableArray<NSString *> *attendantsList;
 @property (nonatomic, strong) SSBFeedStore *feedStore;

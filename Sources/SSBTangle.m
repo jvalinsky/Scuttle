@@ -1,7 +1,7 @@
 #import "SSBTangle.h"
 #import "SSBMessage.h"
 #import "SSBMessageCodec.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static os_log_t tangleLog(void) {
     static os_log_t log;

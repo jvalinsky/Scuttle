@@ -1,5 +1,5 @@
 #import "SSBConnectionFSM.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static os_log_t fsm_log;
 

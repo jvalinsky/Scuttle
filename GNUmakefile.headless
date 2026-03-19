@@ -1,0 +1,10 @@
+include $(GNUSTEP_MAKEFILES)/common.make
+
+TOOL_NAME = HeadlessDemo
+HeadlessDemo_OBJC_FILES = Sources/HeadlessDemo.m
+
+# 2026: Enable modern Objective-C features
+ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks
+ADDITIONAL_LDFLAGS += -ldispatch -lobjc
+
+include $(GNUSTEP_MAKEFILES)/tool.make

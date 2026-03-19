@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

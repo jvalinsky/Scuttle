@@ -11,57 +11,52 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          config = {
-            # Ensure we can use non-free if needed for specific drivers/assets
-            allowUnfree = true;
-          };
+          config.allowUnfree = true;
         };
 
         # 2026 Best Practice: Using Clang with libobjc2 is mandatory for modern Obj-C
         stdenv = pkgs.clangStdenv;
 
-        # GNUstep with maximum features enabled for 2026
-        # We override standard gnustep to ensure libdispatch and ARC support are optimized
-        gnustep = pkgs.gnustep.override {
-          base = pkgs.gnustep.base.overrideAttrs (old: {
-            # 2026: libdispatch integration is key for our codebase
-            configureFlags = (old.configureFlags or [ ]) ++ [
-              "--enable-libdispatch"
-              "--enable-objc-arc"
-              "--with-layout=gnustep"
-            ];
-            buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.libdispatch pkgs.libobjc ];
-          });
-        };
+        # Define specific versions/overrides for GNUstep to ensure ARC and Dispatch
+        libobjc = pkgs.gnustep-libobjc; # libobjc2
+        libdispatch = pkgs.swift-corelibs-libdispatch;
+        
+        # Override gnustep-base to ensure it builds with the features we need
+        gnustep-base-custom = pkgs.gnustep-base.overrideAttrs (old: {
+          configureFlags = (old.configureFlags or []) ++ [
+            "--enable-libdispatch"
+            "--enable-objc-arc"
+            "--with-layout=gnustep"
+          ];
+          buildInputs = (old.buildInputs or []) ++ [ libobjc libdispatch ];
+        });
 
-        # Shared dependencies across Darwin and Linux
         commonDeps = with pkgs; [
           openssl
           sqlite
           pkg-config
         ];
 
-        # Linux-specific dependencies (GNUstep stack)
-        linuxDeps = with pkgs; [
-          gnustep.base
-          gnustep.gui
-          gnustep.back
-          gnustep.make
-          libdispatch
+        linuxDeps = [
+          pkgs.gnustep-make
+          gnustep-base-custom
+          pkgs.gnustep-gui
+          pkgs.gnustep-back
           libobjc
-          # Graphics stack for GNUstep back
-          xorg.libX11
-          xorg.libXft
-          cairo
-          fontconfig
+          libdispatch
+          pkgs.libx11
+          pkgs.libxft
+          pkgs.cairo
+          pkgs.fontconfig
+          pkgs.xvfb-run
         ];
 
-        # Darwin-specific dependencies
         darwinDeps = with pkgs; [
           darwin.apple_sdk.frameworks.Foundation
           darwin.apple_sdk.frameworks.AppKit
           darwin.apple_sdk.frameworks.Security
           darwin.apple_sdk.frameworks.SystemConfiguration
+          darwin.apple_sdk.frameworks.Network
         ];
 
       in
@@ -74,24 +69,29 @@
 
           shellHook = ''
             export PS1="\[\e[1;32m\][scuttle-dev]\[\e[0m\] \w \$ "
+            export PATH="$HOME/.local/bin:$PATH"
             
             if [ -e /etc/NIXOS ]; then
               # Linux/GNUstep specific setup
-              # Sourcing GNUstep.sh is the "canonical" way to set up paths
-              # In 2026 Nix, we ensure the environment variables are correctly mapped
-              . ${gnustep.make}/share/GNUstep/Makefiles/GNUstep.sh
-              export GNUSTEP_MAKEFILES=${gnustep.make}/share/GNUstep/Makefiles
-              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${pkgs.libobjc}/lib:${pkgs.libdispatch}/lib"
-              echo "Objective-C (GNUstep) environment active on Linux."
+              . ${pkgs.gnustep-make}/share/GNUstep/Makefiles/GNUstep.sh
+              export GNUSTEP_MAKEFILES=${pkgs.gnustep-make}/share/GNUstep/Makefiles
+              
+              # Ensure backend and libraries are in the search path
+              export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${libobjc}/lib:${libdispatch}/lib:${gnustep-base-custom}/lib"
+              
+              # Append paths for bundle discovery
+              export GNUSTEP_PATHLIST="${pkgs.gnustep-back}/lib/GNUstep:${pkgs.gnustep-gui}/lib/GNUstep:${gnustep-base-custom}/lib/GNUstep:''${GNUSTEP_PATHLIST}"
+              
+              echo "Objective-C (GNUstep) environment active on Linux (ARC/Dispatch enabled)."
             else
               echo "Objective-C environment active on Darwin."
             fi
             
-            echo "Dependencies: Foundation, $(if [ -e /etc/NIXOS ]; then echo "GNUstep GUI"; else echo "AppKit"; fi), OpenSSL, SQLite."
+            echo "Dependencies: Foundation, OpenSSL, SQLite, libdispatch."
           '';
 
           # Optimization: Export GNUSTEP_MAKEFILES for the build system
-          GNUSTEP_MAKEFILES = if pkgs.stdenv.isDarwin then "" else "${gnustep.make}/share/GNUstep/Makefiles";
+          GNUSTEP_MAKEFILES = if pkgs.stdenv.isDarwin then "" else "${pkgs.gnustep-make}/share/GNUstep/Makefiles";
         };
       }
     );

@@ -1,6 +1,6 @@
 #import "SSBJITDB.h"
 #import "SSBBIPF.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static NSString * const kIndexMetaFilename = @"index.meta";
 
@@ -16,7 +16,7 @@ static NSString * const kIndexMetaFilename = @"index.meta";
     /// Coalescing timer that fires saveIndexes 250 ms after the last append.
     dispatch_source_t _saveTimer;
 }
-@property (nonatomic, strong) dispatch_queue_t dbQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t dbQueue;
 @end
 
 @implementation SSBJITDB

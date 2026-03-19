@@ -1,5 +1,5 @@
 #import "SSBLog.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 #import <sys/stat.h>
 #import <stdatomic.h>
 
@@ -13,7 +13,7 @@
     NSMutableData *_offsetMap;
     NSString *_offsetsPath;
 }
-@property (nonatomic, strong) dispatch_queue_t ioQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t ioQueue;
 @end
 
 @implementation SSBLog

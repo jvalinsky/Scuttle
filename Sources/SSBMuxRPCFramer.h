@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import <Network/Network.h>
+#import "SSBNetworkCompat.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

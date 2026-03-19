@@ -1,13 +1,13 @@
 #import "SSBBlobStore.h"
 #import "SSBMuxRPCSession.h"
 #import <CommonCrypto/CommonDigest.h>
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static os_log_t blob_store_log;
 
 @interface SSBBlobStore ()
 @property (nonatomic, copy) NSString *basePath;
-@property (nonatomic, strong) dispatch_queue_t ioQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t ioQueue;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableArray<SSBBlobFetchCompletion> *> *pendingFetches;
 @end
 
@@ -29,10 +29,15 @@ static os_log_t blob_store_log;
 }
 
 - (instancetype)init {
+    NSString *appSupport = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *defaultPath = [appSupport stringByAppendingPathComponent:@"ScuttleKit/blobs"];
+    return [self initWithPath:defaultPath];
+}
+
+- (instancetype)initWithPath:(NSString *)path {
     self = [super init];
     if (self) {
-        NSString *appSupport = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES) firstObject];
-        _basePath = [appSupport stringByAppendingPathComponent:@"ScuttleKit/blobs"];
+        _basePath = [path copy];
         _ioQueue = dispatch_queue_create("com.scuttlebutt.blobstore", DISPATCH_QUEUE_SERIAL);
         _pendingFetches = [NSMutableDictionary dictionary];
         

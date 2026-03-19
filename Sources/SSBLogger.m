@@ -2,7 +2,7 @@
 
 @interface SSBLogger ()
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, os_log_t> *logs;
-@property (nonatomic, strong) dispatch_queue_t logQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t logQueue;
 @end
 
 @implementation SSBLogger

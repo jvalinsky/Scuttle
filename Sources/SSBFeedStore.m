@@ -4,7 +4,7 @@
 #import "SSBTangle.h"
 #import "SSBBamboo.h"
 #import <sqlite3.h>
-#import <os/log.h>
+#import "SSBLogCompat.h"
 
 static os_log_t ssb_feedstore_log;
 
@@ -14,7 +14,7 @@ static const NSInteger kCurrentSchemaVersion = 4;
 @interface SSBFeedStore () {
     sqlite3 *_db;
 }
-@property (nonatomic, strong) dispatch_queue_t dbQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t dbQueue;
 
 - (BOOL)_appendMessageToTable:(const char *)tableName message:(SSBMessage *)message error:(NSError **)error;
 - (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key feedFormat:(SSBBFEFeedFormat)feedFormat;

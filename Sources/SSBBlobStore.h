@@ -14,6 +14,9 @@ typedef void (^SSBBlobFetchCompletion)(NSString * _Nullable localPath, NSError *
 /// Shared blob store instance.
 + (instancetype)sharedStore;
 
+/// Initialize with a specific directory path.
+- (instancetype)initWithPath:(NSString *)path;
+
 /// Returns the local file path for a blob if it exists on disk, otherwise nil.
 - (nullable NSString *)localPathForBlobID:(NSString *)blobID;
 

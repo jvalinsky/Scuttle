@@ -4,6 +4,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class SSBBambooProof;
+
 /// Local SQLite-backed feed store for SSB messages.
 @interface SSBFeedStore : NSObject
 

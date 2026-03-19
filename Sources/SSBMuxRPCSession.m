@@ -1,6 +1,6 @@
 #import "SSBMuxRPCSession.h"
 #import "SSBMuxRPC.h"
-#import <os/log.h>
+#import "SSBLogCompat.h"
 #import <stdatomic.h>
 
 static os_log_t rpc_log;
@@ -8,7 +8,7 @@ static os_log_t rpc_log;
 @interface SSBMuxRPCSession ()
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallback> *pendingRequests;
 @property (nonatomic, assign) _Atomic int32_t nextRequestID;
-@property (nonatomic, strong) dispatch_queue_t accessQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t accessQueue;
 @end
 
 @implementation SSBMuxRPCSession

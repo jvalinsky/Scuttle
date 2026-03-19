@@ -1,6 +1,7 @@
 #import "SSBHTTPInviteServer.h"
 #import "SSBURI.h"
-#import <os/log.h>
+#import "SSBURLSessionCompat.h"
+#import "SSBLogCompat.h"
 #import <CommonCrypto/CommonCrypto.h>
 
 static os_log_t server_log;
@@ -8,7 +9,7 @@ static os_log_t server_log;
 @interface SSBHTTPInviteServer ()
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *inviteCodes;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableSet<NSString *> *> *claimedInvites;
-@property (nonatomic, strong) dispatch_queue_t inviteQueue;
+@property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t inviteQueue;
 @property (nonatomic, strong) NSURLSession *httpSession;
 @property (nonatomic, readwrite) SSBHTTPInvitePrivacyMode privacyMode;
 @property (nonatomic, readwrite, copy) NSString *host;
