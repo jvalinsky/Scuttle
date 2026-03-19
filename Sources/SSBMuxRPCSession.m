@@ -4,6 +4,7 @@
 #import <stdatomic.h>
 
 static os_log_t rpc_log;
+static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueueKey;
 
 @interface SSBMuxRPCSession ()
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallback> *pendingRequests;
@@ -12,6 +13,14 @@ static os_log_t rpc_log;
 @end
 
 @implementation SSBMuxRPCSession
+
+- (void)performAccessQueueSync:(dispatch_block_t)block {
+    if (dispatch_get_specific(SSBMuxRPCSessionAccessQueueKey)) {
+        block();
+        return;
+    }
+    dispatch_sync(self.accessQueue, block);
+}
 
 + (void)initialize {
     if (self == [SSBMuxRPCSession class]) {
@@ -25,6 +34,10 @@ static os_log_t rpc_log;
         _pendingRequests = [NSMutableDictionary dictionary];
         _nextRequestID = 1;
         _accessQueue = dispatch_queue_create("com.scuttlebutt.muxrpc.session", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_set_specific(_accessQueue,
+                                    SSBMuxRPCSessionAccessQueueKey,
+                                    (void *)SSBMuxRPCSessionAccessQueueKey,
+                                    NULL);
     }
     return self;
 }
@@ -35,9 +48,9 @@ static os_log_t rpc_log;
          completion:(nullable SSBRPCCallback)completion {
     int32_t reqNum = atomic_fetch_add_explicit(&_nextRequestID, 1, memory_order_relaxed);
     if (completion) {
-        dispatch_async(self.accessQueue, ^{
+        [self performAccessQueueSync:^{
             self.pendingRequests[@(reqNum)] = [completion copy];
-        });
+        }];
     }
 
     os_log_debug(rpc_log, "Session: sendRequest: %{public}@, reqNum: %d", method, reqNum);
@@ -53,9 +66,9 @@ static os_log_t rpc_log;
     
     if (jsonError) {
         os_log_error(rpc_log, "JSON encoding error for RPC request: %{public}@", jsonError);
-        dispatch_async(self.accessQueue, ^{
+        [self performAccessQueueSync:^{
             [self.pendingRequests removeObjectForKey:@(reqNum)];
-        });
+        }];
         if (completion) {
             completion(nil, jsonError);
         }
@@ -109,12 +122,12 @@ static os_log_t rpc_log;
     
     int32_t reqID = message.requestNumber;
     __block SSBRPCCallback callback = nil;
-    dispatch_sync(self.accessQueue, ^{
+    [self performAccessQueueSync:^{
         callback = self.pendingRequests[@(reqID)];
         if (!callback && reqID < 0) {
             callback = self.pendingRequests[@(-reqID)];
         }
-    });
+    }];
 
     if (callback) {
         // Response to our request
