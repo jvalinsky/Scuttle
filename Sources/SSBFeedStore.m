@@ -4,6 +4,7 @@
 #import "SSBTangle.h"
 #import "SSBBamboo.h"
 #import <sqlite3.h>
+#import <string.h>
 #import "SSBLogCompat.h"
 
 static os_log_t ssb_feedstore_log;
@@ -31,6 +32,9 @@ static const NSInteger kCurrentSchemaVersion = 4;
 - (void)_tryReleaseQuarantinedMessageWithKey:(NSString *)msgKey;
 - (void)_setDisplayName:(nullable NSString *)name image:(nullable NSString *)image forAuthor:(NSString *)author;
 - (void)wipeDatabase;
+- (void)createSchema;
+- (void)migrateSchema;
+- (BOOL)columnExists:(NSString *)column inTable:(NSString *)table;
 
 @end
 
@@ -85,6 +89,22 @@ static const NSInteger kCurrentSchemaVersion = 4;
     return (NSInteger)version;
 }
 
+- (BOOL)columnExists:(NSString *)column inTable:(NSString *)table {
+    char sql[256];
+    snprintf(sql, sizeof(sql), "PRAGMA table_info(%s)", [table UTF8String]);
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return NO;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *colName = (const char *)sqlite3_column_text(stmt, 1);
+        if (colName && strcmp(colName, [column UTF8String]) == 0) {
+            sqlite3_finalize(stmt);
+            return YES;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return NO;
+}
+
 - (void)setSchemaVersion:(NSInteger)version {
     char sql[64];
     snprintf(sql, sizeof(sql), "PRAGMA user_version = %ld", (long)version);
@@ -93,9 +113,10 @@ static const NSInteger kCurrentSchemaVersion = 4;
 
 - (void)migrateSchema {
     NSInteger version = [self currentSchemaVersion];
+
     os_log_info(ssb_feedstore_log, "Schema version: %ld (target: %ld)", (long)version, (long)kCurrentSchemaVersion);
 
-    if (version < 2) {
+    if (version < 2 && ![self columnExists:@"is_private" inTable:@"messages"]) {
         os_log_info(ssb_feedstore_log, "Migrating to version 2: adding is_private column");
         const char *sql = "ALTER TABLE messages ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0";
         char *errMsg = NULL;
@@ -105,7 +126,7 @@ static const NSInteger kCurrentSchemaVersion = 4;
         }
     }
 
-    if (version < 3) {
+    if (version < 3 && ![self columnExists:@"blocking" inTable:@"contacts"]) {
         os_log_info(ssb_feedstore_log, "Migrating to version 3: adding blocking column to contacts");
         const char *sql = "ALTER TABLE contacts ADD COLUMN blocking INTEGER NOT NULL DEFAULT 0";
         char *errMsg = NULL;
@@ -116,16 +137,19 @@ static const NSInteger kCurrentSchemaVersion = 4;
     }
 
     if (version < 4) {
-        os_log_info(ssb_feedstore_log, "Migrating to version 4: adding feed_format column to messages, feed_state, quarantine");
-        const char *sqls[] = {
-            "ALTER TABLE messages ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE feed_state ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
-            "ALTER TABLE quarantine ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
-            NULL
+        struct { NSString *table; NSString *column; } cols[] = {
+            @"messages", @"feed_format",
+            @"feed_state", @"feed_format",
+            @"quarantine", @"feed_format",
         };
-        for (int i = 0; sqls[i] != NULL; i++) {
+        for (size_t i = 0; i < sizeof(cols)/sizeof(cols[0]); i++) {
+            if ([self columnExists:cols[i].column inTable:cols[i].table]) continue;
+            os_log_info(ssb_feedstore_log, "Migrating to version 4: adding feed_format column to %@", cols[i].table);
+            char sql[256];
+            snprintf(sql, sizeof(sql), "ALTER TABLE %s ADD COLUMN feed_format INTEGER NOT NULL DEFAULT 0",
+                     [cols[i].table UTF8String]);
             char *errMsg = NULL;
-            if (sqlite3_exec(_db, sqls[i], NULL, NULL, &errMsg) != SQLITE_OK) {
+            if (sqlite3_exec(_db, sql, NULL, NULL, &errMsg) != SQLITE_OK) {
                 os_log_error(ssb_feedstore_log, "v4 migration failed: %s", errMsg);
                 sqlite3_free(errMsg);
             }
