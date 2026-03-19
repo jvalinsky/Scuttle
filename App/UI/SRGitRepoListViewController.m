@@ -1,5 +1,6 @@
 #import "SRGitRepoListViewController.h"
 #import "../../Sources/SSBFeedStore.h"
+#import "../../Sources/SSBGitRepo.h"
 #import "../../Sources/SSBQueryEngine.h"
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBKeychain.h"
@@ -10,13 +11,13 @@
 @property (nonatomic, strong) NSArray<SSBMessage *> *repos;
 @property (nonatomic, strong) NSProgressIndicator *progressIndicator;
 @property (nonatomic, strong) NSButton *cloneButton;
-@property (nonatomic, strong) NSButton *initButton;
+@property (nonatomic, strong) NSButton *createRepoButton;
 @end
 
 @implementation SRGitRepoListViewController
 
 - (instancetype)initWithListType:(SRGitRepoListType)listType {
-    if (self = [super init]) {
+    if ((self = [super init])) {
         _listType = listType;
     }
     return self;
@@ -38,10 +39,10 @@
     self.cloneButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.cloneButton];
 
-    self.initButton = [NSButton buttonWithTitle:@"New Repo" target:self action:@selector(initRepoAction:)];
-    self.initButton.bezelStyle = NSBezelStyleRounded;
-    self.initButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.initButton];
+    self.createRepoButton = [NSButton buttonWithTitle:@"New Repo" target:self action:@selector(initRepoAction:)];
+    self.createRepoButton.bezelStyle = NSBezelStyleRounded;
+    self.createRepoButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.createRepoButton];
 
     self.scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     self.scrollView.hasVerticalScroller = YES;
@@ -69,8 +70,8 @@
         [self.cloneButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
         [self.cloneButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
         
-        [self.initButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
-        [self.initButton.trailingAnchor constraintEqualToAnchor:self.cloneButton.leadingAnchor constant:-8],
+        [self.createRepoButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
+        [self.createRepoButton.trailingAnchor constraintEqualToAnchor:self.cloneButton.leadingAnchor constant:-8],
         
         [self.scrollView.topAnchor constraintEqualToAnchor:self.cloneButton.bottomAnchor constant:10],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
@@ -117,7 +118,7 @@
     if ([alert runModal] == NSAlertFirstButtonReturn) {
         NSString *name = input.stringValue;
         if (name.length > 0 && self.currentClient) {
-            [SSBGitRepo publishRepoWithName:name client:self.currentClient completion:^(NSString * _Nullable msgID, NSError * _Nullable error) {
+            [SSBGitRepo publishRepoWithName:name upstream:nil client:self.currentClient completion:^(NSString * _Nullable msgID, NSError * _Nullable error) {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if (msgID) {
                         [self refreshRepos];

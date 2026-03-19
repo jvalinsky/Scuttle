@@ -4,9 +4,6 @@
 
 @interface SRGitIssueDetailViewController ()
 @property (nonatomic, strong) NSScrollView *scrollView;
-@property (nonatomic, strong) NSTableView *tableView;
-@property (nonatomic, strong) NSArray<SSBMessage *> *thread;
-
 @property (nonatomic, strong) NSView *composeContainer;
 @property (nonatomic, strong) NSTextView *composeTextView;
 @property (nonatomic, strong) NSButton *commentButton;
@@ -15,7 +12,7 @@
 @implementation SRGitIssueDetailViewController
 
 - (instancetype)initWithIssueStore:(nullable SSBGitIssueStore *)issueStore {
-    if (self = [super init]) {
+    if ((self = [super init])) {
         _issueStore = issueStore;
     }
     return self;

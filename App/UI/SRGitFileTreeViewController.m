@@ -21,7 +21,7 @@
 @implementation SRGitFileTreeViewController
 
 - (instancetype)initWithRepo:(SSBGitRepo *)repo {
-    if (self = [super init]) {
+    if ((self = [super init])) {
         _repo = repo;
     }
     return self;
@@ -202,6 +202,8 @@
 }
 
 - (NSView *)outlineView:(NSOutlineView *)outlineView viewForTableColumn:(NSTableColumn *)tableColumn item:(id)item {
+    NSTableCellView *cell = [outlineView makeViewWithIdentifier:@"FileCell" owner:self];
+    if (!cell) {
         cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 24)];
         cell.identifier = @"FileCell";
         

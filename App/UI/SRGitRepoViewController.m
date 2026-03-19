@@ -7,6 +7,7 @@
 #import "SRGitIssueDetailViewController.h"
 #import "SRGitPRListViewController.h"
 #import "SRGitPRDetailViewController.h"
+#import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBGitIssueStore.h"
 #import "../../Sources/SSBGitPRStore.h"
 
@@ -31,7 +32,7 @@
 @implementation SRGitRepoViewController
 
 - (instancetype)initWithRepo:(SSBGitRepo *)repo {
-    if (self = [super init]) {
+    if ((self = [super init])) {
         _repo = repo;
     }
     return self;

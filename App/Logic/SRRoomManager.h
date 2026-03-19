@@ -34,6 +34,9 @@ extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
 - (void)replaceSubfeed:(NSString *)oldFeedID
             completion:(void(^)(NSString * _Nullable newFeedID, NSError * _Nullable error))completion;
 
+/// Returns the cached display name for an author, or the author ID if none is stored yet.
+- (NSString *)displayNameForAuthor:(NSString *)author;
+
 /**
  * Resolves the display name for a given author by querying the feed store for About messages.
  */

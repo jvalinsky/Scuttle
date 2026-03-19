@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleIdentifier</key>
 	<string>com.scuttlebutt.ScuttleRoomApp</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleName</key>
 	<string>ScuttleRoom</string>
 	<key>CFBundlePackageType</key>
@@ -14,6 +16,8 @@
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
+	<key>NSPrincipalClass</key>
+	<string>SRApplication</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>CFBundleIconName</key>

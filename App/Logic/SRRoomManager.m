@@ -59,9 +59,11 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
         // Bootstrap metafeed for existing accounts that predate metafeed support.
         [self bootstrapMetafeedIfNeeded];
 
-        // Register this device's sub-feed if not already done (requires a connected client,
-        // so SRDeviceManager retries again in roomClientDidSyncLocalFeed: if needed).
-        [[SRDeviceManager sharedManager] registerThisDeviceIfNeeded];
+        // Defer device registration until after sharedManager initialization completes.
+        // Registering synchronously here re-enters +sharedManager via SRDeviceManager.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[SRDeviceManager sharedManager] registerThisDeviceIfNeeded];
+        });
 
         // UI is notified via viewDidLoad pulling state after observers are registered
     }
@@ -309,7 +311,7 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
 - (void)resetAccount {
     os_log_info(ssb_room_log, "Resetting account");
 
-    NSArray *clientsSnapshot;
+    __block NSArray *clientsSnapshot;
     dispatch_sync(self.managerQueue, ^{
         clientsSnapshot = self.internalClients.allValues;
         [self.internalClients removeAllObjects];
@@ -488,6 +490,14 @@ NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomMana
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
     });
+}
+
+- (NSString *)displayNameForAuthor:(NSString *)author {
+    if (author.length == 0) {
+        return @"";
+    }
+
+    return [[SSBFeedStore sharedStore] displayNameForAuthor:author];
 }
 
 - (void)resolveDisplayNameForAuthor:(NSString *)author completion:(void(^)(NSString *name))completion {

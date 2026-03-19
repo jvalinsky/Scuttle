@@ -6,13 +6,13 @@
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSArray<SSBMessage *> *issues;
-@property (nonatomic, strong) NSButton *newIssueButton;
+@property (nonatomic, strong) NSButton *createIssueButton;
 @end
 
 @implementation SRGitIssueListViewController
 
 - (instancetype)initWithIssueStore:(SSBGitIssueStore *)issueStore {
-    if (self = [super init]) {
+    if ((self = [super init])) {
         _issueStore = issueStore;
     }
     return self;
@@ -35,10 +35,10 @@
 }
 
 - (void)setupUI {
-    self.newIssueButton = [NSButton buttonWithTitle:@"New Issue" target:self action:@selector(showNewIssue:)];
-    self.newIssueButton.bezelStyle = NSBezelStyleRounded;
-    self.newIssueButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.newIssueButton];
+    self.createIssueButton = [NSButton buttonWithTitle:@"New Issue" target:self action:@selector(showNewIssue:)];
+    self.createIssueButton.bezelStyle = NSBezelStyleRounded;
+    self.createIssueButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.createIssueButton];
     
     self.scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     self.scrollView.hasVerticalScroller = YES;
@@ -57,10 +57,10 @@
     self.scrollView.documentView = self.tableView;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.newIssueButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
-        [self.newIssueButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
+        [self.createIssueButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
+        [self.createIssueButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
         
-        [self.scrollView.topAnchor constraintEqualToAnchor:self.newIssueButton.bottomAnchor constant:10],
+        [self.scrollView.topAnchor constraintEqualToAnchor:self.createIssueButton.bottomAnchor constant:10],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]

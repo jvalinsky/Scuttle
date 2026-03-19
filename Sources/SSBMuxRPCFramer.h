@@ -1,5 +1,9 @@
 #import <Foundation/Foundation.h>
+#ifdef __APPLE__
+#import <Network/Network.h>
+#else
 #import "SSBNetworkCompat.h"
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 

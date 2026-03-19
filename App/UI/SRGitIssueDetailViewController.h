@@ -10,6 +10,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) SSBGitIssueStore *issueStore;
 @property (nonatomic, strong, nullable) SSBRoomClient *currentClient;
 @property (nonatomic, copy, nullable) NSString *currentRootID;
+@property (nonatomic, strong) NSTableView *tableView;
+@property (nonatomic, strong) NSArray<SSBMessage *> *thread;
 
 - (instancetype)initWithIssueStore:(nullable SSBGitIssueStore *)issueStore;
 

@@ -8,6 +8,15 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: Sources
+        excludes:
+          - GNUstepDemo.m
+          - HeadlessDemo.m
+          - ScuttleCLI.m
+          - git-remote-ssb.c
+          - SSBKeychain_Linux.m
+          - SSBKeychain_macOS.m
+      - path: App/Logic/SRNotificationNames.m
+        group: AppLogic
     dependencies:
       - sdk: libsqlite3.tbd
       - sdk: Security.framework

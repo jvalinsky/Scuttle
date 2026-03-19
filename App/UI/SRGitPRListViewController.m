@@ -6,13 +6,13 @@
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSArray<SSBMessage *> *pullRequests;
-@property (nonatomic, strong) NSButton *newPRButton;
+@property (nonatomic, strong) NSButton *createPRButton;
 @end
 
 @implementation SRGitPRListViewController
 
 - (instancetype)initWithPRStore:(SSBGitPRStore *)prStore {
-    if (self = [super init]) {
+    if ((self = [super init])) {
         _prStore = prStore;
     }
     return self;
@@ -35,10 +35,10 @@
 }
 
 - (void)setupUI {
-    self.newPRButton = [NSButton buttonWithTitle:@"New Pull Request" target:self action:@selector(showNewPR:)];
-    self.newPRButton.bezelStyle = NSBezelStyleRounded;
-    self.newPRButton.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:self.newPRButton];
+    self.createPRButton = [NSButton buttonWithTitle:@"New Pull Request" target:self action:@selector(showNewPR:)];
+    self.createPRButton.bezelStyle = NSBezelStyleRounded;
+    self.createPRButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.createPRButton];
 
     self.scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     self.scrollView.hasVerticalScroller = YES;
@@ -57,10 +57,10 @@
     self.scrollView.documentView = self.tableView;
     
     [NSLayoutConstraint activateConstraints:@[
-        [self.newPRButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
-        [self.newPRButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
-        
-        [self.scrollView.topAnchor constraintEqualToAnchor:self.newPRButton.bottomAnchor constant:10],
+        [self.createPRButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:10],
+        [self.createPRButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-10],
+
+        [self.scrollView.topAnchor constraintEqualToAnchor:self.createPRButton.bottomAnchor constant:10],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         [self.scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor]
