@@ -146,10 +146,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Manually trigger replication from a peer via a room.
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost;
 
-/// Resets the local identity secret in NSUserDefaults.
+/// Resets the local identity secret in the Keychain.
 + (void)resetLocalIdentity;
 
-/// Generates a new local identity and saves it to NSUserDefaults.
+/// Generates a new local identity and saves it to the Keychain.
 + (NSData *)generateLocalIdentity;
 
 /// Disconnects from the room.

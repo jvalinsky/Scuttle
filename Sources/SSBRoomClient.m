@@ -113,11 +113,45 @@ static os_log_t ssb_room_log;
 }
 
 - (NSDictionary<NSString *, NSNumber *> *)peerSyncProgress {
-    return [self.internalPeerSyncProgress copy];
+    __block NSDictionary *snapshot;
+    dispatch_sync(self.clientQueue, ^{
+        snapshot = [self.internalPeerSyncProgress copy];
+    });
+    return snapshot;
 }
 
 - (NSDictionary<NSString *, NSString *> *)peerSyncStates {
-    return [self.internalPeerSyncStates copy];
+    __block NSDictionary *snapshot;
+    dispatch_sync(self.clientQueue, ^{
+        snapshot = [self.internalPeerSyncStates copy];
+    });
+    return snapshot;
+}
+
+#pragma mark - Thread-Safe Accessors
+
+- (NSArray<NSString *> *)currentAttendants {
+    __block NSArray *snapshot;
+    dispatch_sync(self.clientQueue, ^{
+        snapshot = [self.attendantsList copy];
+    });
+    return snapshot;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)currentRemoteClock {
+    __block NSDictionary *snapshot;
+    dispatch_sync(self.clientQueue, ^{
+        snapshot = [self.remoteClock copy];
+    });
+    return snapshot;
+}
+
+- (NSInteger)pendingMessagesCount {
+    __block NSInteger count;
+    dispatch_sync(self.clientQueue, ^{
+        count = self.pendingPublishQueue.count;
+    });
+    return count;
 }
 
 - (instancetype)initWithConfig:(RoomConfig *)config 
@@ -1407,13 +1441,12 @@ static os_log_t ssb_room_log;
     return !self.isSyncingLocalFeed;
 }
 
-- (NSInteger)pendingMessagesCount {
-    return self.pendingPublishQueue.count;
-}
-
 - (void)scheduleReconnect {
+    __weak typeof(self) weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), self.clientQueue, ^{
-        [self connect];
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf connect];
     });
 }
 

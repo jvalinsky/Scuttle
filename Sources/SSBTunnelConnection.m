@@ -55,23 +55,24 @@
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
             
-            if (!strongSelf.isHandshakeComplete) {
-                [strongSelf.pendingMessages addObject:message];
-                return;
-            }
-            
-            if (strongSelf.clientConnection) {
-                NSData *data = [message serialize];
-                if (!data) return;
+            dispatch_async(strongSelf.tunnelQueue, ^{
+                if (!strongSelf.isHandshakeComplete) {
+                    [strongSelf.pendingMessages addObject:message];
+                    return;
+                }
                 
-                dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, strongSelf.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-                nw_connection_send(strongSelf.clientConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
-                    if (error) {
-                        os_log_error(strongSelf.log, "Failed to send MuxRPC message over tunnel: %{public}@", error);
-                        os_log_error(strongSelf.log, "Failed to send MuxRPC message: %{public}@", error);
-                    }
-                });
-            }
+                if (strongSelf.clientConnection) {
+                    NSData *data = [message serialize];
+                    if (!data) return;
+                    
+                    dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, strongSelf.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+                    nw_connection_send(strongSelf.clientConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
+                        if (error) {
+                            os_log_error(strongSelf.log, "Failed to send MuxRPC message: %{public}@", error);
+                        }
+                    });
+                }
+            });
         };
         
         _rpcSession.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
@@ -97,42 +98,47 @@
     __weak typeof(self) weakSelf = self;
     
     nw_listener_set_state_changed_handler(self.listener, ^(nw_listener_state_t state, nw_error_t error) {
-        os_log_debug(weakSelf.log, "Listener state changed to %d", state);
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        os_log_debug(strongSelf.log, "Listener state changed to %d", state);
         if (state == nw_listener_state_ready) {
-            os_log_info(weakSelf.log, "Listener ready on port %u", nw_listener_get_port(weakSelf.listener));
-            [weakSelf connectClient];
+            os_log_info(strongSelf.log, "Listener ready on port %u", nw_listener_get_port(strongSelf.listener));
+            [strongSelf connectClient];
         } else if (state == nw_listener_state_failed) {
-            os_log_error(weakSelf.log, "Tunnel listener failed: %{public}@", error);
-            os_log_error(weakSelf.log, "Listener failed: %{public}@", error);
+            os_log_error(strongSelf.log, "Tunnel listener failed: %{public}@", error);
         }
     });
     
     nw_listener_set_new_connection_handler(self.listener, ^(nw_connection_t connection) {
-        os_log_info(weakSelf.log, "Tunnel listener accepted connection");
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
+        os_log_info(strongSelf.log, "Tunnel listener accepted connection");
         
         strongSelf.serverConnection = connection;
         nw_connection_set_queue(connection, strongSelf.tunnelQueue);
         
+        // Use a fresh weak reference for the nested handler to avoid retain cycle
+        __weak typeof(strongSelf) innerWeakSelf = strongSelf;
         nw_connection_set_state_changed_handler(connection, ^(nw_connection_state_t state, nw_error_t error) {
-            os_log_debug(strongSelf.log, "serverConnection state changed to %d", state);
+            __strong typeof(innerWeakSelf) innerSelf = innerWeakSelf;
+            if (!innerSelf) return;
+            os_log_debug(innerSelf.log, "serverConnection state changed to %d", state);
             if (state == nw_connection_state_ready) {
-                os_log_info(strongSelf.log, "serverConnection (accepted) ready, starting readFromServerConnection");
-                [weakSelf readFromServerConnection];
+                os_log_info(innerSelf.log, "serverConnection (accepted) ready, starting readFromServerConnection");
+                [innerSelf readFromServerConnection];
                 
                 // Flush buffered incoming tunnel data
-                for (NSData *buffered in strongSelf.incomingBuffer) {
-                    [strongSelf receiveTunnelData:buffered];
+                for (NSData *buffered in innerSelf.incomingBuffer) {
+                    [innerSelf receiveTunnelData:buffered];
                 }
-                [strongSelf.incomingBuffer removeAllObjects];
+                [innerSelf.incomingBuffer removeAllObjects];
             } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
                 if (state == nw_connection_state_failed) {
-                    os_log_error(strongSelf.log, "serverConnection FAILED: %{public}@", error);
+                    os_log_error(innerSelf.log, "serverConnection FAILED: %{public}@", error);
                 } else {
-                    os_log_info(strongSelf.log, "serverConnection CANCELLED");
+                    os_log_info(innerSelf.log, "serverConnection CANCELLED");
                 }
-                [weakSelf stop];
+                [innerSelf stop];
             }
         });
         
@@ -166,35 +172,37 @@
     
     __weak typeof(self) weakSelf = self;
     nw_connection_set_state_changed_handler(self.clientConnection, ^(nw_connection_state_t state, nw_error_t error) {
-        os_log_debug(weakSelf.log, "clientConnection state changed to %d", state);
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        os_log_debug(strongSelf.log, "clientConnection state changed to %d", state);
         if (state == nw_connection_state_ready) {
-            os_log_info(weakSelf.log, "Tunnel client connection (with framers) ready");
-            os_log_info(weakSelf.log, "clientConnection (with framers) ready!");
-            weakSelf.isConnected = YES;
-            weakSelf.isHandshakeComplete = YES;
+            os_log_info(strongSelf.log, "clientConnection (with framers) ready!");
+            strongSelf.isConnected = YES;
+            strongSelf.isHandshakeComplete = YES;
             
-            NSArray<SSBMuxRPCMessage *> *pending = [weakSelf.pendingMessages copy];
-            [weakSelf.pendingMessages removeAllObjects];
+            NSArray<SSBMuxRPCMessage *> *pending = [strongSelf.pendingMessages copy];
+            [strongSelf.pendingMessages removeAllObjects];
             for (SSBMuxRPCMessage *msg in pending) {
-                weakSelf.rpcSession.sendMessageBlock(msg);
+                strongSelf.rpcSession.sendMessageBlock(msg);
             }
             
-            if (weakSelf.onConnectionStateReady) {
+            if (strongSelf.onConnectionStateReady) {
+                void (^callback)(void) = strongSelf.onConnectionStateReady;
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    weakSelf.onConnectionStateReady();
+                    callback();
                 });
             }
             
             // Now we can begin reading MuxRPC messages from the framer stack
-            [weakSelf readFromClientConnection];
+            [strongSelf readFromClientConnection];
         } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
             if (state == nw_connection_state_failed) {
-                os_log_error(weakSelf.log, "Tunnel client connection failed: %{public}@", error);
+                os_log_error(strongSelf.log, "Tunnel client connection failed: %{public}@", error);
             } else {
-                os_log_info(weakSelf.log, "clientConnection CANCELLED");
+                os_log_info(strongSelf.log, "clientConnection CANCELLED");
             }
-            weakSelf.isConnected = NO;
-            [weakSelf stop];
+            strongSelf.isConnected = NO;
+            [strongSelf stop];
         }
     });
     
@@ -202,21 +210,23 @@
 }
 
 - (void)receiveTunnelData:(NSData *)data {
+    __weak typeof(self) weakSelf = self;
     dispatch_async(self.tunnelQueue, ^{
-        static NSUInteger totalReceived = 0;
-        totalReceived += data.length;
-        os_log_debug(self.log, "receiveTunnelData: %lu bytes (total so far: %lu)", (unsigned long)data.length, (unsigned long)totalReceived);
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
         
-        if (!self.serverConnection) {
-            os_log_debug(self.log, "serverConnection NOT READY, buffering %lu bytes", (unsigned long)data.length);
-            [self.incomingBuffer addObject:data];
+        os_log_debug(strongSelf.log, "receiveTunnelData: %lu bytes", (unsigned long)data.length);
+        
+        if (!strongSelf.serverConnection) {
+            os_log_debug(strongSelf.log, "serverConnection NOT READY, buffering %lu bytes", (unsigned long)data.length);
+            [strongSelf.incomingBuffer addObject:data];
             return;
         }
         
-        dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, self.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-        nw_connection_send(self.serverConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
+        dispatch_data_t dispatchData = dispatch_data_create(data.bytes, data.length, strongSelf.tunnelQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+        nw_connection_send(strongSelf.serverConnection, dispatchData, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t  _Nullable error) {
             if (error) {
-                os_log_error(self.log, "Failed to write incoming tunnel data to server socket: %{public}@", error);
+                os_log_error(weakSelf.log, "Failed to write incoming tunnel data to server socket: %{public}@", error);
             }
         });
     });
@@ -233,7 +243,7 @@
                 NSData *data = (NSData *)content;
                 os_log_debug(strongSelf.log, "readFromServerConnection: received %lu bytes from local socket, piping to room", (unsigned long)data.length);
                 if (data.length > 0) {
-                    int32_t transportID = self.isServer ? -self.tunnelReqID : self.tunnelReqID;
+                    int32_t transportID = strongSelf.isServer ? -strongSelf.tunnelReqID : strongSelf.tunnelReqID;
                     [strongSelf.roomSession sendData:data forRequest:transportID isEnd:NO];
                 }
             }

@@ -252,11 +252,10 @@ static os_log_t prefs_log;
     
     os_log_info(prefs_log, "Saving profile name: %{public}@", name);
     
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
     if (!localSecret || localSecret.length < 64) return;
     
-    NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
-    NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
+    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
     
     SSBRoomClient *client = [SRRoomManager sharedManager].clients.allValues.firstObject;
     if (client) {

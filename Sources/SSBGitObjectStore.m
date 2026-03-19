@@ -6,6 +6,7 @@
 
 @property (nonatomic, strong) SSBBlobStore *blobStore;
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *packs;
+@property (nonatomic, strong) dispatch_queue_t packsQueue;
 
 @end
 
@@ -15,6 +16,7 @@
     if (self = [super init]) {
         _blobStore = blobStore;
         _packs = [NSMutableArray array];
+        _packsQueue = dispatch_queue_create("com.scuttlebutt.git.objectstore", DISPATCH_QUEUE_SERIAL);
     }
     return self;
 }
@@ -22,23 +24,30 @@
 - (void)registerPackBlob:(NSString *)packBlobID idxBlob:(NSString *)idxBlobID {
     if (!packBlobID || !idxBlobID) return;
     
-    // Check if we already have it
-    for (NSDictionary *dict in self.packs) {
-        if ([dict[@"pack"] isEqualToString:packBlobID]) {
-            return;
+    dispatch_sync(self.packsQueue, ^{
+        // Check if we already have it
+        for (NSDictionary *dict in self.packs) {
+            if ([dict[@"pack"] isEqualToString:packBlobID]) {
+                return;
+            }
         }
-    }
-    
-    [self.packs addObject:@{
-        @"pack": packBlobID,
-        @"idx": idxBlobID
-    }];
+        
+        [self.packs addObject:@{
+            @"pack": packBlobID,
+            @"idx": idxBlobID
+        }];
+    });
 }
 
 - (nullable SSBGitObject *)objectForSHA1:(NSString *)sha1 {
     if (sha1.length != 40) return nil;
     
-    for (NSDictionary *packInfo in self.packs) {
+    __block NSArray *packsCopy;
+    dispatch_sync(self.packsQueue, ^{
+        packsCopy = [self.packs copy];
+    });
+    
+    for (NSDictionary *packInfo in packsCopy) {
         NSString *idxBlobID = packInfo[@"idx"];
         NSString *idxPath = [self.blobStore localPathForBlobID:idxBlobID];
         
@@ -73,7 +82,12 @@
 - (nullable NSString *)packBlobIDForSHA1:(NSString *)sha1 {
     if (sha1.length != 40) return nil;
     
-    for (NSDictionary *packInfo in self.packs) {
+    __block NSArray *packsCopy;
+    dispatch_sync(self.packsQueue, ^{
+        packsCopy = [self.packs copy];
+    });
+    
+    for (NSDictionary *packInfo in packsCopy) {
         NSString *idxBlobID = packInfo[@"idx"];
         NSString *idxPath = [self.blobStore localPathForBlobID:idxBlobID];
         if (!idxPath) continue;

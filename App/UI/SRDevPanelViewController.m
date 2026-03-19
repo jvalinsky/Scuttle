@@ -1,5 +1,6 @@
 #import "SRDevPanelViewController.h"
 #import "../../Sources/SSBNetwork.h"
+#import "../../Sources/SSBKeychain.h"
 
 @interface SRDevPanelViewController ()
 @property (nonatomic, strong) NSTextView *logView;
@@ -57,11 +58,10 @@
 }
 
 - (void)refreshData {
-    NSData *localSecret = [[NSUserDefaults standardUserDefaults] dataForKey:@"SSBLocalIdentity"];
+    NSData *localSecret = [SSBKeychain loadIdentitySecret];
     if (localSecret && localSecret.length >= 64) {
-        NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
-        NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
-        self.pubkeyLabel.stringValue = [NSString stringWithFormat:@"Public Key: %@", pubkey];
+        NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+        self.pubkeyLabel.stringValue = [NSString stringWithFormat:@"Public Key: %@", pubkey ?: @"(error)"];
     }
     
     NSInteger totalMsgs = [[SSBFeedStore sharedStore] totalMessageCount];

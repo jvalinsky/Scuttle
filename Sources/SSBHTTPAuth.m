@@ -794,10 +794,13 @@ static const NSUInteger kNonceBytesLength = 32;
         return nil;
     }
     
+    __weak typeof(self) weakSelf = self;
     dispatch_sync(self.authQueue, ^{
         self.sseSemaphores[channelId] = dispatch_semaphore_create(0);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(60.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [self notifySSEChannel:channelId withSuccess:NO redirectURL:nil];
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
+            [strongSelf notifySSEChannel:channelId withSuccess:NO redirectURL:nil];
         });
     });
     
