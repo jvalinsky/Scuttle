@@ -41,9 +41,7 @@
     NSString *testAuthor = @"testAuthorSeq";
     
     [self.store setFollowing:YES forAuthor:testAuthor atSequence:5];
-    
-    SSBFeedState *state = [self.store feedStateForAuthor:testAuthor];
-    XCTAssertNotNil(state, "Feed state should exist after setting following");
+    XCTAssertTrue([self.store isFollowing:testAuthor], "Following state should update for contact rows");
 }
 
 #pragma mark - Blocking Tests
@@ -84,9 +82,7 @@
     NSString *testName = @"Test Display Name";
     
     [self.store setDisplayName:testName image:nil forAuthor:testAuthor];
-    
-    SSBFeedState *state = [self.store feedStateForAuthor:testAuthor];
-    XCTAssertNotNil(state, "Feed state should exist");
+    XCTAssertEqualObjects([self.store displayNameForAuthor:testAuthor], testName, "Display name should persist in profiles table");
 }
 
 #pragma mark - Feed State Tests

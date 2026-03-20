@@ -13,7 +13,28 @@
 @implementation SSBURI
 
 + (nullable instancetype)URIWithString:(NSString *)uriString {
-    if (!uriString || uriString.length == 0 || ![uriString hasPrefix:@"ssb:"]) {
+    if (!uriString || uriString.length == 0) {
+        return nil;
+    }
+
+    // Accept legacy classic sigils directly (@feed, %msg, &blob).
+    unichar prefix = [uriString characterAtIndex:0];
+    if (prefix == '@' || prefix == '%' || prefix == '&') {
+        SSBURI *uri = [[SSBURI alloc] init];
+        uri.format = SSBURIFormatClassic;
+        uri.identifier = uriString;
+        uri.canonicalString = uriString;
+        if (prefix == '@') {
+            uri.type = SSBURITypeFeed;
+        } else if (prefix == '%') {
+            uri.type = SSBURITypeMessage;
+        } else {
+            uri.type = SSBURITypeBlob;
+        }
+        return uri;
+    }
+
+    if (![uriString hasPrefix:@"ssb:"]) {
         return nil;
     }
 
@@ -301,12 +322,17 @@
 
 + (nullable NSString *)decodeMultiserverAddress:(NSString *)encodedAddress {
     if (!encodedAddress) return nil;
+    if (![encodedAddress containsString:@"%"]) return nil;
 
     NSString *decoded = [encodedAddress stringByRemovingPercentEncoding];
-    if (!decoded) {
-        decoded = [self manualDecodePercentEncoding:encodedAddress];
+    if (decoded) return decoded;
+
+    // Strict fallback parser: only allow valid %HH escapes.
+    if ([encodedAddress containsString:@"%"]) {
+        NSString *strictDecoded = [self manualDecodePercentEncoding:encodedAddress];
+        return strictDecoded.length > 0 ? strictDecoded : nil;
     }
-    return decoded;
+    return nil;
 }
 
 + (NSString *)manualDecodePercentEncoding:(NSString *)encoded {
@@ -329,7 +355,7 @@
                 [hexScanner scanHexInt:&value];
                 [result appendFormat:@"%c", (char)value];
             } else {
-                [result appendString:@"%"];
+                return @"";
             }
         }
     }

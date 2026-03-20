@@ -13,6 +13,8 @@ targets:
           - HeadlessDemo.m
           - ScuttleCLI.m
           - git-remote-ssb.c
+          - SSBGitRemoteCore.c
+          - SSBGitRemoteCore.h
           - SSBKeychain_Linux.m
           - SSBKeychain_macOS.m
       - path: App/Logic/SRNotificationNames.m
@@ -30,6 +32,10 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: Tests
+        excludes:
+          - Fixtures
+          - GitRemoteSSB
+          - ScuttleRoomApp
       - path: App/UI/SRContentContainerViewController.m
         group: App/UI
     dependencies:
@@ -38,6 +44,40 @@ targets:
       CODE_SIGN_IDENTITY: ""
       CODE_SIGNING_REQUIRED: NO
       HEADER_SEARCH_PATHS: $(inherited) $(SRCROOT)/App/UI
+  ScuttleRoomAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    hostApplication: ScuttleRoomApp
+    sources:
+      - path: Tests/ScuttleRoomApp
+    dependencies:
+      - target: ScuttleRoomApp
+    settings:
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: NO
+  SSBGitRemoteCore:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources/SSBGitRemoteCore.c
+      - path: Sources/SSBGitRemoteCore.h
+    settings:
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: NO
+  GitRemoteSSBTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Tests/GitRemoteSSB
+    dependencies:
+      - target: SSBGitRemoteCore
+    settings:
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: NO
+      HEADER_SEARCH_PATHS: $(inherited) $(SRCROOT)/Sources
   ScuttleRoomApp:
     type: application
     platform: macOS
@@ -56,8 +96,10 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: Sources/git-remote-ssb.c
+    dependencies:
+      - target: SSBGitRemoteCore
     settings:
-      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_ALLOWED: NO
       CODE_SIGNING_REQUIRED: NO
 schemes:
   SSBNetwork:
@@ -67,3 +109,17 @@ schemes:
     test:
       targets:
         - SSBNetworkTests
+  ScuttleRoomApp:
+    build:
+      targets:
+        ScuttleRoomApp: all
+    test:
+      targets:
+        - ScuttleRoomAppTests
+  git-remote-ssb:
+    build:
+      targets:
+        git-remote-ssb: all
+    test:
+      targets:
+        - GitRemoteSSBTests

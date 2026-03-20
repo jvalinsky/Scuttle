@@ -1,5 +1,31 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBFeedStore.h>
+#import <SSBNetwork/SSBMessageCodec.h>
+#import <SSBNetwork/tweetnacl.h>
+
+static NSData *FixtureSecretKey(void) {
+    static NSData *secretKey = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        unsigned char pk[crypto_sign_ed25519_PUBLICKEYBYTES];
+        unsigned char sk[crypto_sign_ed25519_SECRETKEYBYTES];
+        crypto_sign_ed25519_keypair(pk, sk);
+        secretKey = [NSData dataWithBytes:sk length:sizeof(sk)];
+    });
+    return secretKey;
+}
+
+static NSString *FixtureSignerFeedID(void) {
+    static NSString *feedID = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSData *secret = FixtureSecretKey();
+        NSData *public = [secret subdataWithRange:NSMakeRange(32, 32)];
+        NSString *b64 = [public base64EncodedStringWithOptions:0];
+        feedID = [NSString stringWithFormat:@"@%@.ed25519", b64];
+    });
+    return feedID;
+}
 
 /// Builds a minimal SSBMessage suitable for insertion into an isolated store.
 static SSBMessage *MakeMessage(NSString *key, NSString *author, NSInteger sequence,
@@ -13,7 +39,12 @@ static SSBMessage *MakeMessage(NSString *key, NSString *author, NSInteger sequen
     msg.contentType = contentType;
     msg.content = content;
     msg.claimedTimestamp = (int64_t)(sequence * 1000);
-    msg.valueJSON = [NSJSONSerialization dataWithJSONObject:@{@"author": author, @"sequence": @(sequence)} options:0 error:nil];
+    NSDictionary *signedValue = [SSBMessageCodec createSignedMessageWithContent:content
+                                                                          author:FixtureSignerFeedID()
+                                                                        sequence:sequence
+                                                                     previousKey:previousKey
+                                                                       secretKey:FixtureSecretKey()];
+    msg.valueJSON = [SSBMessageCodec encodeLegacyValue:signedValue includeSignature:YES];
     return msg;
 }
 
@@ -36,6 +67,7 @@ static SSBMessage *MakeMessage(NSString *key, NSString *author, NSInteger sequen
 
 - (void)tearDown {
     [self.store wipeDatabase];
+    self.store = nil;
     [[NSFileManager defaultManager] removeItemAtPath:self.dbPath error:nil];
     [super tearDown];
 }
@@ -225,7 +257,7 @@ static SSBMessage *MakeMessage(NSString *key, NSString *author, NSInteger sequen
                                 @{@"type": @"post", @"text": @"query test"});
     [self.store appendMessage:m error:nil];
 
-    NSDictionary *query = @{@"author": author};
+    NSDictionary *query = @{@"author": author, @"private": @NO, @"type": [NSNull null]};
     NSArray<SSBMessage *> *results = [self.store querySubset:query options:@{}];
     XCTAssertGreaterThanOrEqual(results.count, 1);
     for (SSBMessage *msg in results) {
@@ -242,7 +274,7 @@ static SSBMessage *MakeMessage(NSString *key, NSString *author, NSInteger sequen
     [self.store appendMessage:post error:nil];
     [self.store appendMessage:contact error:nil];
 
-    NSDictionary *query = @{@"author": author, @"contentType": @"contact"};
+    NSDictionary *query = @{@"author": author, @"private": @NO, @"type": @"contact"};
     NSArray<SSBMessage *> *results = [self.store querySubset:query options:@{}];
     XCTAssertEqual(results.count, 1);
     XCTAssertEqualObjects(results[0].contentType, @"contact");
@@ -256,7 +288,7 @@ static SSBMessage *MakeMessage(NSString *key, NSString *author, NSInteger sequen
                                     author, i, prev, @"post", @{@"type": @"post"});
         [self.store appendMessage:m error:nil];
     }
-    NSDictionary *query = @{@"author": author};
+    NSDictionary *query = @{@"author": author, @"private": @NO, @"type": [NSNull null]};
     NSDictionary *options = @{@"pageSize": @2};
     NSArray<SSBMessage *> *results = [self.store querySubset:query options:options];
     XCTAssertEqual(results.count, 2);

@@ -306,7 +306,11 @@ static NSInteger const kNumberOfShards = 16;
         return nil;
     }
     
-    NSData *recipientKey = [recipientKeyData subdataWithRange:NSMakeRange(2, 32)];
+    NSData *recipientEd25519Key = [recipientKeyData subdataWithRange:NSMakeRange(2, 32)];
+    unsigned char recipientCurve25519Key[crypto_box_PUBLICKEYBYTES];
+    if (crypto_sign_ed25519_pk_to_curve25519(recipientCurve25519Key, recipientEd25519Key.bytes) != 0) {
+        return nil;
+    }
 
     unsigned char ephemeralSK[crypto_box_SECRETKEYBYTES];
 #ifdef __APPLE__
@@ -324,7 +328,9 @@ static NSInteger const kNumberOfShards = 16;
 
     // Compute DH shared secret: ephemeralSK × recipientPK
     unsigned char sharedKey[crypto_box_BEFORENMBYTES];
-    crypto_box_beforenm(sharedKey, recipientKey.bytes, ephemeralSK);
+    if (crypto_box_beforenm(sharedKey, recipientCurve25519Key, ephemeralSK) != 0) {
+        return nil;
+    }
 
     // Zero nonce — safe because the DH key is unique per ephemeral keypair
     unsigned char nonce[crypto_box_NONCEBYTES];
@@ -375,8 +381,13 @@ static NSInteger const kNumberOfShards = 16;
     NSData *ephemeralPubKey = [ciphertext subdataWithRange:NSMakeRange(0, crypto_box_PUBLICKEYBYTES)];
     NSData *boxedSeed = [ciphertext subdataWithRange:NSMakeRange(crypto_box_PUBLICKEYBYTES, kMetafeedBoxedSeedLen)];
 
+    unsigned char recipientCurve25519Secret[crypto_box_SECRETKEYBYTES];
+    if (crypto_sign_ed25519_sk_to_curve25519(recipientCurve25519Secret, keys.secretKey.bytes) != 0) {
+        return nil;
+    }
+
     unsigned char sharedKey[crypto_box_BEFORENMBYTES];
-    int ret = crypto_box_beforenm(sharedKey, ephemeralPubKey.bytes, keys.secretKey.bytes);
+    int ret = crypto_box_beforenm(sharedKey, ephemeralPubKey.bytes, recipientCurve25519Secret);
     if (ret != 0) {
         return nil;
     }

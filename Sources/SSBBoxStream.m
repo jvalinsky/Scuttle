@@ -43,7 +43,7 @@ static void increment_nonce(unsigned char *nonce) {
 }
 
 - (nullable NSData *)encryptPayload:(NSData *)payload {
-    if (!payload || payload.length == 0) return nil;
+    if (!payload) return nil;
     
     unsigned const char *key = _isClient ? self.clientToServerKey.bytes : self.serverToClientKey.bytes;
     unsigned char *nonce = _isClient ? _clientToServerNonce : _serverToClientNonce;

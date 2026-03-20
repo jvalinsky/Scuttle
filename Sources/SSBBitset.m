@@ -82,22 +82,38 @@
 }
 
 - (void)not {
-    size_t len = _buffer.length;
     uint8_t *dest = (uint8_t *)_buffer.mutableBytes;
-    for (size_t i = 0; i < len; i++) {
+    size_t fullBytes = (size_t)(_capacity / 8);
+    uint8_t remainingBits = (uint8_t)(_capacity % 8);
+
+    for (size_t i = 0; i < fullBytes; i++) {
         dest[i] = ~dest[i];
+    }
+
+    if (remainingBits > 0) {
+        uint8_t mask = (uint8_t)((1u << remainingBits) - 1u);
+        dest[fullBytes] = (uint8_t)(~dest[fullBytes]) & mask;
+        fullBytes += 1;
+    }
+
+    // Keep padded alignment bytes deterministic and out of logical capacity.
+    if (fullBytes < _buffer.length) {
+        memset(dest + fullBytes, 0, _buffer.length - fullBytes);
     }
 }
 
 - (uint64_t)countSetBits {
-    // vDSP doesn't have a direct popcount for bitvectors, 
-    // so we use the built-in __builtin_popcountll on segments.
     uint64_t total = 0;
-    const uint64_t *words = (const uint64_t *)_buffer.bytes;
-    size_t wordCount = _buffer.length / 8;
-    
-    for (size_t i = 0; i < wordCount; i++) {
-        total += __builtin_popcountll(words[i]);
+    const uint8_t *bytes = (const uint8_t *)_buffer.bytes;
+    size_t fullBytes = (size_t)(_capacity / 8);
+    uint8_t remainingBits = (uint8_t)(_capacity % 8);
+
+    for (size_t i = 0; i < fullBytes; i++) {
+        total += (uint64_t)__builtin_popcount((unsigned int)bytes[i]);
+    }
+    if (remainingBits > 0) {
+        uint8_t mask = (uint8_t)((1u << remainingBits) - 1u);
+        total += (uint64_t)__builtin_popcount((unsigned int)(bytes[fullBytes] & mask));
     }
     return total;
 }

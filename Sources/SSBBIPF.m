@@ -56,10 +56,11 @@
     
     switch (type) {
         case SSBBIPFTypeString: {
-            NSUInteger strConsumed = 0;
-            NSString *str = [self decodeString:data offset:offset consumed:&strConsumed];
+            if (offset + length > data.length) return nil;
+            NSData *stringData = [data subdataWithRange:NSMakeRange(offset, (NSUInteger)length)];
+            NSString *str = [[NSString alloc] initWithData:stringData encoding:NSUTF8StringEncoding];
             if (!str) return nil;
-            if (consumed) *consumed = offset + strConsumed;
+            if (consumed) *consumed = offset + (NSUInteger)length;
             return str;
         }
         case SSBBIPFTypeBytes: {
@@ -160,20 +161,18 @@
 }
 
 + (nullable NSData *)encodeInteger:(int64_t)integer {
-    int64_t value = integer;
     NSMutableData *bytes = [NSMutableData data];
-    
-    if (value == 0) {
-        [bytes appendBytes:(uint8_t[]){0} length:1];
-    } else {
-        uint8_t buf[10];
-        int len = 0;
-        uint64_t uvalue = (value < 0) ? (1ULL << 64) + value : value;
-        while (uvalue > 0) {
-            buf[len++] = uvalue & 0xFF;
-            uvalue >>= 8;
-        }
-        [bytes appendBytes:buf length:len];
+
+    int64_t value = integer;
+    while (true) {
+        uint8_t byte = (uint8_t)(value & 0xFF);
+        [bytes appendBytes:&byte length:1];
+
+        int64_t shifted = value >> 8; // arithmetic shift
+        BOOL signBitSet = (byte & 0x80) != 0;
+        BOOL done = (shifted == 0 && !signBitSet) || (shifted == -1 && signBitSet);
+        if (done) break;
+        value = shifted;
     }
     
     uint64_t tag = ((uint64_t)bytes.length << 3) | SSBBIPFTypeInt;
@@ -298,15 +297,22 @@
     
     if (headerSize + length > data.length) return nil;
     
-    int64_t value = 0;
+    uint64_t raw = 0;
     for (uint64_t i = 0; i < length; i++) {
         uint8_t byte = ((uint8_t *)data.bytes)[headerSize + i];
-        value |= ((int64_t)byte << (8 * i));
+        raw |= ((uint64_t)byte << (8 * i));
     }
-    if (length > 0 && ((uint8_t *)data.bytes)[headerSize + length - 1] & 0x80) {
-        value = value - (1LL << (length * 8));
+
+    int64_t value = 0;
+    if (length == 8) {
+        value = (int64_t)raw;
+    } else if (length > 0 && (((uint8_t *)data.bytes)[headerSize + length - 1] & 0x80)) {
+        uint64_t signMask = ~((1ULL << (length * 8)) - 1ULL);
+        value = (int64_t)(raw | signMask);
+    } else {
+        value = (int64_t)raw;
     }
-    
+
     if (consumed) *consumed = headerSize + length;
     return @(value);
 }

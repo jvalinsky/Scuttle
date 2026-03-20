@@ -1,6 +1,7 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/tweetnacl.h>
+#import <SSBNetwork/SSBCommonCryptoCompat.h>
 
 static void GenerateKeypair(NSData **outPublicKey, NSData **outSecretKey) {
     unsigned char pk[32], sk[64];
@@ -18,6 +19,11 @@ static NSString *FeedIdFromPublicKey(NSData *pk) {
 @property (nonatomic, strong) NSData *secretKey;
 @property (nonatomic, strong) NSData *publicKey;
 @property (nonatomic, copy) NSString *feedId;
+@end
+
+@interface SSBMessageCodec (TestPrivate)
++ (NSString *)jsonStringLiteral:(NSString *)str;
++ (NSString *)jsonEncodeObject:(id)obj indent:(int)indent;
 @end
 
 @implementation SSBMessageCodecExtendedTests
@@ -130,6 +136,11 @@ static NSString *FeedIdFromPublicKey(NSData *pk) {
 - (void)testShouldShowContent_emptyWarningMeansShow {
     NSDictionary *value = @{@"content": @{@"type": @"post", @"contentWarning": @""}};
     XCTAssertTrue([SSBMessageCodec shouldShowContentForMessage:value]);
+}
+
+- (void)testContentWarningForNonDictionaryContentReturnsNil {
+    NSDictionary *value = @{@"content": @"not-a-dictionary"};
+    XCTAssertNil([SSBMessageCodec contentWarningForMessage:value]);
 }
 
 #pragma mark - encodeLegacyValue:includeSignature:
@@ -418,6 +429,129 @@ static NSString *FeedIdFromPublicKey(NSData *pk) {
     NSData *badKey = [NSData dataWithBytes:"\x00" length:1];
     NSString *sig = [SSBMessageCodec signString:@"hello" withSecretKey:badKey];
     XCTAssertNil(sig);
+}
+
+#pragma mark - Feed Codec Instance Methods
+
+- (void)testFeedCodecFormatsAreClassic {
+    SSBMessageCodec *codec = [SSBMessageCodec sharedCodec];
+    XCTAssertEqual(codec.feedFormat, SSBBFEFeedFormatClassic);
+    XCTAssertEqual(codec.messageFormat, SSBBFEMessageFormatClassic);
+}
+
+- (void)testVerifyMessageDataRejectsInvalidJSON {
+    SSBMessageCodec *codec = [SSBMessageCodec sharedCodec];
+    NSData *garbage = [@"not-json" dataUsingEncoding:NSUTF8StringEncoding];
+    NSError *error = nil;
+    XCTAssertFalse([codec verifyMessageData:garbage error:&error]);
+    XCTAssertNotNil(error);
+}
+
+- (void)testVerifyMessageDataRejectsInvalidSignature {
+    SSBMessageCodec *codec = [SSBMessageCodec sharedCodec];
+    NSDictionary *invalidValue = @{
+        @"author": self.feedId,
+        @"previous": [NSNull null],
+        @"sequence": @1,
+        @"timestamp": @1,
+        @"hash": @"sha256",
+        @"content": @{@"type": @"post", @"text": @"bad"},
+        @"signature": @"ZmFrZQ==.sig.ed25519"
+    };
+    NSData *json = [NSJSONSerialization dataWithJSONObject:invalidValue options:0 error:nil];
+    NSError *error = nil;
+    XCTAssertFalse([codec verifyMessageData:json error:&error]);
+    XCTAssertNotNil(error);
+}
+
+- (void)testVerifyMessageDataAcceptsValidSignedMessage {
+    SSBMessageCodec *codec = [SSBMessageCodec sharedCodec];
+    NSDictionary *content = [SSBMessageCodec postContentWithText:@"valid"];
+    NSDictionary *value = [SSBMessageCodec createSignedMessageWithContent:content
+                                                                   author:self.feedId
+                                                                 sequence:1
+                                                              previousKey:nil
+                                                                secretKey:self.secretKey];
+    XCTAssertNotNil(value);
+    NSData *encoded = [SSBMessageCodec encodeLegacyValue:value includeSignature:YES];
+    XCTAssertNotNil(encoded);
+
+    NSError *error = nil;
+    XCTAssertTrue([codec verifyMessageData:encoded error:&error]);
+    XCTAssertNil(error);
+}
+
+- (void)testComputeMessageKeyFromDataErrorsOnEmptyInput {
+    SSBMessageCodec *codec = [SSBMessageCodec sharedCodec];
+    NSError *error = nil;
+    NSData *digest = [codec computeMessageKeyFromData:[NSData data] error:&error];
+    XCTAssertNil(digest);
+    XCTAssertNotNil(error);
+}
+
+- (void)testComputeMessageKeyFromDataReturnsSHA256Digest {
+    SSBMessageCodec *codec = [SSBMessageCodec sharedCodec];
+    NSData *payload = [@"hello" dataUsingEncoding:NSUTF8StringEncoding];
+    NSError *error = nil;
+    NSData *digest = [codec computeMessageKeyFromData:payload error:&error];
+    XCTAssertNotNil(digest);
+    XCTAssertNil(error);
+    XCTAssertEqual(digest.length, (NSUInteger)CC_SHA256_DIGEST_LENGTH);
+}
+
+#pragma mark - JSON Helper Branches
+
+- (void)testPostContentWithRootAndBranchIncludesReferences {
+    NSDictionary *content = [SSBMessageCodec postContentWithText:@"reply"
+                                                            root:@"%root.sha256"
+                                                          branch:@"%branch.sha256"];
+    XCTAssertEqualObjects(content[@"root"], @"%root.sha256");
+    XCTAssertEqualObjects(content[@"branch"], @"%branch.sha256");
+}
+
+- (void)testJsonStringLiteralEscapesControlCharacters {
+    NSString *escaped = [SSBMessageCodec jsonStringLiteral:@"a\"\n\tb"];
+    XCTAssertEqualObjects(escaped, @"\"a\\\"\\n\\tb\"");
+}
+
+- (void)testJsonEncodeObjectHandlesNumbersCollectionsAndFallback {
+    NSString *boolJSON = [SSBMessageCodec jsonEncodeObject:@YES indent:0];
+    XCTAssertEqualObjects(boolJSON, @"true");
+
+    NSString *intJSON = [SSBMessageCodec jsonEncodeObject:@42 indent:0];
+    XCTAssertEqualObjects(intJSON, @"42");
+
+    NSString *floatJSON = [SSBMessageCodec jsonEncodeObject:@(3.5) indent:0];
+    XCTAssertTrue([floatJSON containsString:@"3.5"]);
+
+    NSString *arrayJSON = [SSBMessageCodec jsonEncodeObject:@[@"x", @1] indent:0];
+    XCTAssertTrue([arrayJSON containsString:@"\"x\""]);
+    XCTAssertTrue([arrayJSON containsString:@"1"]);
+
+    NSString *dictJSON = [SSBMessageCodec jsonEncodeObject:@{@"b": @2, @"a": @1} indent:0];
+    NSRange aPos = [dictJSON rangeOfString:@"\"a\""];
+    NSRange bPos = [dictJSON rangeOfString:@"\"b\""];
+    XCTAssertNotEqual(aPos.location, NSNotFound);
+    XCTAssertNotEqual(bPos.location, NSNotFound);
+    XCTAssertLessThan(aPos.location, bPos.location);
+
+    NSDate *date = [NSDate dateWithTimeIntervalSince1970:0];
+    NSString *fallbackJSON = [SSBMessageCodec jsonEncodeObject:date indent:0];
+    XCTAssertTrue([fallbackJSON hasPrefix:@"\""]);
+}
+
+- (void)testJsonHelpersHandleNullAndEmptyCollections {
+    NSString *nullLiteral = [SSBMessageCodec jsonStringLiteral:nil];
+    XCTAssertEqualObjects(nullLiteral, @"null");
+
+    NSString *nullEncoded = [SSBMessageCodec jsonEncodeObject:[NSNull null] indent:0];
+    XCTAssertEqualObjects(nullEncoded, @"null");
+
+    NSString *emptyArray = [SSBMessageCodec jsonEncodeObject:@[] indent:0];
+    XCTAssertEqualObjects(emptyArray, @"[]");
+
+    NSString *emptyDict = [SSBMessageCodec jsonEncodeObject:@{} indent:0];
+    XCTAssertEqualObjects(emptyDict, @"{}");
 }
 
 @end

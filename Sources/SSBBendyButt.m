@@ -403,7 +403,23 @@ static const NSUInteger kMaxMessageSize = 8192;
 #pragma mark - Content Signing
 
 + (nullable NSData *)signContent:(NSData *)content withKey:(NSData *)key {
-    if (!content || !key || key.length != 32) {
+    if (!content || !key) {
+        return nil;
+    }
+
+    if (key.length == crypto_sign_SECRETKEYBYTES) {
+        unsigned char signedMessage[crypto_sign_BYTES + content.length];
+        unsigned long long signedLength = 0;
+        int ret = crypto_sign(signedMessage, &signedLength,
+                              content.bytes, (unsigned long long)content.length,
+                              key.bytes);
+        if (ret != 0 || signedLength < crypto_sign_BYTES) {
+            return nil;
+        }
+        return [NSData dataWithBytes:signedMessage length:crypto_sign_BYTES];
+    }
+
+    if (key.length != 32) {
         return nil;
     }
 
@@ -422,11 +438,29 @@ static const NSUInteger kMaxMessageSize = 8192;
 + (BOOL)verifyContentSignature:(NSData *)signature
                      onContent:(NSData *)content
                         author:(NSData *)author {
-    if (!signature || signature.length != 32) {
+    if (!content || !author || author.length != 32) {
         return NO;
     }
 
-    if (!content || !author || author.length != 32) {
+    if (!signature) {
+        return NO;
+    }
+
+    if (signature.length == crypto_sign_BYTES) {
+        NSMutableData *signedMessage = [NSMutableData dataWithData:signature];
+        [signedMessage appendData:content];
+        unsigned char recovered[signedMessage.length];
+        unsigned long long recoveredLen = 0;
+        int ret = crypto_sign_open(recovered, &recoveredLen,
+                                   signedMessage.bytes, (unsigned long long)signedMessage.length,
+                                   author.bytes);
+        if (ret != 0 || recoveredLen != content.length) {
+            return NO;
+        }
+        return memcmp(recovered, content.bytes, content.length) == 0;
+    }
+
+    if (signature.length != 32) {
         return NO;
     }
 
@@ -456,7 +490,8 @@ static const NSUInteger kMaxMessageSize = 8192;
         return nil;
     }
 
-    return [NSData dataWithBytes:signature length:crypto_sign_BYTES];
+    NSData *rawSignature = [NSData dataWithBytes:signature length:crypto_sign_BYTES];
+    return [SSBBFE encodeSignature:rawSignature];
 }
 
 + (BOOL)verifyPayloadSignature:(NSData *)signatureBFE onPayload:(NSData *)payload author:(NSData *)authorKey {

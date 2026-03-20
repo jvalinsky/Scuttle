@@ -221,11 +221,13 @@ static BOOL SSBGitWriteExactFD(int fd, const void *buffer, size_t size) {
 - (NSString *)buildHelperBinary {
     NSString *outputPath = [[self makeShortTemporaryDirectoryWithPrefix:"githelper.XXXXXX"] stringByAppendingPathComponent:@"git-remote-ssb"];
     NSString *root = [@__FILE__ stringByDeletingLastPathComponent].stringByDeletingLastPathComponent;
-    NSString *sourcePath = [root stringByAppendingPathComponent:@"Sources/git-remote-ssb.c"];
+    NSString *mainPath = [root stringByAppendingPathComponent:@"Sources/git-remote-ssb.c"];
+    NSString *corePath = [root stringByAppendingPathComponent:@"Sources/SSBGitRemoteCore.c"];
+    NSString *includePath = [root stringByAppendingPathComponent:@"Sources"];
 
     NSTask *task = [[NSTask alloc] init];
     task.executableURL = [NSURL fileURLWithPath:@"/usr/bin/clang"];
-    task.arguments = @[ @"-Wall", @"-Wextra", @"-std=c11", sourcePath, @"-o", outputPath ];
+    task.arguments = @[ @"-Wall", @"-Wextra", @"-std=c11", @"-I", includePath, mainPath, corePath, @"-o", outputPath ];
     NSPipe *stderrPipe = [NSPipe pipe];
     task.standardError = stderrPipe;
 

@@ -29,6 +29,7 @@
 		1B121A4CF485065E783F8C3B /* SSBSecurityFramer.m in Sources */ = {isa = PBXBuildFile; fileRef = 7F1268FBDBCC7771407ACE30 /* SSBSecurityFramer.m */; };
 		1BA494467AE903078B414AA5 /* SSBIndexFeedGenerator.m in Sources */ = {isa = PBXBuildFile; fileRef = 6FD11AF287BF3FFCE56C6979 /* SSBIndexFeedGenerator.m */; };
 		1BECBAFECBC12E7DDB882F88 /* SRGitDiffViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 022A7D3373C5BC07184A9669 /* SRGitDiffViewController.m */; };
+		1E5C245022C6A49FED1F1E72 /* libSSBGitRemoteCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 13F677EC0C1828FE97F3E99B /* libSSBGitRemoteCore.a */; };
 		1F1FC8D5C7E11D53568CB43E /* SSBConnectionFSMTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 7903E33DB09B529B3231AC07 /* SSBConnectionFSMTests.m */; };
 		24005D7EB7CC698C3084BF8E /* SRMainSplitViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 428F1B4C408A48CBF9C725A2 /* SRMainSplitViewController.m */; };
 		2411B5A6066C3651E43750E6 /* SSBFeedStore.h in Headers */ = {isa = PBXBuildFile; fileRef = C9373F921F75303BFCDC1BE6 /* SSBFeedStore.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -39,6 +40,7 @@
 		2D6FBF5BD89783F1B4CAAEAA /* SSBNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; };
 		2DFF3BBA68D1B5E1BF607B23 /* RoomInviteHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 1C3C9A7A3F394789F22597E9 /* RoomInviteHandler.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		300665DF69738D0D80812F1F /* SSBTransport.h in Headers */ = {isa = PBXBuildFile; fileRef = EE1A1D944FD3474114F446AB /* SSBTransport.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		30DDE973C010157C0EE73825 /* libSSBGitRemoteCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 13F677EC0C1828FE97F3E99B /* libSSBGitRemoteCore.a */; };
 		34FF15FF6455E7947D38A54A /* SSBLoggerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A168A6ABFEEDFDAC6A58350 /* SSBLoggerTests.m */; };
 		354EEFD8311B43F625E719EB /* SRSidebarViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96752B10BAC7153C8F7F4636 /* SRSidebarViewController.m */; };
 		35734AB8D61C51D56B3B4AA5 /* SSBHTTPAuth.h in Headers */ = {isa = PBXBuildFile; fileRef = A5572FAB9C13EDB3AA6AC7E0 /* SSBHTTPAuth.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -81,6 +83,7 @@
 		5A034FEFEE956AD55A643583 /* SSBJITDB.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E3638C32D855B18A7027A66 /* SSBJITDB.m */; };
 		5AF3E0900EE39BCEB8F9512A /* SSBSecurityFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 271691BC4736F87E224B180D /* SSBSecurityFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		5B673560F989EB5A01D8DA2E /* SSBPrefixIndex.m in Sources */ = {isa = PBXBuildFile; fileRef = D9616BE75B56BD72511710FA /* SSBPrefixIndex.m */; };
+		601E289925CF5EB070A9E221 /* SSBGitRemoteCore.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = DEDBF43441B07FDA289999E8 /* SSBGitRemoteCore.h */; };
 		60B91AD5782A44AB4795BB94 /* SRPlatformNotifications.m in Sources */ = {isa = PBXBuildFile; fileRef = 6F167252893424D3563E6DC2 /* SRPlatformNotifications.m */; };
 		60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */; };
 		61A0259B2DCF622D6E547B94 /* SRGitNewIssueViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = AF0A969DF5A5D7543D944BB1 /* SRGitNewIssueViewController.m */; };
@@ -88,6 +91,7 @@
 		65612E3B2106704204383786 /* SSBBIPFTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 3301714154D73C0FEA4FA25E /* SSBBIPFTests.m */; };
 		657E50EA694DAFFDDAFDE668 /* SSBBlobStore.m in Sources */ = {isa = PBXBuildFile; fileRef = 3CF8EA7DDFCF7270D9B36AE5 /* SSBBlobStore.m */; };
 		664CEBD0C70B916169A625B1 /* SSBTunnelConnection.m in Sources */ = {isa = PBXBuildFile; fileRef = CB0A086FB1BB5C0C93F840AC /* SSBTunnelConnection.m */; };
+		67406A8E52C716EF4D44662C /* GitRemoteSSBTests.m in Sources */ = {isa = PBXBuildFile; fileRef = A273BF4DC6AB7945688ECF74 /* GitRemoteSSBTests.m */; };
 		6A3BCBAE80CBCCC3C91F221C /* SSBButtwoo.h in Headers */ = {isa = PBXBuildFile; fileRef = 288550C253A5C28CD80B7132 /* SSBButtwoo.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		6AEF9B1D506ABA12FE19D771 /* SSBGitObjectStore.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B1CD097563A43B486C59388 /* SSBGitObjectStore.m */; };
 		6B6430F5F0A447F3778F5B85 /* blake2b.h in Headers */ = {isa = PBXBuildFile; fileRef = 07F6512490329993A2DCE8AE /* blake2b.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -112,6 +116,7 @@
 		84E4264B3247A3C94237B76C /* SSBURITests.m in Sources */ = {isa = PBXBuildFile; fileRef = D3756FE6C628386870AE36B1 /* SSBURITests.m */; };
 		85E97634B5B4504389199501 /* SSBBendyButt.m in Sources */ = {isa = PBXBuildFile; fileRef = E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */; };
 		884E6C004581AD0133CC3FD3 /* SSBURI.m in Sources */ = {isa = PBXBuildFile; fileRef = FF643DB59B16753E557EAF57 /* SSBURI.m */; };
+		89B7C788FFA4C141EFD9A64E /* SSBDiffCoreTests.m in Sources */ = {isa = PBXBuildFile; fileRef = BE3377BD26F6C1E89295CA1D /* SSBDiffCoreTests.m */; };
 		8AB648382104AA27043DE092 /* SSBHTTPAuth.m in Sources */ = {isa = PBXBuildFile; fileRef = C716E64EB06334D09F2227F6 /* SSBHTTPAuth.m */; };
 		8AF74B0C6F85ABD1BAAFBB44 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = F80E33A7DBFD10BDAA3D203E /* AppDelegate.m */; };
 		8D3934723670160DEA6C15C9 /* SSBThread.m in Sources */ = {isa = PBXBuildFile; fileRef = 85C37916511E60DA6855662D /* SSBThread.m */; };
@@ -133,6 +138,7 @@
 		A54BEBA47C18D784D287730B /* SRChannelBrowserViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = DF7FFFBA4AD282CE691A57A3 /* SRChannelBrowserViewController.m */; };
 		A5D7B9E50B32EC9F06E89E53 /* SRGitPRListViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 3299B1DB0A35CF6C44198BD6 /* SRGitPRListViewController.m */; };
 		A5DFC3665C1E63C95FE6AC25 /* SSBGabbyGroveTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 0E38C55C0BBB861B266DEEC7 /* SSBGabbyGroveTests.m */; };
+		A65977FB96DFD898EA1340C2 /* SSBPrefixIndexTests.m in Sources */ = {isa = PBXBuildFile; fileRef = C58DE865B5B08C49DD8C590E /* SSBPrefixIndexTests.m */; };
 		A6A93BFDD12197C8C9CE2A40 /* SSBNetwork.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A953F4A5E9AAC735E3C5297E /* SSBNetwork.h in Headers */ = {isa = PBXBuildFile; fileRef = 31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		AC2D8D590BA4C02C2BFC96B5 /* SSBRoomClient.m in Sources */ = {isa = PBXBuildFile; fileRef = 037E18283780BBEE7AC97C12 /* SSBRoomClient.m */; };
@@ -176,6 +182,7 @@
 		CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */ = {isa = PBXBuildFile; fileRef = 6AD82430655F17B68BA5E2AB /* randombytes.c */; };
 		D2E97B8B13C85E11534E4E89 /* SSBSecretStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 5AD22AE780DC1F27093E6D24 /* SSBSecretStore.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		D4E2DE20C7FD0596A01D9806 /* SSBGitPackDecoderTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 6AF7BB8217665CEB79850DAD /* SSBGitPackDecoderTests.m */; };
+		D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */; };
 		D97AD8F1257F35250658ABE9 /* SSBMuxRPCFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 190288FEB12E8B92A41A5E81 /* SSBMuxRPCFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		DB5E9556BA12D6B15E4F8D1E /* SRMarkdownParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */; };
 		DBB82DC8B13C45CED1142644 /* SSBTunnelConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = 83E3CAB9BE505FB7319DD5BD /* SSBTunnelConnection.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -200,6 +207,7 @@
 		F83A25694CC4D6FCAD8D20B6 /* SSBFeedCodecRegistryTests.m in Sources */ = {isa = PBXBuildFile; fileRef = A063EBBFD9951CDBF2225989 /* SSBFeedCodecRegistryTests.m */; };
 		F8FABF1E1D9E925E8D84C6BA /* SSBFeedCodecRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = 2295B5A1D4A65D4EC3C1307E /* SSBFeedCodecRegistry.m */; };
 		F9A1C76FE354013865997361 /* SSBPrefixIndex.h in Headers */ = {isa = PBXBuildFile; fileRef = 6D297EFF3464628DE46F32E4 /* SSBPrefixIndex.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		F9B5EA5872534DECCDD34F5E /* SSBGitRemoteCore.c in Sources */ = {isa = PBXBuildFile; fileRef = 25E87FDCFFDABCADEB22C754 /* SSBGitRemoteCore.c */; };
 		FB9F2FA752CFEEFE9F389EDA /* SSBHTTPInviteServer.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B43F65DF2F79CE330D39DB8 /* SSBHTTPInviteServer.m */; };
 		FBD0A624A7D1FD17649EBF3F /* SSBGitPackIDXParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A3EBA0AA283CF04FB4FCA23 /* SSBGitPackIDXParser.m */; };
 		FE1E700099AEC0FB4C12E3AF /* SSBGitPRStore.m in Sources */ = {isa = PBXBuildFile; fileRef = 6BD8C803B4824EEE0B37C8AC /* SSBGitPRStore.m */; };
@@ -210,12 +218,26 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		166F3D4B63C302C001B84BF5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 84FE5265FAD8C72B56E7EF33 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1417FA03BB3BEC89BDDBB5E7;
+			remoteInfo = SSBGitRemoteCore;
+		};
 		1C903BEDC19F4311F34E501B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 84FE5265FAD8C72B56E7EF33 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 1CF40B086A59D56593B18B96;
 			remoteInfo = SSBNetwork;
+		};
+		B4C7E343018456D0E97941F7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 84FE5265FAD8C72B56E7EF33 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1417FA03BB3BEC89BDDBB5E7;
+			remoteInfo = SSBGitRemoteCore;
 		};
 		E1962CFE58CCD5FCCBEDD940 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -224,9 +246,26 @@
 			remoteGlobalIDString = 1CF40B086A59D56593B18B96;
 			remoteInfo = SSBNetwork;
 		};
+		EA135DB9D1A8065F64217855 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 84FE5265FAD8C72B56E7EF33 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BD1C876785A2AB5CDF9C0ECE;
+			remoteInfo = ScuttleRoomApp;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		1000355A3B6E969A29D3BE93 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "include/$(PRODUCT_NAME)";
+			dstSubfolderSpec = 16;
+			files = (
+				601E289925CF5EB070A9E221 /* SSBGitRemoteCore.h in CopyFiles */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		53760165C7B27B5720D00C41 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -272,6 +311,7 @@
 		11D82F69E43127C6DD530062 /* blake2b.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = blake2b.c; sourceTree = "<group>"; };
 		13E59A3B54452B72A68242DA /* SSBMuxRPCFramer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPCFramer.m; sourceTree = "<group>"; };
 		13F4CE327FDC3F8151698123 /* SRFeedItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRFeedItem.h; sourceTree = "<group>"; };
+		13F677EC0C1828FE97F3E99B /* libSSBGitRemoteCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libSSBGitRemoteCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		14FA93B2F3AF173884D3C9EC /* SSBBlobStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBlobStore.h; sourceTree = "<group>"; };
 		1600DA85D3B35263B2E5ECE0 /* SRDevPanelViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRDevPanelViewController.h; sourceTree = "<group>"; };
 		1652E8449DF14ADC652A4A9F /* SRFeedViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRFeedViewController.h; sourceTree = "<group>"; };
@@ -291,6 +331,7 @@
 		23C9D99F878A9B6C7F9ECDB3 /* SSBNetworkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SSBNetworkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		247C9CA38A158DFDC6D6D861 /* SSBDiffCore.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SSBDiffCore.c; sourceTree = "<group>"; };
 		24927CBBC2D1D05812509310 /* blake3.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = blake3.h; sourceTree = "<group>"; };
+		25E87FDCFFDABCADEB22C754 /* SSBGitRemoteCore.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SSBGitRemoteCore.c; sourceTree = "<group>"; };
 		2629C83B9CB946F64342468E /* SRProfileHeaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRProfileHeaderView.h; sourceTree = "<group>"; };
 		26F4AC9DE2F2B696AAFA2DB6 /* SRContentContainerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRContentContainerViewController.h; sourceTree = "<group>"; };
 		271691BC4736F87E224B180D /* SSBSecurityFramer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecurityFramer.h; sourceTree = "<group>"; };
@@ -335,6 +376,7 @@
 		5AD22AE780DC1F27093E6D24 /* SSBSecretStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecretStore.h; sourceTree = "<group>"; };
 		5AD8CC589734E016CFE33CF9 /* SSBURLSessionShim.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBURLSessionShim.m; sourceTree = "<group>"; };
 		5BC271AF9E4B38FA58499AA1 /* SSBFeedCodecRegistry.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodecRegistry.h; sourceTree = "<group>"; };
+		5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ScuttleRoomAppHostSmokeTests.m; sourceTree = "<group>"; };
 		5C9DE4AAB00958CDF9228482 /* SRGitCommitLogViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitCommitLogViewController.m; sourceTree = "<group>"; };
 		5CFACA659335177FC1F47801 /* SSBFeedStoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStoreTests.m; sourceTree = "<group>"; };
 		5DC024D9C67500F75A076361 /* SSBStateMachine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBStateMachine.m; sourceTree = "<group>"; };
@@ -367,6 +409,7 @@
 		7C93ABCE1C93673360D9CB98 /* SSBQueryEngine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBQueryEngine.m; sourceTree = "<group>"; };
 		7CB05649361BF3D13D7D1D62 /* SRGitFileTreeViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitFileTreeViewController.m; sourceTree = "<group>"; };
 		7CBAE6D51037FC4AB336DDB3 /* SSBBIPF.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBIPF.h; sourceTree = "<group>"; };
+		7E0A7180188F6DC953CB7307 /* GitRemoteSSBTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GitRemoteSSBTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E0DE924CE6405FD56EF6416 /* git-remote-ssb */ = {isa = PBXFileReference; includeInIndex = 0; path = "git-remote-ssb"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E748DFDDA660FFBB10D82FB /* SSBBFETests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBFETests.m; sourceTree = "<group>"; };
 		7EAC649F464FFF328ABED209 /* SSBTransport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBTransport.m; sourceTree = "<group>"; };
@@ -405,6 +448,7 @@
 		9F7DE67CFEEBA3467B609B2F /* SSBLogger.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBLogger.h; sourceTree = "<group>"; };
 		A063EBBFD9951CDBF2225989 /* SSBFeedCodecRegistryTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedCodecRegistryTests.m; sourceTree = "<group>"; };
 		A183D8DFB77759AE7AC8F50C /* SSBGabbyGrove.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBGabbyGrove.m; sourceTree = "<group>"; };
+		A273BF4DC6AB7945688ECF74 /* GitRemoteSSBTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GitRemoteSSBTests.m; sourceTree = "<group>"; };
 		A3BACCDA476AC81C29509A68 /* SSBSecretStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBSecretStore.m; sourceTree = "<group>"; };
 		A3D0C2CBE4EC0BDDC7A4ED6F /* SRQRUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRQRUtils.m; sourceTree = "<group>"; };
 		A5572FAB9C13EDB3AA6AC7E0 /* SSBHTTPAuth.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBHTTPAuth.h; sourceTree = "<group>"; };
@@ -413,6 +457,7 @@
 		A7561DBDB8270919AC122819 /* SRPlatformNotifications.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRPlatformNotifications.h; sourceTree = "<group>"; };
 		A8277BC73A7B796241F78304 /* SRApplication.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRApplication.h; sourceTree = "<group>"; };
 		AA76B03C5B6C18C48350B8CE /* SRGitFileViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitFileViewController.h; sourceTree = "<group>"; };
+		AAC10FB41E1C644434A5BD39 /* ScuttleRoomAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScuttleRoomAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB3E30DF94326ECA88F8E8B0 /* SSBBencode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBencode.h; sourceTree = "<group>"; };
 		ADF41D2BA8155CDF54C259CB /* tweetnacl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tweetnacl.h; sourceTree = "<group>"; };
 		AE054062A09A5D7FC6233A5E /* SSBDiffEngineTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBDiffEngineTests.m; sourceTree = "<group>"; };
@@ -433,6 +478,7 @@
 		BB7141651B11E395483AAE34 /* SSBGitObjectStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitObjectStore.h; sourceTree = "<group>"; };
 		BB72906EAF25B9DA66BDBAAB /* SRMarkdownParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRMarkdownParser.h; sourceTree = "<group>"; };
 		BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMetafeedTests.m; sourceTree = "<group>"; };
+		BE3377BD26F6C1E89295CA1D /* SSBDiffCoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBDiffCoreTests.m; sourceTree = "<group>"; };
 		BFFBEDA3EFDCAD5D2CAAE423 /* SSBNetworkCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBNetworkCompat.h; sourceTree = "<group>"; };
 		C1A462699B0111EAFF4B4C1F /* SRRoomManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRRoomManager.m; sourceTree = "<group>"; };
 		C1A9FA581871BCDB3F13D5C3 /* SSBFeedStoreQueryTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStoreQueryTests.m; sourceTree = "<group>"; };
@@ -441,6 +487,7 @@
 		C3FAFF9848862A4326B40B4E /* SSBBitset.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBitset.h; sourceTree = "<group>"; };
 		C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStore.m; sourceTree = "<group>"; };
 		C584688A6B7BEBBD054A0AF0 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		C58DE865B5B08C49DD8C590E /* SSBPrefixIndexTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBPrefixIndexTests.m; sourceTree = "<group>"; };
 		C6257FD22788A631802FCDA2 /* SSBMuxRPCSession.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMuxRPCSession.h; sourceTree = "<group>"; };
 		C6437C46C04A5C15B34C604A /* SSBFeedCodec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodec.h; sourceTree = "<group>"; };
 		C716E64EB06334D09F2227F6 /* SSBHTTPAuth.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPAuth.m; sourceTree = "<group>"; };
@@ -460,6 +507,7 @@
 		DB03056A3F9B7F7B7EE87B03 /* SSBURLSessionCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBURLSessionCompat.h; sourceTree = "<group>"; };
 		DBE1BEB892EC0BCEBDC8D4BC /* SSBBendyButtTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButtTests.m; sourceTree = "<group>"; };
 		DD4CD311AC4686C2B3588242 /* SSBQueryEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBQueryEngine.h; sourceTree = "<group>"; };
+		DEDBF43441B07FDA289999E8 /* SSBGitRemoteCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitRemoteCore.h; sourceTree = "<group>"; };
 		DEF75D13D452FFD12BF95D82 /* RoomStorage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomStorage.m; sourceTree = "<group>"; };
 		DF7FFFBA4AD282CE691A57A3 /* SRChannelBrowserViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRChannelBrowserViewController.m; sourceTree = "<group>"; };
 		E1F073D53D1470D7FA4928F0 /* SSBKeychain.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBKeychain.h; sourceTree = "<group>"; };
@@ -507,6 +555,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		899454168E896FA04B97A2CA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1E5C245022C6A49FED1F1E72 /* libSSBGitRemoteCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8A8C6FE9CAB3E43D8A56DFB7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30DDE973C010157C0EE73825 /* libSSBGitRemoteCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AF77685584DC06C833A5E5C0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -530,6 +594,8 @@
 			isa = PBXGroup;
 			children = (
 				61919F188E68FE94722E294A /* App */,
+				2DC932E558821B5F01E6D0F0 /* GitRemoteSSB */,
+				6BE8F7B7F92352B8EA45D862 /* ScuttleRoomApp */,
 				77EE1D76DFF0A4FD1AF6147B /* Sources */,
 				B3447AD46347CC4634612FC2 /* Tests */,
 				2916E3793227DD6198438CE7 /* Frameworks */,
@@ -544,6 +610,15 @@
 				C584688A6B7BEBBD054A0AF0 /* Security.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		2DC932E558821B5F01E6D0F0 /* GitRemoteSSB */ = {
+			isa = PBXGroup;
+			children = (
+				A273BF4DC6AB7945688ECF74 /* GitRemoteSSBTests.m */,
+			);
+			name = GitRemoteSSB;
+			path = Tests/GitRemoteSSB;
 			sourceTree = "<group>";
 		};
 		433471C27998AFE8289FCBC6 /* UI */ = {
@@ -623,7 +698,10 @@
 			isa = PBXGroup;
 			children = (
 				7E0DE924CE6405FD56EF6416 /* git-remote-ssb */,
+				7E0A7180188F6DC953CB7307 /* GitRemoteSSBTests.xctest */,
+				13F677EC0C1828FE97F3E99B /* libSSBGitRemoteCore.a */,
 				517830A10C275CAC17E13876 /* ScuttleRoomApp.app */,
+				AAC10FB41E1C644434A5BD39 /* ScuttleRoomAppTests.xctest */,
 				61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */,
 				23C9D99F878A9B6C7F9ECDB3 /* SSBNetworkTests.xctest */,
 			);
@@ -649,6 +727,15 @@
 				433471C27998AFE8289FCBC6 /* UI */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		6BE8F7B7F92352B8EA45D862 /* ScuttleRoomApp */ = {
+			isa = PBXGroup;
+			children = (
+				5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */,
+			);
+			name = ScuttleRoomApp;
+			path = Tests/ScuttleRoomApp;
 			sourceTree = "<group>";
 		};
 		77EE1D76DFF0A4FD1AF6147B /* Sources */ = {
@@ -707,6 +794,8 @@
 				9A3EBA0AA283CF04FB4FCA23 /* SSBGitPackIDXParser.m */,
 				7963BC9A3C85F45852AC0A75 /* SSBGitPRStore.h */,
 				6BD8C803B4824EEE0B37C8AC /* SSBGitPRStore.m */,
+				25E87FDCFFDABCADEB22C754 /* SSBGitRemoteCore.c */,
+				DEDBF43441B07FDA289999E8 /* SSBGitRemoteCore.h */,
 				0F7900D565D9EE7C8F216DFE /* SSBGitRepo.h */,
 				6C409655097B32F0D617AB38 /* SSBGitRepo.m */,
 				A5572FAB9C13EDB3AA6AC7E0 /* SSBHTTPAuth.h */,
@@ -790,6 +879,7 @@
 				1E3D4AC9B86DD3EF12E5795C /* SSBBoxStreamTests.m */,
 				3E4653CCA27820F4D90F869E /* SSBButtwooTests.m */,
 				7903E33DB09B529B3231AC07 /* SSBConnectionFSMTests.m */,
+				BE3377BD26F6C1E89295CA1D /* SSBDiffCoreTests.m */,
 				AE054062A09A5D7FC6233A5E /* SSBDiffEngineTests.m */,
 				A063EBBFD9951CDBF2225989 /* SSBFeedCodecRegistryTests.m */,
 				C1A9FA581871BCDB3F13D5C3 /* SSBFeedStoreQueryTests.m */,
@@ -805,6 +895,7 @@
 				BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */,
 				FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */,
 				10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */,
+				C58DE865B5B08C49DD8C590E /* SSBPrefixIndexTests.m */,
 				82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */,
 				2CAE292572757E3C242BBCFB /* SSBSecretStoreTests.m */,
 				9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */,
@@ -903,6 +994,24 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		1417FA03BB3BEC89BDDBB5E7 /* SSBGitRemoteCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A32F636EA40CF08F1DCB5DD /* Build configuration list for PBXNativeTarget "SSBGitRemoteCore" */;
+			buildPhases = (
+				1000355A3B6E969A29D3BE93 /* CopyFiles */,
+				E850313D39C3304876C8CEE7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SSBGitRemoteCore;
+			packageProductDependencies = (
+			);
+			productName = SSBGitRemoteCore;
+			productReference = 13F677EC0C1828FE97F3E99B /* libSSBGitRemoteCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
 		1CF40B086A59D56593B18B96 /* SSBNetwork */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 51637031B1D89FA1A3A991BB /* Build configuration list for PBXNativeTarget "SSBNetwork" */;
@@ -922,15 +1031,35 @@
 			productReference = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */;
 			productType = "com.apple.product-type.framework";
 		};
+		3A93F7BE0745FD7F2CA435AF /* ScuttleRoomAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A6B43CD09F81E8294FAC56D6 /* Build configuration list for PBXNativeTarget "ScuttleRoomAppTests" */;
+			buildPhases = (
+				EC423458E0D38A7A869979EA /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				891FF7C7943C83F76D82CFF3 /* PBXTargetDependency */,
+			);
+			name = ScuttleRoomAppTests;
+			packageProductDependencies = (
+			);
+			productName = ScuttleRoomAppTests;
+			productReference = AAC10FB41E1C644434A5BD39 /* ScuttleRoomAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		612047D8B0DF67AFF5E45CB6 /* git-remote-ssb */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 35F03BA2A2528A668534D0D2 /* Build configuration list for PBXNativeTarget "git-remote-ssb" */;
 			buildPhases = (
 				0FAAE31486165C33D5739051 /* Sources */,
+				8A8C6FE9CAB3E43D8A56DFB7 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				5C40495ACAED1D18F625F0B6 /* PBXTargetDependency */,
 			);
 			name = "git-remote-ssb";
 			packageProductDependencies = (
@@ -980,6 +1109,25 @@
 			productReference = 23C9D99F878A9B6C7F9ECDB3 /* SSBNetworkTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		FC8942FD42B3312539FA4548 /* GitRemoteSSBTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6D621C6970F94605808AC4EE /* Build configuration list for PBXNativeTarget "GitRemoteSSBTests" */;
+			buildPhases = (
+				B9A90C36EA1FC52E52AB4987 /* Sources */,
+				899454168E896FA04B97A2CA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				2A749F441428AD2FA7B5A231 /* PBXTargetDependency */,
+			);
+			name = GitRemoteSSBTests;
+			packageProductDependencies = (
+			);
+			productName = GitRemoteSSBTests;
+			productReference = 7E0A7180188F6DC953CB7307 /* GitRemoteSSBTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1003,9 +1151,12 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				FC8942FD42B3312539FA4548 /* GitRemoteSSBTests */,
+				1417FA03BB3BEC89BDDBB5E7 /* SSBGitRemoteCore */,
 				1CF40B086A59D56593B18B96 /* SSBNetwork */,
 				F40CC25CD7DF93600779B8A3 /* SSBNetworkTests */,
 				BD1C876785A2AB5CDF9C0ECE /* ScuttleRoomApp */,
+				3A93F7BE0745FD7F2CA435AF /* ScuttleRoomAppTests */,
 				612047D8B0DF67AFF5E45CB6 /* git-remote-ssb */,
 			);
 		};
@@ -1162,6 +1313,7 @@
 				50AB0313BFC76F2CA3EA0412 /* SSBBoxStreamTests.m in Sources */,
 				EAB2BB80F6A298B688ACE327 /* SSBButtwooTests.m in Sources */,
 				1F1FC8D5C7E11D53568CB43E /* SSBConnectionFSMTests.m in Sources */,
+				89B7C788FFA4C141EFD9A64E /* SSBDiffCoreTests.m in Sources */,
 				5627B0DD370FB003FB7B52B7 /* SSBDiffEngineTests.m in Sources */,
 				F83A25694CC4D6FCAD8D20B6 /* SSBFeedCodecRegistryTests.m in Sources */,
 				3D5EA1799C923B1E95CCAD6B /* SSBFeedStoreQueryTests.m in Sources */,
@@ -1177,6 +1329,7 @@
 				FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */,
 				57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */,
 				60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */,
+				A65977FB96DFD898EA1340C2 /* SSBPrefixIndexTests.m in Sources */,
 				554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */,
 				F1A10C34903EA4DA137A7FF3 /* SSBSecretStoreTests.m in Sources */,
 				C8DEF3EEA54F5B3853D3E44D /* SSBStateMachineTests.m in Sources */,
@@ -1185,13 +1338,52 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B9A90C36EA1FC52E52AB4987 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				67406A8E52C716EF4D44662C /* GitRemoteSSBTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E850313D39C3304876C8CEE7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F9B5EA5872534DECCDD34F5E /* SSBGitRemoteCore.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EC423458E0D38A7A869979EA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		2A749F441428AD2FA7B5A231 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1417FA03BB3BEC89BDDBB5E7 /* SSBGitRemoteCore */;
+			targetProxy = 166F3D4B63C302C001B84BF5 /* PBXContainerItemProxy */;
+		};
 		44B81020441BBEB30313B667 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 1CF40B086A59D56593B18B96 /* SSBNetwork */;
 			targetProxy = 1C903BEDC19F4311F34E501B /* PBXContainerItemProxy */;
+		};
+		5C40495ACAED1D18F625F0B6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1417FA03BB3BEC89BDDBB5E7 /* SSBGitRemoteCore */;
+			targetProxy = B4C7E343018456D0E97941F7 /* PBXContainerItemProxy */;
+		};
+		891FF7C7943C83F76D82CFF3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BD1C876785A2AB5CDF9C0ECE /* ScuttleRoomApp */;
+			targetProxy = EA135DB9D1A8065F64217855 /* PBXContainerItemProxy */;
 		};
 		CFCD6FB92398163BA8E9FC84 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1201,6 +1393,23 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		066DC757F5F4634E26F8B338 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBGitRemoteCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
 		0A9A7DA570B8BA809D8E63C9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1263,6 +1472,52 @@
 			};
 			name = Debug;
 		};
+		11F9AE396118DD8DF0CE6C14 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = "$(inherited) $(SRCROOT)/Sources";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.GitRemoteSSBTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		19C80DF234A53AF242DB9B72 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = "$(inherited) $(SRCROOT)/Sources";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.GitRemoteSSBTests;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
 		286BA9885493FDF6D830E61A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1284,14 +1539,18 @@
 		4CDC7DA29195EC9935BE84B7 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "";
 				COMBINE_HIDPI_IMAGES = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.scuttlebutt.git-remote-ssb";
 				SDKROOT = macosx;
 			};
@@ -1339,6 +1598,23 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
+		};
+		7452586C37145FC079520326 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.SSBGitRemoteCore;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
 		};
 		753E14ECE7EAE7EE243EAF9F /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1414,6 +1690,25 @@
 			};
 			name = Release;
 		};
+		7E5CA9D12FDE0F9BB030E269 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.ScuttleRoomAppTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ScuttleRoomApp.app/Contents/MacOS/ScuttleRoomApp";
+			};
+			name = Debug;
+		};
 		8C2C7EC593AC21EC49A3D505 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1461,22 +1756,54 @@
 		EF0442683F318BFF4E12F81E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
-				CODE_SIGN_IDENTITY = "";
 				COMBINE_HIDPI_IMAGES = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.scuttlebutt.git-remote-ssb";
 				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		F25B47AEAA3D7AE31859296F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scuttlebutt.ScuttleRoomAppTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ScuttleRoomApp.app/Contents/MacOS/ScuttleRoomApp";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0A32F636EA40CF08F1DCB5DD /* Build configuration list for PBXNativeTarget "SSBGitRemoteCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				066DC757F5F4634E26F8B338 /* Debug */,
+				7452586C37145FC079520326 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		35F03BA2A2528A668534D0D2 /* Build configuration list for PBXNativeTarget "git-remote-ssb" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1495,11 +1822,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		6D621C6970F94605808AC4EE /* Build configuration list for PBXNativeTarget "GitRemoteSSBTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19C80DF234A53AF242DB9B72 /* Debug */,
+				11F9AE396118DD8DF0CE6C14 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		9D1B42DD7C1ABAE8A81989C3 /* Build configuration list for PBXNativeTarget "ScuttleRoomApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				72FC988A6EB4EE4D984E14AC /* Debug */,
 				286BA9885493FDF6D830E61A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A6B43CD09F81E8294FAC56D6 /* Build configuration list for PBXNativeTarget "ScuttleRoomAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E5CA9D12FDE0F9BB030E269 /* Debug */,
+				F25B47AEAA3D7AE31859296F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

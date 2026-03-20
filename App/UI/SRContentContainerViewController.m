@@ -10,6 +10,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.stack = [NSMutableArray array];
+    self.view.wantsLayer = YES;
 }
 
 - (NSRect)contentFrameForCurrentBounds {
@@ -63,22 +64,13 @@
     toVC.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     toVC.view.frame = fromVC ? fromVC.view.frame : [self contentFrameForCurrentBounds];
 
-    if (fromVC && fromVC.view.superview) {
-        [self transitionFromViewController:fromVC
-                          toViewController:toVC
-                                   options:NSViewControllerTransitionCrossfade
-                         completionHandler:^{
-            [self layoutStackViews];
-        }];
-    } else {
-        if (fromVC) {
-            [fromVC.view removeFromSuperview];
-        }
-        if (!toVC.view.superview) {
-            [self.view addSubview:toVC.view];
-        }
-        [self layoutStackViews];
+    if (fromVC) {
+        [fromVC.view removeFromSuperview];
     }
+    if (!toVC.view.superview) {
+        [self.view addSubview:toVC.view];
+    }
+    [self layoutStackViews];
 }
 
 - (void)popViewController {
@@ -87,24 +79,12 @@
     NSViewController *fromVC = self.stack.lastObject;
     NSViewController *toVC = self.stack[self.stack.count - 2];
     [self.stack removeLastObject];
-
-    if (fromVC.view.superview && toVC.view) {
-        [self transitionFromViewController:fromVC
-                          toViewController:toVC
-                                   options:NSViewControllerTransitionCrossfade
-                         completionHandler:^{
-            [fromVC removeFromParentViewController];
-            // transitionFromViewController automatically removes fromVC's view
-            [self layoutStackViews];
-        }];
-    } else {
-        [fromVC removeFromParentViewController];
-        [fromVC.view removeFromSuperview];
-        if (!toVC.view.superview) {
-            [self.view addSubview:toVC.view];
-        }
-        [self layoutStackViews];
+    [fromVC removeFromParentViewController];
+    [fromVC.view removeFromSuperview];
+    if (!toVC.view.superview) {
+        [self.view addSubview:toVC.view];
     }
+    [self layoutStackViews];
 }
 
 @end

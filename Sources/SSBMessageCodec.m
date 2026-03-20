@@ -275,14 +275,15 @@ static os_log_t codecLog(void) {
         return nil;
     }
 
-    NSDictionary *unsignedValue = @{
-        @"previous": previousKey ?: [NSNull null],
-        @"author": author,
-        @"sequence": @(sequence),
-        @"timestamp": @((int64_t)([[NSDate date] timeIntervalSince1970] * 1000)),
-        @"hash": @"sha256",
-        @"content": content
-    };
+    NSMutableDictionary *unsignedValue = [NSMutableDictionary dictionary];
+    if (previousKey) {
+        unsignedValue[@"previous"] = previousKey;
+    }
+    unsignedValue[@"author"] = author;
+    unsignedValue[@"sequence"] = @(sequence);
+    unsignedValue[@"timestamp"] = @((int64_t)([[NSDate date] timeIntervalSince1970] * 1000));
+    unsignedValue[@"hash"] = @"sha256";
+    unsignedValue[@"content"] = content;
 
     NSData *unsignedBytes = [self encodeLegacyValue:unsignedValue includeSignature:NO];
     if (!unsignedBytes) {
@@ -483,7 +484,7 @@ static os_log_t codecLog(void) {
     content[@"type"] = @"contact";
     content[@"contact"] = target;
     content[@"following"] = @(following);
-    if (blocking) content[@"blocking"] = @(blocking);
+    content[@"blocking"] = @(blocking);
     return content;
 }
 
