@@ -65,4 +65,4 @@
 - `plans/PLAN_01_CRYPTO_HASH.md` - Cryptographic hash fixes
 - `plans/PLAN_03_SPEC_COMPLIANCE.md` - Spec compliance
 - `plans/PLAN_05_PROTOCOL.md` - Protocol improvements
-- `GIT_SSB_PLAN.md` - Git-SSB integration plan
+- `plans/topics/GIT_SSB_PLAN.md` - Git-SSB integration plan

@@ -27,6 +27,7 @@ apdb
 # Xcode
 build/
 DerivedData/
+.derived/
 *.pbxuser
 !default.pbxuser
 *.mode1v3
@@ -74,8 +75,15 @@ go.sum
 sips/
 .gemini/
 
-# Deciduous database (local)
-.deciduous/
+# Generated build/test captures
+build_errors*.txt
+build_output.txt
+test_output.txt
+
+# Deciduous local state
+.deciduous/*
+!.deciduous/.version
+!.deciduous/config.toml
 
 # GNUstep build artifacts
 obj/

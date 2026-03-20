@@ -26,7 +26,7 @@ nix flake check
 ## Build files
 
 - `GNUmakefile`: CLI target
-- `GNUmakefile.gui`: GNUstep GUI target
+- `tools/build/GNUmakefile.gui`: GNUstep GUI target
 - `flake.nix`: packages, apps, and checks
 
 ## Linux platform adapters

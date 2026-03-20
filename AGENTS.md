@@ -5,12 +5,12 @@
 ## Quick Reference
 
 - **Start here:** [Master Plan — Executive Summary](plans/PLAN_00_MASTER.md#executive-summary) and [Task Completion Summary](plans/PLAN_00_MASTER.md#task-completion-summary) for current status (last updated 2026-03-18).
-- **Active logs:** [debug_journal.md](debug_journal.md) — see 2026-03-11 and 2026-03-12 entries for EBT/tunnel fixes and investigation chronology.
-- **Feed / codec work:** [docs/FEED_FORMAT_REPORT.md](docs/FEED_FORMAT_REPORT.md#spec-corrections-vs-this-codebase) plus [BUTTWOO_PRODUCTION_PLAN.md](BUTTWOO_PRODUCTION_PLAN.md) and [NEXT_STEPS_PLAN.md](NEXT_STEPS_PLAN.md) for Buttwoo/Bamboo/Bendy tasks and remaining deltas.
-- **Git over SSB:** [GIT_SSB_PLAN.md](GIT_SSB_PLAN.md#part-1--the-git-ssb-wire-protocol) and [GIT_DIFF_IMPLEMENTATION_PLAN.md](GIT_DIFF_IMPLEMENTATION_PLAN.md#3-implementation-steps) for transport + diff engine expectations.
+- **Active logs:** [docs/debugging/debug_journal.md](docs/debugging/debug_journal.md) — see 2026-03-11 and 2026-03-12 entries for EBT/tunnel fixes and investigation chronology.
+- **Feed / codec work:** [docs/FEED_FORMAT_REPORT.md](docs/FEED_FORMAT_REPORT.md#spec-corrections-vs-this-codebase) plus [plans/topics/BUTTWOO_PRODUCTION_PLAN.md](plans/topics/BUTTWOO_PRODUCTION_PLAN.md) and [plans/topics/NEXT_STEPS_PLAN.md](plans/topics/NEXT_STEPS_PLAN.md) for Buttwoo/Bamboo/Bendy tasks and remaining deltas.
+- **Git over SSB:** [plans/topics/GIT_SSB_PLAN.md](plans/topics/GIT_SSB_PLAN.md#part-1--the-git-ssb-wire-protocol) and [plans/topics/GIT_DIFF_IMPLEMENTATION_PLAN.md](plans/topics/GIT_DIFF_IMPLEMENTATION_PLAN.md#3-implementation-steps) for transport + diff engine expectations.
 - **Sneakernet / QR proofs:** [docs/sneakernet/README.md](docs/sneakernet/README.md#documentation-suite) (links to THEORY, PROTOCOL, UX guides).
-- **Debugging rooms/tunnels:** [docs/debugging/peer_discovery_resolution.md](docs/debugging/peer_discovery_resolution.md#implementation-of-the-solution) and [Technical_Report_Local_Server_Debug.md](Technical_Report_Local_Server_Debug.md#implemented-solutions).
-- **ObjC safety:** [REVIEW_OBJC_PATTERNS.md](REVIEW_OBJC_PATTERNS.md#critical-issues) for retain-cycle, keychain, and threading pitfalls.
+- **Debugging rooms/tunnels:** [docs/debugging/peer_discovery_resolution.md](docs/debugging/peer_discovery_resolution.md#implementation-of-the-solution) and [docs/reports/Technical_Report_Local_Server_Debug.md](docs/reports/Technical_Report_Local_Server_Debug.md#implemented-solutions).
+- **ObjC safety:** [docs/reports/REVIEW_OBJC_PATTERNS.md](docs/reports/REVIEW_OBJC_PATTERNS.md#critical-issues) for retain-cycle, keychain, and threading pitfalls.
 
 ## Non-Interactive Shell Commands
 

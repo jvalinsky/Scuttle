@@ -151,7 +151,7 @@ EOF
 
               scuttle-gui = mkScuttleTarget {
                 pname = "scuttle-gui";
-                makefile = "GNUmakefile.gui";
+                makefile = "tools/build/GNUmakefile.gui";
                 executableName = "ScuttleRoom";
                 appBundleName = "ScuttleRoom";
               };
