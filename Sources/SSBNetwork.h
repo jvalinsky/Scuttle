@@ -41,6 +41,7 @@
 #import <SSBNetwork/SSBPrefixIndex.h>
 #import <SSBNetwork/SSBRandom.h>
 #import <SSBNetwork/SSBStateMachine.h>
+#import <SSBNetwork/SSBTransport.h>
 #import <SSBNetwork/SSBTunnelConnection.h>
 #import <SSBNetwork/SSBURLSessionCompat.h>
 #import <SSBNetwork/RoomStorage.h>

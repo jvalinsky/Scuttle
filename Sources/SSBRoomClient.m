@@ -1,8 +1,5 @@
 #import "SSBRoomClient.h"
 #import "SSBLogCompat.h"
-#import "SSBNetworkCompat.h"
-#import "SSBSecurityFramer.h"
-#import "SSBMuxRPCFramer.h"
 #import "SSBMuxRPCSession.h"
 #import "SSBQueryEngine.h"
 #import "SSBMuxRPC.h"
@@ -28,7 +25,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 @property (nonatomic, readwrite) BOOL isConnected;
 @property (nonatomic, assign) BOOL isFeedSynced;
 
-@property (nonatomic, strong) nw_connection_t connection;
+@property (nonatomic, strong) id<SSBTransportConnection> connection;
+@property (nonatomic, strong) id<SSBTransportBackend> transportBackend;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t clientQueue;
 @property (nonatomic, strong) NSDictionary *serverManifest;
@@ -127,6 +125,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         _isConnected = NO;
         _isFeedSynced = YES; // Assume synced until proven otherwise
         _clientQueue = dispatch_queue_create("com.ssbc.room.client", DISPATCH_QUEUE_SERIAL);
+        _transportBackend = [SSBTransport defaultBackend];
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
         __weak typeof(self) weakSelf = self;
@@ -620,29 +619,22 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connect requested port=%u", self.port]];
     self.endpointDiscoveryMethodInUse = nil;
     
-    nw_endpoint_t endpoint = nw_endpoint_create_host(self.host.UTF8String, [[NSString stringWithFormat:@"%d", self.port] UTF8String]);
-    
-    nw_parameters_configure_protocol_block_t configure_tcp = ^(nw_protocol_options_t tcp_options) {
-        nw_tcp_options_set_no_delay(tcp_options, true);
-    };
-    
-    nw_parameters_t params = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, configure_tcp);
-    nw_protocol_stack_t stack = nw_parameters_copy_default_protocol_stack(params);
-    
-    nw_protocol_stack_prepend_application_protocol(stack, [SSBSecurityFramer createOptionsWithLocalSecretKey:self.localIdentitySecret 
-                                                                                               remotePublicKey:self.serverPubKey
-                                                                                                      asClient:YES]);
-    nw_protocol_stack_prepend_application_protocol(stack, [SSBMuxRPCFramer createOptions]);
-    
-    self.connection = nw_connection_create(endpoint, params);
-    nw_connection_set_queue(self.connection, self.clientQueue);
+    SSBTransportEndpoint *endpoint = [SSBTransportEndpoint endpointWithHost:self.host port:self.port];
+    SSBTransportConnectionOptions *options = [[SSBTransportConnectionOptions alloc] init];
+    options.enableTCPNoDelay = YES;
+    options.enableSecurityFramer = YES;
+    options.enableMuxRPCFramer = YES;
+    options.actingAsClient = YES;
+    options.localIdentitySecret = self.localIdentitySecret;
+    options.remotePublicKey = self.serverPubKey;
+    self.connection = [self.transportBackend connectionToEndpoint:endpoint options:options queue:self.clientQueue];
     
     __weak typeof(self) weakSelf = self;
-    nw_connection_set_state_changed_handler(self.connection, ^(nw_connection_state_t state, nw_error_t error) {
+    [self.connection setStateChangedHandler:^(id<SSBTransportConnection> connection, SSBTransportConnectionState state, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
 
-        if (state == nw_connection_state_ready) {
+        if (state == SSBTransportConnectionStateReady) {
             os_log_info(ssb_room_log, "Connection state: READY");
             [strongSelf appendPeerDiscoveryDiagnostic:@"connection state READY"];
             [strongSelf log:@"Connected and secured."];
@@ -654,26 +646,26 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
             }
             [strongSelf startReceivingMessages];
             [strongSelf performInitialSetup];
-        } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
-            os_log_info(ssb_room_log, "Connection state changed: %d", state);
-            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%d", state]];
+        } else if (state == SSBTransportConnectionStateFailed || state == SSBTransportConnectionStateCancelled) {
+            os_log_info(ssb_room_log, "Connection state changed: %lu", (unsigned long)state);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%lu", (unsigned long)state]];
             strongSelf.isConnected = NO;
             strongSelf.endpointDiscoveryMethodInUse = nil;
-            if (strongSelf.autoReconnect && state == nw_connection_state_failed) {
+            if (strongSelf.autoReconnect && state == SSBTransportConnectionStateFailed) {
                 [strongSelf scheduleReconnect];
             }
         } else {
-            os_log_info(ssb_room_log, "Connection state changed: %d", state);
-            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%d", state]];
+            os_log_info(ssb_room_log, "Connection state changed: %lu", (unsigned long)state);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%lu", (unsigned long)state]];
         }
-    });
+    }];
     
-    nw_connection_start(self.connection);
+    [self.connection start];
 }
 
 - (void)startReceivingMessages {
     __weak typeof(self) weakSelf = self;
-    nw_connection_receive_message(self.connection, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
+    [self.connection receiveMessageWithCompletion:^(NSData * _Nullable content, NSDictionary<NSString *,id> * _Nullable metadata, BOOL is_complete, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
 
@@ -683,21 +675,14 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         }
 
         if (content) {
-            os_log_debug(ssb_room_log, "Client: received content of length %zu", dispatch_data_get_size(content));
-            nw_protocol_metadata_t metadata = nw_content_context_copy_protocol_metadata(context, [SSBMuxRPCFramer createDefinition]);
             if (metadata) {
-                NSNumber *flagsObj = nw_framer_message_copy_object_value(metadata, "Flags");
-                NSNumber *reqNumObj = nw_framer_message_copy_object_value(metadata, "RequestNumber");
+                NSNumber *flagsObj = metadata[SSBTransportMetadataFlagsKey];
+                NSNumber *reqNumObj = metadata[SSBTransportMetadataRequestNumberKey];
 
                 if (flagsObj && reqNumObj) {
-                    // Convert dispatch_data_t to NSData (not toll-free bridged on GNUstep)
-                    const void *buf = NULL; size_t sz = 0;
-                    dispatch_data_t contiguous = dispatch_data_create_map(content, &buf, &sz);
-                    NSData *body = [NSData dataWithBytes:buf length:sz];
-                    (void)contiguous; // safe to release; body owns its copy
                     SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:[flagsObj unsignedIntValue]
                                                                       requestNumber:[reqNumObj intValue]
-                                                                               body:body];
+                                                                               body:content];
                     [strongSelf.rpcSession handleIncomingMessage:msg];
                 } else {
                     os_log_debug(ssb_room_log, "Client %{public}@: Metadata present but missing values", strongSelf.host);
@@ -712,7 +697,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         if (strongSelf.isConnected) {
             [strongSelf startReceivingMessages];
         }
-    });
+    }];
 }
 
 - (void)sendRPCMessage:(SSBMuxRPCMessage *)msg {
@@ -722,11 +707,9 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     }
     
     NSData *serialized = [msg serialize];
-    dispatch_data_t body = dispatch_data_create(serialized.bytes, serialized.length, self.clientQueue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-    
-    nw_connection_send(self.connection, body, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, ^(nw_error_t _Nullable error) {
+    [self.connection sendData:serialized isComplete:YES completion:^(NSError * _Nullable error) {
         if (error) os_log_error(ssb_room_log, "RPC send failed");
-    });
+    }];
 }
 
 - (void)performInitialSetup {
@@ -1712,7 +1695,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 }
 
 - (void)disconnect {
-    if (self.connection) nw_connection_cancel(self.connection);
+    if (self.connection) [self.connection cancel];
     self.isConnected = NO;
     self.isSyncingLocalFeed = NO;
     self.endpointDiscoveryMethodInUse = nil;

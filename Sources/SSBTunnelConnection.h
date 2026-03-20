@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <SSBNetwork/SSBMuxRPCSession.h>
+#import <SSBNetwork/SSBTransport.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -4,6 +4,7 @@
 #import <SSBNetwork/SSBFeedStore.h>
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/SSBLogger.h>
+#import <SSBNetwork/SSBTransport.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

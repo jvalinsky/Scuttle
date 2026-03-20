@@ -38,6 +38,7 @@
 		2D27C4B1478B3BEE80FD5ACE /* tweetnacl.c in Sources */ = {isa = PBXBuildFile; fileRef = 75516176EABD43E300304542 /* tweetnacl.c */; };
 		2D6FBF5BD89783F1B4CAAEAA /* SSBNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; };
 		2DFF3BBA68D1B5E1BF607B23 /* RoomInviteHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 1C3C9A7A3F394789F22597E9 /* RoomInviteHandler.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		300665DF69738D0D80812F1F /* SSBTransport.h in Headers */ = {isa = PBXBuildFile; fileRef = EE1A1D944FD3474114F446AB /* SSBTransport.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		34FF15FF6455E7947D38A54A /* SSBLoggerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 9A168A6ABFEEDFDAC6A58350 /* SSBLoggerTests.m */; };
 		354EEFD8311B43F625E719EB /* SRSidebarViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 96752B10BAC7153C8F7F4636 /* SRSidebarViewController.m */; };
 		35734AB8D61C51D56B3B4AA5 /* SSBHTTPAuth.h in Headers */ = {isa = PBXBuildFile; fileRef = A5572FAB9C13EDB3AA6AC7E0 /* SSBHTTPAuth.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -72,6 +73,7 @@
 		54636456CA9F993A198DABB4 /* SSBBamboo.m in Sources */ = {isa = PBXBuildFile; fileRef = CFB8B06F0792B438E6A851A9 /* SSBBamboo.m */; };
 		54EC2511154518680FE2580C /* SSBQueryEngine.h in Headers */ = {isa = PBXBuildFile; fileRef = DD4CD311AC4686C2B3588242 /* SSBQueryEngine.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */; };
+		55FDC8C0D09439EA3B6C7493 /* SSBTransportTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 9D5363A3463419ABCE16BAF7 /* SSBTransportTests.m */; };
 		5627B0DD370FB003FB7B52B7 /* SSBDiffEngineTests.m in Sources */ = {isa = PBXBuildFile; fileRef = AE054062A09A5D7FC6233A5E /* SSBDiffEngineTests.m */; };
 		57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */ = {isa = PBXBuildFile; fileRef = FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */; };
 		585777B3264C53A370D9B1A9 /* SSBMuxRPC.m in Sources */ = {isa = PBXBuildFile; fileRef = 798B55FEB82324DA55E84BE8 /* SSBMuxRPC.m */; };
@@ -165,6 +167,7 @@
 		CBEF7CBFE2DE25620C747933 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C584688A6B7BEBBD054A0AF0 /* Security.framework */; };
 		CC0997F533C27140C2C02528 /* SSBKeychain.h in Headers */ = {isa = PBXBuildFile; fileRef = E1F073D53D1470D7FA4928F0 /* SSBKeychain.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CCC05D452FE2EE293173490E /* SRContentContainerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = FC2B30DA155289295F25BA1C /* SRContentContainerViewController.m */; };
+		CCDCDE8CBDAA775965E71FB0 /* SSBTransport.m in Sources */ = {isa = PBXBuildFile; fileRef = 7EAC649F464FFF328ABED209 /* SSBTransport.m */; };
 		CCFEEE91364F05EBE5D0CFCF /* SRPeerListViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */; };
 		CD38B433F28833FDB0A18450 /* RoomStorage.h in Headers */ = {isa = PBXBuildFile; fileRef = 8B1A74C0B6939BE415F1577B /* RoomStorage.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -364,6 +367,7 @@
 		7CBAE6D51037FC4AB336DDB3 /* SSBBIPF.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBIPF.h; sourceTree = "<group>"; };
 		7E0DE924CE6405FD56EF6416 /* git-remote-ssb */ = {isa = PBXFileReference; includeInIndex = 0; path = "git-remote-ssb"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E748DFDDA660FFBB10D82FB /* SSBBFETests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBFETests.m; sourceTree = "<group>"; };
+		7EAC649F464FFF328ABED209 /* SSBTransport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBTransport.m; sourceTree = "<group>"; };
 		7F1268FBDBCC7771407ACE30 /* SSBSecurityFramer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBSecurityFramer.m; sourceTree = "<group>"; };
 		82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRoomProtocolBugfixTests.m; sourceTree = "<group>"; };
 		82F2D92492AB62172A997796 /* SRProfileHeaderView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRProfileHeaderView.m; sourceTree = "<group>"; };
@@ -392,6 +396,7 @@
 		9B5DE3CEE3B9D2A1BFC6F370 /* SSBBoxStream.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBoxStream.m; sourceTree = "<group>"; };
 		9C7E04C046ADB179D05C58EF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9CFEAF676970339AC9028E46 /* SSBMessageCodecTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMessageCodecTests.m; sourceTree = "<group>"; };
+		9D5363A3463419ABCE16BAF7 /* SSBTransportTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBTransportTests.m; sourceTree = "<group>"; };
 		9D5B82188337476DFA8D7674 /* RoomInviteHandlerPatternTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomInviteHandlerPatternTests.m; sourceTree = "<group>"; };
 		9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBStateMachineTests.m; sourceTree = "<group>"; };
 		9E6296E4E673E5741B32B92A /* SRApplication.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRApplication.m; sourceTree = "<group>"; };
@@ -467,6 +472,7 @@
 		EC626AA0CD6651F362F3A259 /* SSBTangle.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBTangle.m; sourceTree = "<group>"; };
 		ECB0ECFAC76D3FF456B52F2A /* SRGitPRDetailViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitPRDetailViewController.h; sourceTree = "<group>"; };
 		ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBConnectionFSM.m; sourceTree = "<group>"; };
+		EE1A1D944FD3474114F446AB /* SSBTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBTransport.h; sourceTree = "<group>"; };
 		EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPeerListViewController.m; sourceTree = "<group>"; };
 		EF42E04247C444A5C6190F43 /* SRGitRepoListViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitRepoListViewController.m; sourceTree = "<group>"; };
 		EF8453B60D09B89FBE6F0E73 /* SRPlatformUI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPlatformUI.m; sourceTree = "<group>"; };
@@ -753,6 +759,8 @@
 				EC626AA0CD6651F362F3A259 /* SSBTangle.m */,
 				91B91E4D73FD27B4DB5709DA /* SSBThread.h */,
 				85C37916511E60DA6855662D /* SSBThread.m */,
+				EE1A1D944FD3474114F446AB /* SSBTransport.h */,
+				7EAC649F464FFF328ABED209 /* SSBTransport.m */,
 				83E3CAB9BE505FB7319DD5BD /* SSBTunnelConnection.h */,
 				CB0A086FB1BB5C0C93F840AC /* SSBTunnelConnection.m */,
 				53D2EEA4027CFD4A5B573A70 /* SSBURI.h */,
@@ -797,6 +805,7 @@
 				82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */,
 				2CAE292572757E3C242BBCFB /* SSBSecretStoreTests.m */,
 				9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */,
+				9D5363A3463419ABCE16BAF7 /* SSBTransportTests.m */,
 				D3756FE6C628386870AE36B1 /* SSBURITests.m */,
 			);
 			path = Tests;
@@ -878,6 +887,7 @@
 				AF011C94FD6E4F3A06233661 /* SSBStateMachine.h in Headers */,
 				E2B98592E789745288819A91 /* SSBTangle.h in Headers */,
 				02B32B268B26D2DC78051FC6 /* SSBThread.h in Headers */,
+				300665DF69738D0D80812F1F /* SSBTransport.h in Headers */,
 				DBB82DC8B13C45CED1142644 /* SSBTunnelConnection.h in Headers */,
 				C675DBFEC6E02324C36C7FF1 /* SSBURI.h in Headers */,
 				B573C6AC8B0FC70C70CD4971 /* SSBURLSessionCompat.h in Headers */,
@@ -1071,6 +1081,7 @@
 				4BDB1A3EF6795D472D7D6F74 /* SSBStateMachine.m in Sources */,
 				B40F60D75D99FFFB352DF537 /* SSBTangle.m in Sources */,
 				8D3934723670160DEA6C15C9 /* SSBThread.m in Sources */,
+				CCDCDE8CBDAA775965E71FB0 /* SSBTransport.m in Sources */,
 				664CEBD0C70B916169A625B1 /* SSBTunnelConnection.m in Sources */,
 				884E6C004581AD0133CC3FD3 /* SSBURI.m in Sources */,
 				452F2A73E776502374A6A913 /* SSBURLSessionShim.m in Sources */,
@@ -1165,6 +1176,7 @@
 				554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */,
 				F1A10C34903EA4DA137A7FF3 /* SSBSecretStoreTests.m in Sources */,
 				C8DEF3EEA54F5B3853D3E44D /* SSBStateMachineTests.m in Sources */,
+				55FDC8C0D09439EA3B6C7493 /* SSBTransportTests.m in Sources */,
 				84E4264B3247A3C94237B76C /* SSBURITests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

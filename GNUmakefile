@@ -14,6 +14,7 @@ scuttle-cli_OBJC_FILES = \
     Sources/SSBBlobStore.m \
     Sources/SSBLog.m \
     Sources/SSBLogger.m \
+    Sources/SSBTransport.m \
     Sources/SSBSecretHandshake.m \
     Sources/SSBMessageCodec.m \
     Sources/SSBBIPF.m \

@@ -180,19 +180,46 @@ EOF
           else
             { };
 
+        linuxChecks =
+          if pkgs.stdenv.isLinux then
+            {
+              scuttle-cli-build = linuxPackages.scuttle-cli;
+              scuttle-gui-build = linuxPackages.scuttle-gui;
+
+              scuttle-cli-smoke = pkgs.runCommand "scuttle-cli-smoke"
+                {
+                  nativeBuildInputs = [ pkgs.bash ];
+                }
+                ''
+                  test -x ${linuxPackages.scuttle-cli}/bin/scuttle-cli
+                  ${linuxPackages.scuttle-cli}/bin/scuttle-cli >/dev/null 2>&1 || true
+                  touch $out
+                '';
+
+              scuttle-gui-smoke = pkgs.runCommand "scuttle-gui-smoke"
+                {
+                  nativeBuildInputs = [
+                    pkgs.bash
+                    pkgs.coreutils
+                  ];
+                }
+                ''
+                  test -x ${linuxPackages.scuttle-gui}/bin/scuttle-gui
+                  test -d ${linuxPackages.scuttle-gui}/Applications/ScuttleRoom.app
+                  test -x ${linuxPackages.scuttle-gui}/Applications/ScuttleRoom.app/ScuttleRoom
+                  touch $out
+                '';
+            }
+          else
+            { };
+
       in
       {
         packages = linuxPackages;
 
         apps = linuxApps;
 
-        checks =
-          if pkgs.stdenv.isLinux then
-            {
-              inherit (linuxPackages) scuttle-cli scuttle-gui;
-            }
-          else
-            { };
+        checks = linuxChecks;
 
         devShells.default = stdenv.mkDerivation {
           name = "scuttle-dev-shell";
