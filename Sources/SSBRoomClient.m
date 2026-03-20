@@ -743,6 +743,7 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 }
 
 - (void)startReceivingMessages {
+    [self appendPeerDiscoveryDiagnostic:@"startReceivingMessages called"];
     __weak typeof(self) weakSelf = self;
     [self.connection receiveMessageWithCompletion:^(NSData * _Nullable content, NSDictionary<NSString *,id> * _Nullable metadata, BOOL is_complete, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
@@ -750,27 +751,29 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 
         if (error) {
             os_log_error(ssb_room_log, "Client %{public}@: receive error: %{public}@", strongSelf.host, error);
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"receive error: %@", error.localizedDescription]];
             return;
         }
 
-        if (content) {
+        if (content || metadata) {
             if (metadata) {
                 NSNumber *flagsObj = metadata[SSBTransportMetadataFlagsKey];
                 NSNumber *reqNumObj = metadata[SSBTransportMetadataRequestNumberKey];
 
                 if (flagsObj && reqNumObj) {
+                    NSData *bodyData = content ?: [NSData data];
                     SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:[flagsObj unsignedIntValue]
                                                                       requestNumber:[reqNumObj intValue]
-                                                                               body:content];
+                                                                               body:bodyData];
                     [strongSelf.rpcSession handleIncomingMessage:msg];
                 } else {
                     os_log_debug(ssb_room_log, "Client %{public}@: Metadata present but missing values", strongSelf.host);
                 }
             } else {
-                os_log_debug(ssb_room_log, "Client %{public}@: No MuxRPC metadata found", strongSelf.host);
+                os_log_debug(ssb_room_log, "Client %{public}@: No MuxRPC metadata found, content length: %lu", strongSelf.host, (unsigned long)content.length);
             }
         } else {
-            os_log_debug(ssb_room_log, "Client %{public}@: nil content received, is_complete=%d", strongSelf.host, is_complete);
+            os_log_debug(ssb_room_log, "Client %{public}@: nil content and no metadata received, is_complete=%d", strongSelf.host, is_complete);
         }
 
         if (strongSelf.isConnected) {
@@ -782,20 +785,27 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 - (void)sendRPCMessage:(SSBMuxRPCMessage *)msg {
     if (!self.isConnected) {
         os_log_debug(ssb_room_log, "sendRPCMessage DROPPING msg: isConnected=NO");
+        [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ sendRPCMessage DROPPED (not connected) req=%d", self.host, msg.requestNumber]];
         return;
     }
     
     NSData *serialized = [msg serialize];
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ sendRPCMessage req=%d len=%lu", self.host, msg.requestNumber, (unsigned long)serialized.length]];
     [self.connection sendData:serialized isComplete:YES completion:^(NSError * _Nullable error) {
-        if (error) os_log_error(ssb_room_log, "RPC send failed");
+        if (error) {
+            os_log_error(ssb_room_log, "RPC send failed");
+            [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ RPC send FAILED: %@", self.host, error.localizedDescription]];
+        }
     }];
 }
 
 - (void)performInitialSetup {
     os_log_debug(ssb_room_log, "Client: performInitialSetup starting");
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ performInitialSetup starting", self.host]];
     __weak typeof(self) weakSelf = self;
     
     [self sendRPCRequest:@[@"manifest"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
+        [weakSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ manifest response=%@ err=%@", weakSelf.host, response ? @"YES" : @"nil", error.localizedDescription ?: @"nil"]];
         if ([response isKindOfClass:[NSDictionary class]]) {
             weakSelf.serverManifest = response;
             [weakSelf refreshEndpointDiscoverySubscriptionIfNeeded];
@@ -1330,8 +1340,21 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
     if (!session) return;
     if ([self.ebtRequestIDsBySession objectForKey:session] != nil) return;
 
-    NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
-    NSDictionary *args = @{@"version": @3};
+    NSMutableDictionary<NSString *, NSNumber *> *clock = [[self.feedStore localClock] mutableCopy];
+    
+    // Explicitly request the remote peer's feed by adding them to the clock with sequence 0 if unbound
+    NSString *peerID = nil;
+    for (NSString *pid in self.activeTunnels) {
+        if (self.activeTunnels[pid].rpcSession == session) {
+            peerID = pid;
+            break;
+        }
+    }
+    if (peerID && !clock[peerID]) {
+        clock[peerID] = @(0);
+    }
+    
+    NSDictionary *args = @{@"version": @3, @"format": @"classic"};
 
     __weak typeof(self) weakSelf = self;
     __weak SSBMuxRPCSession *weakSession = session;

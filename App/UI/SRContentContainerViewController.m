@@ -63,7 +63,7 @@
     toVC.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     toVC.view.frame = fromVC ? fromVC.view.frame : [self contentFrameForCurrentBounds];
 
-    if (fromVC) {
+    if (fromVC && fromVC.view.superview) {
         [self transitionFromViewController:fromVC
                           toViewController:toVC
                                    options:NSViewControllerTransitionCrossfade
@@ -71,7 +71,12 @@
             [self layoutStackViews];
         }];
     } else {
-        [self.view addSubview:toVC.view];
+        if (fromVC) {
+            [fromVC.view removeFromSuperview];
+        }
+        if (!toVC.view.superview) {
+            [self.view addSubview:toVC.view];
+        }
         [self layoutStackViews];
     }
 }
@@ -83,13 +88,23 @@
     NSViewController *toVC = self.stack[self.stack.count - 2];
     [self.stack removeLastObject];
 
-    [self transitionFromViewController:fromVC
-                      toViewController:toVC
-                               options:NSViewControllerTransitionCrossfade
-                     completionHandler:^{
+    if (fromVC.view.superview && toVC.view) {
+        [self transitionFromViewController:fromVC
+                          toViewController:toVC
+                                   options:NSViewControllerTransitionCrossfade
+                         completionHandler:^{
+            [fromVC removeFromParentViewController];
+            // transitionFromViewController automatically removes fromVC's view
+            [self layoutStackViews];
+        }];
+    } else {
         [fromVC removeFromParentViewController];
+        [fromVC.view removeFromSuperview];
+        if (!toVC.view.superview) {
+            [self.view addSubview:toVC.view];
+        }
         [self layoutStackViews];
-    }];
+    }
 }
 
 @end
