@@ -11,6 +11,7 @@
 #import "SSBTunnelConnection.h"
 #import "SSBBamboo.h"
 #import "SSBFeedCodecRegistry.h"
+#import <stdlib.h>
 
 static os_log_t ssb_room_log;
 static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
@@ -41,18 +42,14 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingPublishQueue;
 @property (nonatomic, assign) BOOL isSyncingLocalFeed;
 @property (nonatomic, assign) NSInteger localFeedSeq;
-@property (nonatomic, assign) int32_t ebtRequestID;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *remoteClock;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *internalPeerSyncProgress;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *internalPeerSyncStates;
-@property (nonatomic, assign) BOOL isEBTRunning;
+@property (nonatomic, strong) NSMapTable<SSBMuxRPCSession *, NSNumber *> *ebtRequestIDsBySession;
 
 /// Tracks per-peer EBT state to handle bilateral replication properly.
 /// Key: peer ID, Value: dictionary with { @"requestID": NSNumber, @"clock": NSMutableDictionary }
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableDictionary *> *peerEBTState;
-
-/// The current session being used for EBT (to route bilateral requests correctly)
-@property (nonatomic, weak) SSBMuxRPCSession *currentEBTSession;
 @end
 
 @implementation SSBRoomClient
@@ -142,6 +139,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         _pendingPublishQueue = [NSMutableArray array];
         _internalPeerSyncProgress = [NSMutableDictionary dictionary];
         _internalPeerSyncStates = [NSMutableDictionary dictionary];
+        _remoteClock = [NSMutableDictionary dictionary];
+        _ebtRequestIDsBySession = [NSMapTable weakToStrongObjectsMapTable];
         _peerEBTState = [NSMutableDictionary dictionary];
         _isSyncingLocalFeed = NO;
         
@@ -1190,9 +1189,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 #pragma mark - Replication (EBT)
 
 - (void)startEBTReplicationWithSession:(SSBMuxRPCSession *)session {
-    if (self.isEBTRunning) return;
-    
-    self.currentEBTSession = session;
+    if (!session) return;
+    if ([self.ebtRequestIDsBySession objectForKey:session] != nil) return;
 
     NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
     NSDictionary *args = @{@"version": @3};
@@ -1205,14 +1203,21 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         if (!strongSelf) return;
         if (error) {
             os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
-            strongSelf.isEBTRunning = NO;
+            if (strongSession) {
+                [strongSelf.ebtRequestIDsBySession removeObjectForKey:strongSession];
+            }
             return;
         }
         if (!strongSession) return;
         [strongSelf handleEBTMessage:response requestID:0 flags:0 session:strongSession];
     };
 
-    self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
+    int32_t requestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
+    if (requestID <= 0) {
+        os_log_error(ssb_room_log, "Failed to start EBT replication request for session %{public}@", session);
+        return;
+    }
+    [self.ebtRequestIDsBySession setObject:@(requestID) forKey:session];
 
     session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
@@ -1221,11 +1226,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         [strongSelf handleEBTMessage:payload requestID:requestID flags:flags session:strongSession];
     };
 
-    self.isEBTRunning = YES;
-    self.remoteClock = [NSMutableDictionary dictionary];
-
     // Send initial clock
-    [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
+    [session sendData:clock forRequest:requestID isEnd:NO];
     os_log_info(ssb_room_log, "Started EBT replication with clock of %lu feeds", (unsigned long)clock.count);
 }
 
@@ -1743,7 +1745,10 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     
     // Check if this belongs to an active tunnel (Server-initiated duplex stream)
     for (SSBTunnelConnection *tunnel in self.activeTunnels.allValues) {
-        if ([tunnel valueForKey:@"tunnelReqID"] != nil && [[tunnel valueForKey:@"tunnelReqID"] intValue] == reqID) {
+        if (!tunnel.isServer) {
+            continue;
+        }
+        if (llabs((long long)tunnel.tunnelReqID) == llabs((long long)reqID)) {
             NSData *data = nil;
             if ([payload isKindOfClass:[NSData class]]) {
                 data = (NSData *)payload;

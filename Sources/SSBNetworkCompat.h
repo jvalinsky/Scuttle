@@ -11,9 +11,8 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /**
- * 2026 Linux/GNUstep Compatibility Shim for Apple's Network.framework
- * This shim provides just enough types and functions to support Scuttle's custom framers.
- * It is intended for linkage ONLY; actual logic is currently stubbed.
+ * Linux/GNUstep compatibility surface for the subset of Apple's Network.framework
+ * used by this repository (endpoint/parameters/connection/listener/framer runtime).
  */
 
 // Basic Types

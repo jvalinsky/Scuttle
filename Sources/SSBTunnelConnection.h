@@ -11,6 +11,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Indicates if the tunnel connection is successfully established
 @property (nonatomic, assign, readonly) BOOL isConnected;
 
+/// The outer room-session request ID associated with this tunnel stream.
+@property (nonatomic, assign, readonly) int32_t tunnelReqID;
+
+/// YES when this tunnel was created from an inbound `tunnel.connect` request.
+@property (nonatomic, assign, readonly) BOOL isServer;
+
 /// The target peer ID that we are connected to via the tunnel
 @property (nonatomic, strong, readonly) NSString *peerId;
 

@@ -82,6 +82,7 @@
 		5AF3E0900EE39BCEB8F9512A /* SSBSecurityFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 271691BC4736F87E224B180D /* SSBSecurityFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		5B673560F989EB5A01D8DA2E /* SSBPrefixIndex.m in Sources */ = {isa = PBXBuildFile; fileRef = D9616BE75B56BD72511710FA /* SSBPrefixIndex.m */; };
 		60B91AD5782A44AB4795BB94 /* SRPlatformNotifications.m in Sources */ = {isa = PBXBuildFile; fileRef = 6F167252893424D3563E6DC2 /* SRPlatformNotifications.m */; };
+		60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */; };
 		61A0259B2DCF622D6E547B94 /* SRGitNewIssueViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = AF0A969DF5A5D7543D944BB1 /* SRGitNewIssueViewController.m */; };
 		642760A729FD7092EEB77A41 /* SRDevPanelViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F67FB0069C61716A718EFB48 /* SRDevPanelViewController.m */; };
 		65612E3B2106704204383786 /* SSBBIPFTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 3301714154D73C0FEA4FA25E /* SSBBIPFTests.m */; };
@@ -267,6 +268,7 @@
 		0F7900D565D9EE7C8F216DFE /* SSBGitRepo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitRepo.h; sourceTree = "<group>"; };
 		0F86B27C518F1B39BF8C8902 /* SSBRandom.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBRandom.h; sourceTree = "<group>"; };
 		0F898BACBC534627CAE1EB65 /* SSBGitPackDecoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitPackDecoder.h; sourceTree = "<group>"; };
+		10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBNetworkShimLinuxTests.m; sourceTree = "<group>"; };
 		11D82F69E43127C6DD530062 /* blake2b.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = blake2b.c; sourceTree = "<group>"; };
 		13E59A3B54452B72A68242DA /* SSBMuxRPCFramer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPCFramer.m; sourceTree = "<group>"; };
 		13F4CE327FDC3F8151698123 /* SRFeedItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRFeedItem.h; sourceTree = "<group>"; };
@@ -802,6 +804,7 @@
 				9CFEAF676970339AC9028E46 /* SSBMessageCodecTests.m */,
 				BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */,
 				FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */,
+				10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */,
 				82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */,
 				2CAE292572757E3C242BBCFB /* SSBSecretStoreTests.m */,
 				9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */,
@@ -1173,6 +1176,7 @@
 				C2C094E0D4E95F66B044D66F /* SSBMessageCodecTests.m in Sources */,
 				FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */,
 				57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */,
+				60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */,
 				554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */,
 				F1A10C34903EA4DA137A7FF3 /* SSBSecretStoreTests.m in Sources */,
 				C8DEF3EEA54F5B3853D3E44D /* SSBStateMachineTests.m in Sources */,

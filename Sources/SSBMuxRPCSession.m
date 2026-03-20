@@ -2,12 +2,14 @@
 #import "SSBMuxRPC.h"
 #import "SSBLogCompat.h"
 #import <stdatomic.h>
+#import <stdlib.h>
 
 static os_log_t rpc_log;
 static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueueKey;
 
 @interface SSBMuxRPCSession ()
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallback> *pendingRequests;
+@property (nonatomic, strong) NSMutableSet<NSNumber *> *activeIncomingRequests;
 @property (nonatomic, assign) _Atomic int32_t nextRequestID;
 @property (nonatomic, SSB_STRONG_DISPATCH) dispatch_queue_t accessQueue;
 @end
@@ -32,6 +34,7 @@ static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueue
     self = [super init];
     if (self) {
         _pendingRequests = [NSMutableDictionary dictionary];
+        _activeIncomingRequests = [NSMutableSet set];
         _nextRequestID = 1;
         _accessQueue = dispatch_queue_create("com.scuttlebutt.muxrpc.session", DISPATCH_QUEUE_SERIAL);
         dispatch_queue_set_specific(_accessQueue,
@@ -115,101 +118,145 @@ static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueue
     }
 }
 
+- (id _Nullable)parsedBodyForMessage:(SSBMuxRPCMessage *)message {
+    if ((message.flags & SSBMuxRPCFlagTypeJSON) && message.body.length > 0) {
+        NSError *err = nil;
+        id parsed = [NSJSONSerialization JSONObjectWithData:message.body
+                                                    options:NSJSONReadingAllowFragments
+                                                      error:&err];
+        if (err) {
+            os_log_error(rpc_log, "JSON parse failed: %{public}@", err);
+            return nil;
+        }
+        return parsed;
+    }
+
+    if ((message.flags & SSBMuxRPCFlagTypeString) && message.body.length > 0) {
+        return [[NSString alloc] initWithData:message.body encoding:NSUTF8StringEncoding];
+    }
+
+    return message.body;
+}
+
+- (BOOL)isRequestEnvelopePayload:(id _Nullable)payload {
+    if (![payload isKindOfClass:[NSDictionary class]]) {
+        return NO;
+    }
+
+    NSDictionary *dict = (NSDictionary *)payload;
+    return [dict[@"name"] isKindOfClass:[NSArray class]] &&
+           [dict[@"args"] isKindOfClass:[NSArray class]];
+}
+
+- (nullable NSError *)errorFromEndPayload:(id _Nullable)payload {
+    if ([payload isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)payload;
+        id nameValue = dict[@"name"];
+        if ([nameValue isKindOfClass:[NSString class]] &&
+            [(NSString *)nameValue rangeOfString:@"Error" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            return [NSError errorWithDomain:@"SSBMuxRPC"
+                                       code:-1
+                                   userInfo:@{NSLocalizedDescriptionKey: dict[@"message"] ?: @"Unknown RPC Error"}];
+        }
+    } else if ([payload isKindOfClass:[NSString class]]) {
+        NSString *text = (NSString *)payload;
+        if ([text rangeOfString:@"Error" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            return [NSError errorWithDomain:@"SSBMuxRPC"
+                                       code:-1
+                                   userInfo:@{NSLocalizedDescriptionKey: text}];
+        }
+    }
+
+    return nil;
+}
+
 - (void)handleIncomingMessage:(SSBMuxRPCMessage *)message {
     os_log_debug(rpc_log, "handleIncomingMessage called: req=%d flags=%u", message.requestNumber, message.flags);
     BOOL isStream = (message.flags & SSBMuxRPCFlagStream) != 0;
     BOOL isEndErr = (message.flags & SSBMuxRPCFlagEndErr) != 0;
-    
     int32_t reqID = message.requestNumber;
+    NSNumber *absReqKey = @(llabs((long long)reqID));
+    id parsedBody = [self parsedBodyForMessage:message];
+    BOOL isRequestEnvelope = [self isRequestEnvelopePayload:parsedBody];
+
     __block SSBRPCCallback callback = nil;
+    __block NSNumber *callbackKey = nil;
+    __block BOOL isIncomingRequest = NO;
     [self performAccessQueueSync:^{
-        callback = self.pendingRequests[@(reqID)];
-        if (!callback && reqID < 0) {
-            callback = self.pendingRequests[@(-reqID)];
+        if (isRequestEnvelope) {
+            [self.activeIncomingRequests addObject:absReqKey];
+            isIncomingRequest = YES;
+        } else if ([self.activeIncomingRequests containsObject:absReqKey]) {
+            isIncomingRequest = YES;
+        }
+
+        if (!isIncomingRequest) {
+            if (reqID < 0) {
+                NSNumber *normalizedKey = @(-reqID);
+                callback = self.pendingRequests[normalizedKey];
+                if (callback) {
+                    callbackKey = normalizedKey;
+                }
+            } else {
+                NSNumber *normalizedKey = @(reqID);
+                callback = self.pendingRequests[normalizedKey];
+                if (callback) {
+                    callbackKey = normalizedKey;
+                }
+            }
         }
     }];
 
     if (callback) {
-        // Response to our request
         os_log_debug(rpc_log, "Handling RESPONSE for ID %d flags=%u", reqID, message.flags);
-        
-        id parsedBody = nil;
-        if ((message.flags & SSBMuxRPCFlagTypeJSON) && message.body.length > 0) {
-            NSError *err = nil;
-            parsedBody = [NSJSONSerialization JSONObjectWithData:message.body options:NSJSONReadingAllowFragments error:&err];
-            if (err) os_log_error(rpc_log, "JSON parse failed: %{public}@", err);
-        } else if ((message.flags & SSBMuxRPCFlagTypeString) && message.body.length > 0) {
-            parsedBody = [[NSString alloc] initWithData:message.body encoding:NSUTF8StringEncoding];
-        } else {
-            parsedBody = message.body;
-        }
-        
         os_log_debug(rpc_log, "Parsed body: %{public}@", parsedBody);
-        
+
         if (isEndErr) {
-            BOOL isError = NO;
-            NSError *error = nil;
-            if ([parsedBody isKindOfClass:[NSDictionary class]] && parsedBody[@"name"] && [parsedBody[@"name"] containsString:@"Error"]) {
-                isError = YES;
-                error = [NSError errorWithDomain:@"SSBMuxRPC" code:-1 userInfo:@{NSLocalizedDescriptionKey: parsedBody[@"message"] ?: @"Unknown RPC Error"}];
-            } else if ([parsedBody isKindOfClass:[NSString class]]) {
-                NSString *strBody = (NSString *)parsedBody;
-                if ([strBody rangeOfString:@"Error" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-                    isError = YES;
-                    error = [NSError errorWithDomain:@"SSBMuxRPC" code:-1 userInfo:@{NSLocalizedDescriptionKey: strBody}];
-                }
-            }
-            
-            if (callback) {
-                if (isError) {
-                    os_log_debug(rpc_log, "Executing callback for ID %d (error)", reqID);
-                    callback(nil, error);
-                    os_log_debug(rpc_log, "Completed callback for ID %d (error)", reqID);
-                } else if (!isStream) {
-                    os_log_debug(rpc_log, "Executing callback for ID %d (non-stream final value)", reqID);
-                    callback(parsedBody, nil);
-                    os_log_debug(rpc_log, "Completed callback for ID %d (non-stream final value)", reqID);
-                } else if (parsedBody && ![parsedBody isEqual:@YES]) {
-                    // For legacy streams, the final value might come with EndErr: true
-                    os_log_debug(rpc_log, "Executing callback for ID %d (stream final value with EndErr)", reqID);
-                    callback(parsedBody, nil);
-                    os_log_debug(rpc_log, "Completed callback for ID %d (stream final value with EndErr)", reqID);
-                }
-            }
-            
-            // Only remove callback if this is NOT a stream, OR if it's the end of a stream
-            // (i.e., if it's a stream and not EndErr, we keep the callback for more data)
-            dispatch_async(self.accessQueue, ^{
-                [self.pendingRequests removeObjectForKey:@(reqID)];
-            });
-        } else {
-            if (callback) {
-                os_log_debug(rpc_log, "Executing callback for ID %d (stream data)", reqID);
+            NSError *error = [self errorFromEndPayload:parsedBody];
+            if (error) {
+                os_log_debug(rpc_log, "Executing callback for ID %d (error)", reqID);
+                callback(nil, error);
+                os_log_debug(rpc_log, "Completed callback for ID %d (error)", reqID);
+            } else if (!isStream) {
+                os_log_debug(rpc_log, "Executing callback for ID %d (non-stream final value)", reqID);
                 callback(parsedBody, nil);
-                os_log_debug(rpc_log, "Completed callback for ID %d (stream data)", reqID);
-                if (!isStream) {
-                    dispatch_async(self.accessQueue, ^{
-                        [self.pendingRequests removeObjectForKey:@(reqID)];
-                    });
+                os_log_debug(rpc_log, "Completed callback for ID %d (non-stream final value)", reqID);
+            } else if (parsedBody && ![parsedBody isEqual:@YES]) {
+                os_log_debug(rpc_log, "Executing callback for ID %d (stream final value with EndErr)", reqID);
+                callback(parsedBody, nil);
+                os_log_debug(rpc_log, "Completed callback for ID %d (stream final value with EndErr)", reqID);
+            }
+
+            [self performAccessQueueSync:^{
+                if (callbackKey) {
+                    [self.pendingRequests removeObjectForKey:callbackKey];
                 }
+            }];
+        } else {
+            os_log_debug(rpc_log, "Executing callback for ID %d (stream data)", reqID);
+            callback(parsedBody, nil);
+            os_log_debug(rpc_log, "Completed callback for ID %d (stream data)", reqID);
+            if (!isStream) {
+                [self performAccessQueueSync:^{
+                    if (callbackKey) {
+                        [self.pendingRequests removeObjectForKey:callbackKey];
+                    }
+                }];
             }
         }
-    } else {
-        // Request from remote
-        id parsedBody = nil;
-        if ((message.flags & SSBMuxRPCFlagTypeJSON) && message.body.length > 0) {
-            parsedBody = [NSJSONSerialization JSONObjectWithData:message.body options:NSJSONReadingAllowFragments error:nil];
-            os_log_debug(rpc_log, "Parsed REMOTE REQUEST payload: %{public}@", parsedBody);
-        } else if ((message.flags & SSBMuxRPCFlagTypeString) && message.body.length > 0) {
-            parsedBody = [[NSString alloc] initWithData:message.body encoding:NSUTF8StringEncoding];
-        } else {
-            parsedBody = message.body;
-        }
-        
-        if (self.receiveRequestBlock) {
-            os_log_debug(rpc_log, "Dispatching REMOTE REQUEST: req=%d flags=%d", message.requestNumber, message.flags);
-            self.receiveRequestBlock(parsedBody, message.requestNumber, message.flags);
-        }
+        return;
+    }
+
+    os_log_debug(rpc_log, "Parsed REMOTE REQUEST payload: %{public}@", parsedBody);
+    if (self.receiveRequestBlock) {
+        os_log_debug(rpc_log, "Dispatching REMOTE REQUEST: req=%d flags=%d", message.requestNumber, message.flags);
+        self.receiveRequestBlock(parsedBody, message.requestNumber, message.flags);
+    }
+
+    if (isEndErr || !isStream) {
+        [self performAccessQueueSync:^{
+            [self.activeIncomingRequests removeObject:absReqKey];
+        }];
     }
 }
 
