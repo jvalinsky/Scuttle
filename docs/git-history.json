@@ -1,5 +1,21 @@
 [
   {
+    "hash": "87fa980d0194c70ed3d334bf5ebea9abcb5323f2",
+    "short_hash": "87fa980",
+    "author": "Jack Valinsky",
+    "date": "2026-03-20T00:51:22-04:00",
+    "message": "chore: reorganize repository layout",
+    "files_changed": 8830
+  },
+  {
+    "hash": "ba7f227a5b780a1848aa5667e6e6816757a2a84e",
+    "short_hash": "ba7f227",
+    "author": "Jack Valinsky",
+    "date": "2026-03-19T14:50:25-04:00",
+    "message": "Fix initial room peer discovery race",
+    "files_changed": 3
+  },
+  {
     "hash": "d78381633345111c376ea7e799d95ea2763e6a4b",
     "short_hash": "d783816",
     "author": "Jack Valinsky",
