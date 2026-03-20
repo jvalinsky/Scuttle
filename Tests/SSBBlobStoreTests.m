@@ -1,6 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBBlobStore.h>
-#import <CommonCrypto/CommonCrypto.h>
+#import <SSBNetwork/SSBCommonCryptoCompat.h>
 
 /// Computes SHA-256 of data and returns the canonical SSB blob ID: &<base64>.sha256
 static NSString *BlobIDForData(NSData *data) {

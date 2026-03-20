@@ -3,7 +3,7 @@
 #import <SSBNetwork/SSBMuxRPC.h>
 #import <SSBNetwork/SSBSecretHandshake.h>
 #import <SSBNetwork/SSBBoxStream.h>
-#import <CommonCrypto/CommonHMAC.h>
+#import <SSBNetwork/SSBCommonCryptoCompat.h>
 #import <objc/runtime.h>
 #import "../Sources/SSBTunnelConnection.h"
 #import "../Sources/SSBMuxRPCSession.h"

@@ -5,6 +5,8 @@
 //  Secure keychain storage for SSB identity keys using Security.framework
 //
 
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
+
 #import "SSBKeychain.h"
 #import <Security/Security.h>
 
@@ -172,3 +174,5 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 }
 
 @end
+
+#endif

@@ -1,7 +1,7 @@
 #import "SSBSecretStore.h"
 #import <dispatch/dispatch.h>
 
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
 #import <Security/Security.h>
 #endif
 
@@ -15,7 +15,7 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 @implementation SSBAppleKeychainSecretStore
 
 - (NSMutableDictionary *)baseQuery {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     NSMutableDictionary *query = [NSMutableDictionary dictionary];
     query[(__bridge id)kSecClass] = (__bridge id)kSecClassGenericPassword;
     query[(__bridge id)kSecAttrService] = kSSBSecretStoreServiceName;
@@ -26,7 +26,7 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 }
 
 - (NSData *)loadDataForKey:(NSString *)key {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     NSMutableDictionary *query = [self baseQuery];
     query[(__bridge id)kSecAttrAccount] = key;
     query[(__bridge id)kSecReturnData] = @YES;
@@ -42,7 +42,7 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 }
 
 - (BOOL)saveData:(NSData *)data forKey:(NSString *)key {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     [self deleteDataForKey:key];
 
     NSMutableDictionary *query = [self baseQuery];
@@ -60,7 +60,7 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 }
 
 - (BOOL)deleteDataForKey:(NSString *)key {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     NSMutableDictionary *query = [self baseQuery];
     query[(__bridge id)kSecAttrAccount] = key;
 
@@ -73,7 +73,7 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 }
 
 - (BOOL)clearAll {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     NSMutableDictionary *query = [self baseQuery];
     OSStatus status = SecItemDelete((__bridge CFDictionaryRef)query);
     return status == errSecSuccess || status == errSecItemNotFound;
@@ -144,7 +144,7 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 @end
 
 id<SSBSecretStore> SSBCreateDefaultSecretStore(void) {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     return [[SSBAppleKeychainSecretStore alloc] init];
 #else
     return [[SSBFileSecretStore alloc] initWithBaseDirectory:nil];

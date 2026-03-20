@@ -28,10 +28,21 @@ static os_log_t blob_store_log;
     return shared;
 }
 
-- (instancetype)init {
+- (NSString *)defaultPath {
+#if defined(__APPLE__)
     NSString *appSupport = [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES) firstObject];
-    NSString *defaultPath = [appSupport stringByAppendingPathComponent:@"ScuttleKit/blobs"];
-    return [self initWithPath:defaultPath];
+    return [appSupport stringByAppendingPathComponent:@"ScuttleKit/blobs"];
+#else
+    NSString *xdgState = NSProcessInfo.processInfo.environment[@"XDG_STATE_HOME"];
+    if (xdgState.length > 0) {
+        return [xdgState stringByAppendingPathComponent:@"scuttle/blobs"];
+    }
+    return [NSHomeDirectory() stringByAppendingPathComponent:@".local/state/scuttle/blobs"];
+#endif
+}
+
+- (instancetype)init {
+    return [self initWithPath:[self defaultPath]];
 }
 
 - (instancetype)initWithPath:(NSString *)path {

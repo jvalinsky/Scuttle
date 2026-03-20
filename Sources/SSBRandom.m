@@ -1,14 +1,14 @@
 #import "SSBRandom.h"
 #include <stdlib.h>
 
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
 #import <Security/Security.h>
 #endif
 
 extern void randombytes(unsigned char *ptr, unsigned long long length);
 
 BOOL SSBFillRandomBytes(void *bytes, size_t length) {
-#ifdef __APPLE__
+#if defined(__APPLE__) && __has_include(<Security/Security.h>)
     return SecRandomCopyBytes(kSecRandomDefault, length, bytes) == errSecSuccess;
 #else
     randombytes(bytes, (unsigned long long)length);
