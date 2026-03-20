@@ -5,6 +5,7 @@
 
 NSString * const SSBTransportMetadataFlagsKey = @"Flags";
 NSString * const SSBTransportMetadataRequestNumberKey = @"RequestNumber";
+static const char *kSSBTransportSyntheticZeroLengthBodyKey = "SyntheticZeroLengthBody";
 
 static NSError * _Nullable SSBTransportNSErrorFromNWError(nw_error_t error) {
     if (!error) {
@@ -69,6 +70,45 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
     (void)contiguous;
     return data;
 }
+
+static nw_protocol_metadata_t _Nullable SSBTransportMuxMetadataFromContentContext(nw_content_context_t context) {
+    if (!context) {
+        return nil;
+    }
+
+    return nw_content_context_copy_protocol_metadata(context, [SSBMuxRPCFramer createDefinition]);
+}
+
+static BOOL SSBTransportShouldNormalizeSyntheticZeroLength(dispatch_data_t content, nw_content_context_t context) {
+    nw_protocol_metadata_t metadata = SSBTransportMuxMetadataFromContentContext(context);
+    if (!metadata) {
+        return NO;
+    }
+
+    id marker = nw_framer_message_copy_object_value((nw_framer_message_t)metadata, kSSBTransportSyntheticZeroLengthBodyKey);
+    if (![marker respondsToSelector:@selector(boolValue)] || ![marker boolValue]) {
+        return NO;
+    }
+
+    NSData *data = SSBTransportNSDataFromDispatchData(content);
+    return data.length == 1;
+}
+
+static NSData * _Nullable SSBTransportPayloadFromDispatchData(dispatch_data_t content, nw_content_context_t context) {
+    if (SSBTransportShouldNormalizeSyntheticZeroLength(content, context)) {
+        return [NSData data];
+    }
+    return SSBTransportNSDataFromDispatchData(content);
+}
+
+@protocol SSBTransportBackendInternal <SSBTransportBackend>
+- (id<SSBTransportConnection>)adoptConnection:(id)nativeConnection
+                                      options:(nullable SSBTransportConnectionOptions *)options
+                                        queue:(dispatch_queue_t)queue;
+- (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
+                                       options:(nullable SSBTransportConnectionOptions *)options
+                                         queue:(dispatch_queue_t)queue;
+@end
 
 @interface SSBTransportEndpoint ()
 @property (nonatomic, copy, readwrite) NSString *host;
@@ -172,7 +212,7 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
         return nil;
     }
 
-    nw_protocol_metadata_t metadata = nw_content_context_copy_protocol_metadata(context, [SSBMuxRPCFramer createDefinition]);
+    nw_protocol_metadata_t metadata = SSBTransportMuxMetadataFromContentContext(context);
     if (!metadata) {
         return nil;
     }
@@ -191,7 +231,7 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
 
 - (void)receiveMessageWithCompletion:(SSBTransportConnectionReceiveHandler)completion {
     nw_connection_receive_message(self.nativeConnection, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
-        completion(SSBTransportNSDataFromDispatchData(content),
+        completion(SSBTransportPayloadFromDispatchData(content, context),
                    [self metadataFromContentContext:context],
                    is_complete,
                    SSBTransportNSErrorFromNWError(error));
@@ -202,7 +242,7 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
                maximumLength:(uint32_t)maximumLength
                   completion:(SSBTransportConnectionReceiveHandler)completion {
     nw_connection_receive(self.nativeConnection, minimumLength, maximumLength, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
-        completion(SSBTransportNSDataFromDispatchData(content),
+        completion(SSBTransportPayloadFromDispatchData(content, context),
                    [self metadataFromContentContext:context],
                    is_complete,
                    SSBTransportNSErrorFromNWError(error));
@@ -226,6 +266,7 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
 
 - (instancetype)initWithListener:(nw_listener_t)listener
                          backend:(id<SSBTransportBackend>)backend
+                         options:(nullable SSBTransportConnectionOptions *)options
                            queue:(dispatch_queue_t)queue NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
@@ -233,7 +274,8 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
 
 @interface SSBNativeTransportListener ()
 @property (nonatomic, strong) nw_listener_t nativeListener;
-@property (nonatomic, strong) id<SSBTransportBackend> backend;
+@property (nonatomic, strong) id<SSBTransportBackendInternal> backend;
+@property (nonatomic, strong, nullable) SSBTransportConnectionOptions *options;
 @property (nonatomic, strong) dispatch_queue_t queue;
 @property (nonatomic, assign, readwrite) SSBTransportListenerState state;
 @property (nonatomic, assign, readwrite) uint16_t port;
@@ -244,12 +286,14 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
 @implementation SSBNativeTransportListener
 
 - (instancetype)initWithListener:(nw_listener_t)listener
-                         backend:(id<SSBTransportBackend>)backend
+                         backend:(id<SSBTransportBackendInternal>)backend
+                         options:(nullable SSBTransportConnectionOptions *)options
                            queue:(dispatch_queue_t)queue {
     self = [super init];
     if (self) {
         _nativeListener = listener;
         _backend = backend;
+        _options = options;
         _queue = queue;
         _state = SSBTransportListenerStateInvalid;
         nw_listener_set_queue(_nativeListener, queue);
@@ -287,7 +331,9 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
             return;
         }
 
-        id<SSBTransportConnection> adopted = [strongSelf.backend adoptConnection:connection queue:strongSelf.queue];
+        id<SSBTransportConnection> adopted = [strongSelf.backend adoptConnection:connection
+                                                                         options:strongSelf.options
+                                                                           queue:strongSelf.queue];
         strongSelf.storedNewConnectionHandler(adopted);
     });
 }
@@ -344,17 +390,29 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
 
 - (id<SSBTransportConnection>)adoptConnection:(id)nativeConnection
                                         queue:(dispatch_queue_t)queue {
-    return [[SSBNativeTransportConnection alloc] initWithConnection:(nw_connection_t)nativeConnection endpoint:nil options:nil queue:queue];
+    return [self adoptConnection:nativeConnection options:nil queue:queue];
+}
+
+- (id<SSBTransportConnection>)adoptConnection:(id)nativeConnection
+                                      options:(nullable SSBTransportConnectionOptions *)options
+                                        queue:(dispatch_queue_t)queue {
+    return [[SSBNativeTransportConnection alloc] initWithConnection:(nw_connection_t)nativeConnection endpoint:nil options:options queue:queue];
 }
 
 - (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
                                          queue:(dispatch_queue_t)queue {
-    nw_parameters_t parameters = [self parametersForOptions:nil];
+    return [self listenerOnEndpoint:endpoint options:nil queue:queue];
+}
+
+- (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
+                                       options:(nullable SSBTransportConnectionOptions *)options
+                                         queue:(dispatch_queue_t)queue {
+    nw_parameters_t parameters = [self parametersForOptions:options];
     nw_endpoint_t localEndpoint = nw_endpoint_create_host(endpoint.host.UTF8String,
                                                           [[NSString stringWithFormat:@"%u", endpoint.port] UTF8String]);
     nw_parameters_set_local_endpoint(parameters, localEndpoint);
     nw_listener_t listener = nw_listener_create(parameters);
-    return [[SSBNativeTransportListener alloc] initWithListener:listener backend:self queue:queue];
+    return [[SSBNativeTransportListener alloc] initWithListener:listener backend:self options:options queue:queue];
 }
 
 @end
@@ -401,9 +459,21 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
     return [self.nativeBackend adoptConnection:nativeConnection queue:queue];
 }
 
+- (id<SSBTransportConnection>)adoptConnection:(id)nativeConnection
+                                      options:(nullable SSBTransportConnectionOptions *)options
+                                        queue:(dispatch_queue_t)queue {
+    return [self.nativeBackend adoptConnection:nativeConnection options:options queue:queue];
+}
+
 - (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
                                          queue:(dispatch_queue_t)queue {
     return [self.nativeBackend listenerOnEndpoint:endpoint queue:queue];
+}
+
+- (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
+                                       options:(nullable SSBTransportConnectionOptions *)options
+                                         queue:(dispatch_queue_t)queue {
+    return [self.nativeBackend listenerOnEndpoint:endpoint options:options queue:queue];
 }
 
 @end
@@ -433,9 +503,21 @@ static NSData * _Nullable SSBTransportNSDataFromDispatchData(dispatch_data_t con
     return [self.nativeBackend adoptConnection:nativeConnection queue:queue];
 }
 
+- (id<SSBTransportConnection>)adoptConnection:(id)nativeConnection
+                                      options:(nullable SSBTransportConnectionOptions *)options
+                                        queue:(dispatch_queue_t)queue {
+    return [self.nativeBackend adoptConnection:nativeConnection options:options queue:queue];
+}
+
 - (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
                                          queue:(dispatch_queue_t)queue {
     return [self.nativeBackend listenerOnEndpoint:endpoint queue:queue];
+}
+
+- (id<SSBTransportListener>)listenerOnEndpoint:(SSBTransportEndpoint *)endpoint
+                                       options:(nullable SSBTransportConnectionOptions *)options
+                                         queue:(dispatch_queue_t)queue {
+    return [self.nativeBackend listenerOnEndpoint:endpoint options:options queue:queue];
 }
 
 @end

@@ -1,25 +1,62 @@
 #import "SSBMuxRPCFramer.h"
 #import "SSBMuxRPC.h"
 #import "SSBLogCompat.h"
+#import "SSBLogger.h"
 
 static const char *kSSBMuxRPCFramerName = "SSBMuxRPC";
 static os_log_t ssb_rpc_log;
+
+@interface SSBLogger (SSBMuxRPCFramerTrace)
++ (void)ssb_emitProtocolTraceEvent:(NSDictionary<NSString *, id> *)event;
+@end
 
 typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
     SSBMuxRPCStateHeader,
     SSBMuxRPCStateBody
 };
 
+static NSString *SSBMuxRPCStateName(SSBMuxRPCState state) {
+    switch (state) {
+        case SSBMuxRPCStateHeader: return @"header";
+        case SSBMuxRPCStateBody: return @"body";
+    }
+    return @"unknown";
+}
+
+static const uint8_t kSSBMuxRPCEmptyPayloadByte = 0;
+static const char *kSSBMuxRPCSyntheticZeroLengthBodyKey = "SyntheticZeroLengthBody";
+
 @interface SSBMuxRPCContext : NSObject
 @property (nonatomic, assign) SSBMuxRPCState state;
 @property (nonatomic, assign) SSBMuxRPCFlags flags;
 @property (nonatomic, assign) int32_t reqNum;
 @property (nonatomic, assign) uint32_t bodyLen;
+@property (nonatomic, copy) NSString *connectionID;
 @end
 
 @implementation SSBMuxRPCContext 
 - (instancetype)init { self = [super init]; if (self) { _state = SSBMuxRPCStateHeader; } return self; }
 @end
+
+static void SSBMuxRPCEmitTrace(NSString *connectionID,
+                               NSString *direction,
+                               SSBMuxRPCState state,
+                               int32_t requestNumber,
+                               NSString *message,
+                               NSDictionary<NSString *, id> *extras) {
+    NSMutableDictionary<NSString *, id> *event = [NSMutableDictionary dictionary];
+    event[@"component"] = @"muxrpc.framer";
+    event[@"connectionID"] = connectionID ?: @"muxrpc";
+    event[@"direction"] = direction ?: @"internal";
+    event[@"framerState"] = SSBMuxRPCStateName(state);
+    event[@"requestID"] = @(requestNumber);
+    event[@"peerID"] = @"<transport-peer>";
+    event[@"message"] = message ?: @"";
+    if (extras.count > 0) {
+        [event addEntriesFromDictionary:extras];
+    }
+    [SSBLogger ssb_emitProtocolTraceEvent:event];
+}
 
 @implementation SSBMuxRPCFramer
 
@@ -35,6 +72,7 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
     dispatch_once(&onceToken, ^{
         definition = nw_framer_create_definition(kSSBMuxRPCFramerName, NW_FRAMER_CREATE_FLAGS_DEFAULT, ^nw_framer_start_result_t(nw_framer_t framer) {
             SSBMuxRPCContext *context = [[SSBMuxRPCContext alloc] init];
+            context.connectionID = [[NSUUID UUID] UUIDString];
             
             nw_framer_set_input_handler(framer, ^size_t(nw_framer_t inner_framer) {
                 // NSLog(@"[MuxRPCFramer] Input handler called");
@@ -44,7 +82,7 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
                         __block BOOL success = NO;
                         __block SSBMuxRPCFlags flags;
                         __block int32_t reqNum;
-                        size_t parsed = nw_framer_parse_input(inner_framer, headerReq, headerReq, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
+                        nw_framer_parse_input(inner_framer, headerReq, headerReq, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
                             if (buffer_length >= headerReq) {
                                 context.bodyLen = [SSBMuxRPCMessage parseHeader:[NSData dataWithBytes:buffer length:headerReq] 
                                                                        outFlags:&flags 
@@ -52,6 +90,13 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
                                 context.flags = flags;
                                 context.reqNum = reqNum;
                                 success = YES;
+                                SSBMuxRPCEmitTrace(context.connectionID,
+                                                   @"inbound",
+                                                   context.state,
+                                                   reqNum,
+                                                   @"Parsed muxrpc header",
+                                                   @{ @"flags": @(flags),
+                                                      @"bodyLength": @(context.bodyLen) });
                                 return headerReq;
                             }
                             return 0;
@@ -73,6 +118,13 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
                                     nw_framer_message_set_object_value(message, "Flags", @(context.flags));
                                     nw_framer_message_set_object_value(message, "RequestNumber", @(context.reqNum));
                                     nw_framer_deliver_input(inner_framer, buffer, bodyReq, message, true);
+                                    SSBMuxRPCEmitTrace(context.connectionID,
+                                                       @"inbound",
+                                                       context.state,
+                                                       context.reqNum,
+                                                       @"Delivered muxrpc body",
+                                                       @{ @"flags": @(context.flags),
+                                                          @"bodyLength": @(bodyReq) });
                                     success = YES;
                                     return bodyReq;
                                 }
@@ -85,8 +137,23 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
                             nw_framer_message_t message = nw_framer_message_create(inner_framer);
                             nw_framer_message_set_object_value(message, "Flags", @(context.flags));
                             nw_framer_message_set_object_value(message, "RequestNumber", @(context.reqNum));
-                            nw_framer_deliver_input(inner_framer, NULL, 0, message, true);
+#ifdef __APPLE__
+                            /*
+                             Network.framework drops metadata for zero-length framer deliveries. Preserve
+                             the message boundary with a private placeholder byte and strip it in transport.
+                             */
+                            nw_framer_message_set_object_value(message, kSSBMuxRPCSyntheticZeroLengthBodyKey, @YES);
+                            nw_framer_deliver_input(inner_framer, &kSSBMuxRPCEmptyPayloadByte, 1, message, true);
+#else
+                            nw_framer_deliver_input(inner_framer, &kSSBMuxRPCEmptyPayloadByte, 0, message, true);
+#endif
                             success = YES;
+                            SSBMuxRPCEmitTrace(context.connectionID,
+                                               @"inbound",
+                                               context.state,
+                                               context.reqNum,
+                                               @"Delivered zero-length muxrpc body",
+                                               @{ @"flags": @(context.flags) });
                             os_log_debug(ssb_rpc_log, "DELIVERED empty message: flags=%u req=%d", context.flags, context.reqNum);
                         }
                         
@@ -110,6 +177,19 @@ typedef NS_ENUM(NSInteger, SSBMuxRPCState) {
 + (void)handleOutput:(nw_framer_t)framer message:(nw_framer_message_t)message messageLength:(size_t)messageLength {
     os_log_debug(ssb_rpc_log, "handleOutput: passing through %zu bytes", messageLength);
     nw_framer_parse_output(framer, messageLength, messageLength, NULL, ^size_t(uint8_t *buffer, size_t buffer_length, bool is_complete) {
+        SSBMuxRPCFlags flags = 0;
+        int32_t requestNumber = 0;
+        if (buffer_length >= 9) {
+            NSData *header = [NSData dataWithBytes:buffer length:9];
+            [SSBMuxRPCMessage parseHeader:header outFlags:&flags outRequestNumber:&requestNumber];
+        }
+        SSBMuxRPCEmitTrace(nil,
+                           @"outbound",
+                           SSBMuxRPCStateBody,
+                           requestNumber,
+                           @"Forwarded muxrpc payload to transport",
+                           @{ @"flags": @(flags),
+                              @"wireLength": @(buffer_length) });
         nw_framer_write_output_data(framer, dispatch_data_create(buffer, buffer_length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT));
         return buffer_length;
     });

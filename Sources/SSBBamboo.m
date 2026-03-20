@@ -134,19 +134,26 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 #pragma mark - Lipmaa
 
 + (NSInteger)lipmaaSequenceFor:(NSInteger)seq {
-    if (seq <= 1) return 1;
-    NSInteger n = seq;
-    while (n > 1) {
-        NSInteger p = 1;
-        while (p * 3 <= n) p *= 3;
-        n -= p;
+    if (seq <= 1) {
+        return 1;
     }
-    return seq - (seq - n) - 1;
+
+    NSInteger largestPowerOfThreeBelowSeq = 1;
+    while (largestPowerOfThreeBelowSeq <= (NSIntegerMax / 3) &&
+           largestPowerOfThreeBelowSeq * 3 < seq) {
+        largestPowerOfThreeBelowSeq *= 3;
+    }
+
+    return MAX(1, seq - largestPowerOfThreeBelowSeq);
 }
 
 #pragma mark - Hashing
 
 + (nullable NSData *)hashData:(NSData *)data {
+    if (!data) {
+        return nil;
+    }
+
     uint8_t hash[32];
     if (blake2b256(hash, data.bytes, data.length) != 0) return nil;
     return [NSData dataWithBytes:hash length:sizeof(hash)];
@@ -155,15 +162,17 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 #pragma mark - Entry Validation
 
 + (BOOL)validateEntry:(NSData *)entryData {
+    if (!entryData) return NO;
     if (entryData.length < kBambooMinSize) return NO;
     const uint8_t *bytes = (const uint8_t *)entryData.bytes;
+    if (bytes[kIsEndOffset] != 0 && bytes[kIsEndOffset] != 1) return NO;
     uint64_t seqBE = 0;
     memcpy(&seqBE, bytes + kSeqOffset, 8);
     uint64_t seq = CFSwapInt64BigToHost(seqBE);
     if (seq < 1) return NO;
     BOOL hasLinks = (seq > 1);
     NSUInteger expectedSize = hasLinks ? 241 : 177;
-    if (entryData.length < expectedSize) return NO;
+    if (entryData.length != expectedSize) return NO;
     uint64_t payloadSizeBE = 0;
     memcpy(&payloadSizeBE, bytes + (hasLinks ? kPayloadSizeSeqN : kPayloadSizeSeq1), 8);
     uint64_t payloadSize = CFSwapInt64BigToHost(payloadSizeBE);
@@ -177,17 +186,40 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 
 + (BOOL)verifySignature:(NSData *)signature forData:(NSData *)data withAuthor:(NSData *)author {
     if (signature.length != 64 || author.length != 32) return NO;
-    NSMutableData *sm = [NSMutableData dataWithData:signature];
-    [sm appendData:data];
-    unsigned char m[data.length];
-    unsigned long long mlen;
-    int ret = crypto_sign_open(m, &mlen, sm.bytes, (unsigned long long)sm.length, author.bytes);
-    return (ret == 0 && mlen == data.length && memcmp(m, data.bytes, data.length) == 0);
+    NSUInteger signedMessageLength = signature.length + data.length;
+    uint8_t *signedMessage = (uint8_t *)malloc(signedMessageLength);
+    if (!signedMessage) {
+        return NO;
+    }
+
+    memcpy(signedMessage, signature.bytes, signature.length);
+    memcpy(signedMessage + signature.length, data.bytes, data.length);
+
+    uint8_t *opened = (uint8_t *)malloc(signedMessageLength);
+    if (!opened) {
+        free(signedMessage);
+        return NO;
+    }
+
+    unsigned long long openedLength = 0;
+    int ret = crypto_sign_open(opened,
+                               &openedLength,
+                               signedMessage,
+                               (unsigned long long)signedMessageLength,
+                               author.bytes);
+
+    free(signedMessage);
+    free(opened);
+
+    return (ret == 0 && openedLength == data.length);
 }
 
 #pragma mark - Entry ID
 
 + (nullable NSData *)computeEntryID:(NSData *)entryData {
+    if (![self validateEntry:entryData]) {
+        return nil;
+    }
     return [self hashData:entryData];
 }
 
@@ -270,4 +302,3 @@ static const NSUInteger kSigOffsetSeq1      = 113; // 64 bytes
 }
 
 @end
-

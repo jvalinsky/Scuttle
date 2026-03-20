@@ -11,11 +11,18 @@
 #import "SSBTunnelConnection.h"
 #import "SSBBamboo.h"
 #import "SSBFeedCodecRegistry.h"
+#import "SSBLogger.h"
 #import <stdlib.h>
 
 static os_log_t ssb_room_log;
-static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
 static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
+
+typedef void (^SSBRoomClientTraceSink)(NSDictionary<NSString *, id> *event);
+
+@interface SSBLogger (SSBRoomClientTrace)
++ (void)ssb_setProtocolTraceSink:(nullable SSBRoomClientTraceSink)sink;
++ (void)ssb_emitProtocolTraceEvent:(NSDictionary<NSString *, id> *)event;
+@end
 
 @interface SSBRoomClient ()
 @property (nonatomic, copy) NSString *host;
@@ -34,6 +41,7 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 @property (nonatomic, strong) NSDictionary *serverManifest;
 @property (nonatomic, strong) NSMutableArray<NSString *> *attendantsList;
 @property (nonatomic, strong) SSBFeedStore *feedStore;
+@property (nonatomic, strong) SSBBlobStore *blobStore;
 @property (nonatomic, readwrite, nullable) NSArray<NSString *> *roomFeatures;
 @property (nonatomic, copy, nullable) NSArray<NSString *> *endpointDiscoveryMethodInUse;
 @property (nonatomic, assign) uint64_t endpointDiscoverySubscriptionGeneration;
@@ -48,10 +56,21 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *internalPeerSyncStates;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDate *> *peerNextTunnelRetryAt;
 @property (nonatomic, strong) NSMapTable<SSBMuxRPCSession *, NSNumber *> *ebtRequestIDsBySession;
+@property (nonatomic, copy, nullable) SSBRoomClientTraceSink traceSink;
+@property (nonatomic, copy) NSString *connectionTraceID;
 
 /// Tracks per-peer EBT state to handle bilateral replication properly.
 /// Key: peer ID, Value: dictionary with { @"requestID": NSNumber, @"clock": NSMutableDictionary }
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSMutableDictionary *> *peerEBTState;
+
+- (instancetype)initWithHost:(NSString *)host
+                        port:(uint16_t)port
+                serverPubKey:(NSData *)serverPubKey
+               localIdentity:(nullable NSData *)localIdentitySecret
+                   feedStore:(nullable SSBFeedStore *)feedStore
+                   blobStore:(nullable SSBBlobStore *)blobStore
+            transportBackend:(nullable id<SSBTransportBackend>)transportBackend
+                   traceSink:(nullable SSBRoomClientTraceSink)traceSink;
 @end
 
 @implementation SSBRoomClient
@@ -74,49 +93,125 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
     if (message.length == 0) {
         return;
     }
+    [self emitProtocolTraceWithDirection:@"local"
+                               requestID:nil
+                             framerState:nil
+                                 message:message
+                                  extras:nil];
+}
 
-    static dispatch_queue_t diagQueue;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        diagQueue = dispatch_queue_create("com.scuttlebutt.room.peerdiag", DISPATCH_QUEUE_SERIAL);
-    });
+- (nullable NSString *)tracePeerID {
+    if (self.serverPubKey.length == 32) {
+        return [NSString stringWithFormat:@"@%@.ed25519",
+                [self.serverPubKey base64EncodedStringWithOptions:0]];
+    }
+    return self.host.length > 0 ? self.host : nil;
+}
 
-    NSString *host = self.host ?: @"<unknown-host>";
-    NSString *line = [NSString stringWithFormat:@"[%@] host=%@ %@\n", [NSDate date], host, message];
-    NSData *lineData = [line dataUsingEncoding:NSUTF8StringEncoding];
+static NSDictionary<NSString *, id> *SSBRoomTraceRPCMetadataForBody(NSData *bodyData) {
+    if (![bodyData isKindOfClass:[NSData class]] || bodyData.length == 0) {
+        return nil;
+    }
 
-    dispatch_async(diagQueue, ^{
-        @autoreleasepool {
-            NSFileManager *fm = [NSFileManager defaultManager];
-            if (![fm fileExistsAtPath:kSRPeerDiscoveryLogPath]) {
-                [fm createFileAtPath:kSRPeerDiscoveryLogPath contents:nil attributes:nil];
-            }
+    id json = [NSJSONSerialization JSONObjectWithData:bodyData
+                                              options:NSJSONReadingAllowFragments
+                                                error:nil];
+    if (![json isKindOfClass:[NSDictionary class]]) {
+        return nil;
+    }
 
-            NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:kSRPeerDiscoveryLogPath];
-            if (!handle) {
-                return;
-            }
-            @try {
-                [handle seekToEndOfFile];
-                [handle writeData:lineData];
-            } @catch (__unused NSException *exception) {
-                // Ignore diagnostic write failures.
-            } @finally {
-                [handle closeFile];
+    NSMutableDictionary<NSString *, id> *extras = [NSMutableDictionary dictionary];
+    NSArray *name = json[@"name"];
+    if ([name isKindOfClass:[NSArray class]]) {
+        NSMutableArray<NSString *> *path = [NSMutableArray array];
+        for (id component in name) {
+            if ([component isKindOfClass:[NSString class]] && [component length] > 0) {
+                [path addObject:component];
             }
         }
-    });
+        if (path.count > 0) {
+            extras[@"rpcPath"] = [path copy];
+            extras[@"rpcName"] = [path componentsJoinedByString:@"."];
+        }
+    }
+
+    NSString *type = json[@"type"];
+    if ([type isKindOfClass:[NSString class]] && type.length > 0) {
+        extras[@"rpcType"] = type;
+    }
+
+    NSArray *args = json[@"args"];
+    if ([args isKindOfClass:[NSArray class]]) {
+        extras[@"rpcArgsCount"] = @(args.count);
+    }
+
+    return extras.count > 0 ? extras : nil;
+}
+
+static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSString *, id> *base,
+                                                             NSDictionary<NSString *, id> *rpcMetadata) {
+    NSMutableDictionary<NSString *, id> *extras = [NSMutableDictionary dictionary];
+    if (base.count > 0) {
+        [extras addEntriesFromDictionary:base];
+    }
+    if (rpcMetadata.count > 0) {
+        [extras addEntriesFromDictionary:rpcMetadata];
+    }
+    return extras.count > 0 ? extras : nil;
+}
+
+- (void)emitProtocolTraceWithDirection:(NSString *)direction
+                             requestID:(nullable NSNumber *)requestID
+                           framerState:(nullable NSString *)framerState
+                               message:(NSString *)message
+                                extras:(nullable NSDictionary<NSString *, id> *)extras {
+    NSMutableDictionary<NSString *, id> *event = [NSMutableDictionary dictionary];
+    event[@"component"] = @"room.client";
+    event[@"connectionID"] = self.connectionTraceID ?: @"room-client";
+    event[@"direction"] = direction ?: @"local";
+    event[@"peerID"] = [self tracePeerID] ?: @"<unknown-peer>";
+    event[@"message"] = message ?: @"";
+    if (requestID) {
+        event[@"requestID"] = requestID;
+    }
+    if (framerState.length > 0) {
+        event[@"framerState"] = framerState;
+    }
+    if (extras.count > 0) {
+        [event addEntriesFromDictionary:extras];
+    }
+    [SSBLogger ssb_emitProtocolTraceEvent:event];
 }
 
 - (instancetype)initWithHost:(NSString *)host 
                         port:(uint16_t)port 
                 serverPubKey:(NSData *)serverPubKey 
                localIdentity:(nullable NSData *)localIdentitySecret {
+    return [self initWithHost:host
+                         port:port
+                 serverPubKey:serverPubKey
+                localIdentity:localIdentitySecret
+                    feedStore:[SSBFeedStore sharedStore]
+                    blobStore:[SSBBlobStore sharedStore]
+             transportBackend:[SSBTransport defaultBackend]
+                    traceSink:nil];
+}
+
+- (instancetype)initWithHost:(NSString *)host
+                        port:(uint16_t)port
+                serverPubKey:(NSData *)serverPubKey
+               localIdentity:(nullable NSData *)localIdentitySecret
+                   feedStore:(SSBFeedStore *)feedStore
+                   blobStore:(SSBBlobStore *)blobStore
+            transportBackend:(id<SSBTransportBackend>)transportBackend
+                   traceSink:(nullable SSBRoomClientTraceSink)traceSink {
     self = [super init];
     if (self) {
         _host = [host copy];
         _port = port;
         _serverPubKey = serverPubKey;
+        _traceSink = [traceSink copy];
+        _connectionTraceID = [[NSUUID UUID] UUIDString];
         
         if (localIdentitySecret) {
             _localIdentitySecret = localIdentitySecret;
@@ -136,7 +231,7 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
                                     SSBRoomClientQueueKey,
                                     (void *)SSBRoomClientQueueKey,
                                     NULL);
-        _transportBackend = [SSBTransport defaultBackend];
+        _transportBackend = transportBackend ?: [SSBTransport defaultBackend];
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
         __weak typeof(self) weakSelf = self;
@@ -148,7 +243,8 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
         };
         
         _attendantsList = [NSMutableArray array];
-        _feedStore = [SSBFeedStore sharedStore];
+        _feedStore = feedStore ?: [SSBFeedStore sharedStore];
+        _blobStore = blobStore ?: [SSBBlobStore sharedStore];
         _activeTunnels = [NSMutableDictionary dictionary];
         _pendingPublishQueue = [NSMutableArray array];
         _internalPeerSyncProgress = [NSMutableDictionary dictionary];
@@ -163,6 +259,10 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
         NSString *myId = [self localPublicID];
         SSBFeedState *state = [_feedStore feedStateForAuthor:myId];
         _localFeedSeq = state ? state.maxSequence : 0;
+
+        if (_traceSink) {
+            [SSBLogger ssb_setProtocolTraceSink:_traceSink];
+        }
     }
     return self;
 }
@@ -695,6 +795,7 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
     if (self.isConnected) return;
     
     os_log_info(ssb_room_log, "Connecting to %{public}@:%d", self.host, self.port);
+    self.connectionTraceID = [[NSUUID UUID] UUIDString];
     [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connect requested port=%u", self.port]];
     self.endpointDiscoveryMethodInUse = nil;
     
@@ -715,6 +816,11 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 
         if (state == SSBTransportConnectionStateReady) {
             os_log_info(ssb_room_log, "Connection state: READY");
+            [strongSelf emitProtocolTraceWithDirection:@"inbound"
+                                             requestID:nil
+                                           framerState:@"transport.ready"
+                                               message:@"Room transport ready"
+                                                extras:nil];
             [strongSelf appendPeerDiscoveryDiagnostic:@"connection state READY"];
             [strongSelf log:@"Connected and secured."];
             strongSelf.isConnected = YES;
@@ -727,6 +833,11 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
             [strongSelf performInitialSetup];
         } else if (state == SSBTransportConnectionStateFailed || state == SSBTransportConnectionStateCancelled) {
             os_log_info(ssb_room_log, "Connection state changed: %lu", (unsigned long)state);
+            [strongSelf emitProtocolTraceWithDirection:@"inbound"
+                                             requestID:nil
+                                           framerState:@"transport.closed"
+                                               message:@"Room transport closed"
+                                                extras:@{ @"state": @(state) }];
             [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%lu", (unsigned long)state]];
             strongSelf.isConnected = NO;
             strongSelf.endpointDiscoveryMethodInUse = nil;
@@ -761,6 +872,14 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
                 NSNumber *reqNumObj = metadata[SSBTransportMetadataRequestNumberKey];
 
                 if (flagsObj && reqNumObj) {
+                    NSDictionary<NSString *, id> *rpcMetadata = SSBRoomTraceRPCMetadataForBody(content);
+                    [strongSelf emitProtocolTraceWithDirection:@"inbound"
+                                                     requestID:reqNumObj
+                                                   framerState:@"muxrpc.receive"
+                                                       message:@"Received muxrpc payload from room"
+                                                        extras:SSBRoomTraceMergeExtras(@{ @"flags": flagsObj,
+                                                                                          @"bodyLength": @(content.length) },
+                                                                                        rpcMetadata)];
                     NSData *bodyData = content ?: [NSData data];
                     SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:[flagsObj unsignedIntValue]
                                                                       requestNumber:[reqNumObj intValue]
@@ -785,15 +904,34 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 - (void)sendRPCMessage:(SSBMuxRPCMessage *)msg {
     if (!self.isConnected) {
         os_log_debug(ssb_room_log, "sendRPCMessage DROPPING msg: isConnected=NO");
+        [self emitProtocolTraceWithDirection:@"outbound"
+                                   requestID:@(msg.requestNumber)
+                                 framerState:@"muxrpc.drop"
+                                     message:@"Dropped room RPC because transport is not connected"
+                                      extras:nil];
         [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ sendRPCMessage DROPPED (not connected) req=%d", self.host, msg.requestNumber]];
         return;
     }
     
     NSData *serialized = [msg serialize];
+    NSDictionary<NSString *, id> *rpcMetadata = SSBRoomTraceRPCMetadataForBody(msg.body);
+    [self emitProtocolTraceWithDirection:@"outbound"
+                               requestID:@(msg.requestNumber)
+                             framerState:@"muxrpc.send"
+                                 message:@"Sending room RPC over transport"
+                                  extras:SSBRoomTraceMergeExtras(@{ @"flags": @(msg.flags),
+                                                                    @"bodyLength": @(msg.body.length),
+                                                                    @"wireLength": @(serialized.length) },
+                                                                  rpcMetadata)];
     [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ sendRPCMessage req=%d len=%lu", self.host, msg.requestNumber, (unsigned long)serialized.length]];
     [self.connection sendData:serialized isComplete:YES completion:^(NSError * _Nullable error) {
         if (error) {
             os_log_error(ssb_room_log, "RPC send failed");
+            [self emitProtocolTraceWithDirection:@"outbound"
+                                       requestID:@(msg.requestNumber)
+                                     framerState:@"muxrpc.send.failed"
+                                         message:@"Room RPC send failed"
+                                          extras:@{ @"error": error.localizedDescription ?: @"unknown" }];
             [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ RPC send FAILED: %@", self.host, error.localizedDescription]];
         }
     }];
@@ -1138,12 +1276,12 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 }
 
 - (void)fetchBlob:(NSString *)blobID completion:(void (^)(NSString * _Nullable localPath, NSError * _Nullable error))completion {
-    [[SSBBlobStore sharedStore] fetchBlob:blobID session:self.rpcSession completion:completion];
+    [self.blobStore fetchBlob:blobID session:self.rpcSession completion:completion];
 }
 
 - (void)hasBlob:(NSString *)blobID completion:(void (^)(BOOL hasIt))completion {
     // Check local store first
-    if ([[SSBBlobStore sharedStore] hasBlob:blobID]) {
+    if ([self.blobStore hasBlob:blobID]) {
         dispatch_async(dispatch_get_main_queue(), ^{
             completion(YES);
         });
@@ -1935,6 +2073,11 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
     self.endpointDiscoveryMethodInUse = nil;
     self.endpointDiscoverySubscriptionGeneration += 1;
     self.endpointDiscoveryReceivedEvent = NO;
+    [self emitProtocolTraceWithDirection:@"local"
+                               requestID:nil
+                             framerState:@"transport.disconnect"
+                                 message:@"Room client disconnected"
+                                  extras:nil];
     [self appendPeerDiscoveryDiagnostic:@"disconnect called"];
 }
 
