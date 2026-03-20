@@ -12,6 +12,28 @@
     self.stack = [NSMutableArray array];
 }
 
+- (NSRect)contentFrameForCurrentBounds {
+    NSRect frame = self.view.bounds;
+    NSEdgeInsets insets = self.view.safeAreaInsets;
+    frame.origin.x += insets.left;
+    frame.origin.y += insets.bottom;
+    frame.size.width -= (insets.left + insets.right);
+    frame.size.height -= (insets.top + insets.bottom);
+    return NSIntegralRect(frame);
+}
+
+- (void)layoutStackViews {
+    NSRect frame = [self contentFrameForCurrentBounds];
+    for (NSViewController *vc in self.stack) {
+        vc.view.frame = frame;
+    }
+}
+
+- (void)viewDidLayout {
+    [super viewDidLayout];
+    [self layoutStackViews];
+}
+
 - (nullable NSViewController *)topViewController {
     return self.stack.lastObject;
 }
@@ -21,7 +43,7 @@
     [self.stack addObject:vc];
     [self addChildViewController:vc];
     vc.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    vc.view.frame = self.view.bounds;
+    vc.view.frame = [self contentFrameForCurrentBounds];
     [self.view addSubview:vc.view];
 }
 
@@ -39,15 +61,18 @@
     [self.stack addObject:toVC];
     [self addChildViewController:toVC];
     toVC.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    toVC.view.frame = fromVC ? fromVC.view.frame : self.view.bounds;
+    toVC.view.frame = fromVC ? fromVC.view.frame : [self contentFrameForCurrentBounds];
 
     if (fromVC) {
         [self transitionFromViewController:fromVC
                           toViewController:toVC
                                    options:NSViewControllerTransitionCrossfade
-                         completionHandler:nil];
+                         completionHandler:^{
+            [self layoutStackViews];
+        }];
     } else {
         [self.view addSubview:toVC.view];
+        [self layoutStackViews];
     }
 }
 
@@ -63,6 +88,7 @@
                                options:NSViewControllerTransitionCrossfade
                      completionHandler:^{
         [fromVC removeFromParentViewController];
+        [self layoutStackViews];
     }];
 }
 

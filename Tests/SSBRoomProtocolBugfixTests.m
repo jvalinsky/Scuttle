@@ -34,6 +34,7 @@
 - (void)handleAttendantsResponse:(id)response;
 - (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID;
 - (void)reportSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author;
+- (void)connectToPeer:(NSString *)targetPeerId;
 - (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items;
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
 - (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
@@ -3121,6 +3122,39 @@
     [[NSNotificationCenter defaultCenter] removeObserver:token];
 
     XCTAssertEqual(notificationCount, 0);
+}
+
+- (void)testTunnelConnectIncludesOriginPeerID {
+    NSString *targetPeerID = [self feedIDForByte:0x36];
+    NSString *expectedOrigin = [self.client localPublicID];
+    XCTestExpectation *requestSent = [self expectationWithDescription:@"tunnel.connect request sent"];
+    __block NSString *capturedOrigin = nil;
+    __block NSString *capturedTarget = nil;
+
+    self.client.rpcSession.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
+        NSDictionary *body = [NSJSONSerialization JSONObjectWithData:message.body options:0 error:nil];
+        if (![body isKindOfClass:[NSDictionary class]]) {
+            return;
+        }
+
+        NSArray *name = body[@"name"];
+        if (![name isEqual:@[@"tunnel", @"connect"]]) {
+            return;
+        }
+
+        NSDictionary *args = [body[@"args"] firstObject];
+        capturedOrigin = args[@"origin"];
+        capturedTarget = args[@"target"];
+        [requestSent fulfill];
+    };
+
+    [self.client setValue:@YES forKey:@"isConnected"];
+    [self.client connectToPeer:targetPeerID];
+
+    [self waitForExpectations:@[requestSent] timeout:2.0];
+
+    XCTAssertEqualObjects(capturedTarget, targetPeerID);
+    XCTAssertEqualObjects(capturedOrigin, expectedOrigin);
 }
 
 /**

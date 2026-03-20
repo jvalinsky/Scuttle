@@ -1684,11 +1684,18 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     }
     
     NSString *portalId = [NSString stringWithFormat:@"@%@.ed25519", [self.serverPubKey base64EncodedStringWithOptions:0]];
-    NSDictionary *args = @{@"portal": portalId, @"target": targetPeerId};
+    NSString *originPeerId = [self localPublicID];
+    NSMutableDictionary *args = [@{
+        @"portal": portalId,
+        @"target": targetPeerId
+    } mutableCopy];
+    if (originPeerId.length > 0) {
+        args[@"origin"] = originPeerId;
+    }
     
     __weak typeof(self) weakSelf = self;
     __block int32_t reqID = 0;
-    reqID = [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[args] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+    reqID = [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[[args copy]] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         
