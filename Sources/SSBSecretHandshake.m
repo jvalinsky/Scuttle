@@ -306,8 +306,18 @@ static os_log_t ssb_shs_log;
     self.clientToServerKey = [NSData dataWithBytes:aliceToBob length:32];
     self.serverToClientKey = [NSData dataWithBytes:bobToAlice length:32];
     
-    self.clientToServerNonce = [self.remoteAppMac subdataWithRange:NSMakeRange(0, 24)];
-    self.serverToClientNonce = [self.localAppMac subdataWithRange:NSMakeRange(0, 24)];
+    // Nonces must use absolute direction names regardless of role:
+    //   clientToServer nonce = HMAC(appKey, server_eph_pub)[:24]  (always)
+    //   serverToClient nonce = HMAC(appKey, client_eph_pub)[:24]  (always)
+    // For the client: remoteAppMac = HMAC(server_eph), localAppMac = HMAC(client_eph)
+    // For the server: remoteAppMac = HMAC(client_eph), localAppMac = HMAC(server_eph)
+    if (self.isClient) {
+        self.clientToServerNonce = [self.remoteAppMac subdataWithRange:NSMakeRange(0, 24)];
+        self.serverToClientNonce = [self.localAppMac subdataWithRange:NSMakeRange(0, 24)];
+    } else {
+        self.clientToServerNonce = [self.localAppMac subdataWithRange:NSMakeRange(0, 24)];
+        self.serverToClientNonce = [self.remoteAppMac subdataWithRange:NSMakeRange(0, 24)];
+    }
 }
 
 @end
