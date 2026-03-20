@@ -39,6 +39,7 @@
 - (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items;
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
 - (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
+- (void)reportTunnelReadyForPeer:(NSString *)peerID;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, strong) dispatch_queue_t clientQueue;
 @property (nonatomic, strong) NSMutableData *rpcBuffer;
@@ -3169,6 +3170,21 @@
     ]];
 
     XCTAssertEqualObjects(filtered, (@[remotePeerID]));
+}
+
+- (void)testTunnelReadyStatusOverridesHandshakingWithoutClockUpdate {
+    NSString *peerID = [self feedIDForByte:0x38];
+
+    [self.client reportSyncStatus:@"Handshaking..." progress:0.1f author:peerID];
+    [self flushClientQueue:self.client];
+    XCTAssertEqualObjects(self.client.peerSyncStates[peerID], @"Handshaking...");
+
+    [self.client reportTunnelReadyForPeer:peerID];
+    [self flushClientQueue:self.client];
+    [self drainMainQueue];
+
+    XCTAssertEqualObjects(self.client.peerSyncStates[peerID], @"Connected");
+    XCTAssertEqualWithAccuracy(self.client.peerSyncProgress[peerID].floatValue, 0.2f, 0.001f);
 }
 
 /**

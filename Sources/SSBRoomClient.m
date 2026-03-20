@@ -1462,6 +1462,20 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     return nil;
 }
 
+- (void)reportTunnelReadyForPeer:(NSString *)peerID {
+    if (peerID.length == 0) {
+        return;
+    }
+
+    [self reportSyncStatus:@"Connected" progress:0.2f author:peerID];
+
+    if ([self.delegate respondsToSelector:@selector(roomClient:didEstablishTunnelWithPeer:)]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.delegate roomClient:self didEstablishTunnelWithPeer:peerID];
+        });
+    }
+}
+
 - (void)updateSyncProgressForAuthor:(NSString *)author fromPeer:(nullable NSString *)peerID {
     if (author.length == 0) {
         return;
@@ -1781,6 +1795,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         __strong typeof(weakSelfOuter) strongSelfOuter = weakSelfOuter;
         if (strongSelfOuter) {
             os_log_info(ssb_room_log, "Tunnel to %@ is ready for RPC!", targetPeerId);
+            [strongSelfOuter reportTunnelReadyForPeer:targetPeerId];
             [strongSelfOuter replicateFromPeer:targetPeerId viaRoom:strongSelfOuter.host];
         }
     };
@@ -1933,6 +1948,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (strongSelf) {
             os_log_info(ssb_room_log, "Incoming tunnel from %@ is ready!", originPeerId);
+            [strongSelf reportTunnelReadyForPeer:originPeerId];
             [strongSelf replicateFromPeer:originPeerId viaRoom:strongSelf.host];
         }
     };
