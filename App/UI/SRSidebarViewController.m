@@ -21,6 +21,7 @@ static os_log_t sidebar_log;
 @property (nonatomic, strong) NSView *syncStatusContainer;
 @property (nonatomic, strong) NSProgressIndicator *syncProgress;
 @property (nonatomic, strong) NSTextField *syncLabel;
+@property (nonatomic, copy, nullable) NSString *selectedRoomHost;
 @end
 
 @implementation SRSidebarViewController
@@ -65,6 +66,11 @@ static os_log_t sidebar_log;
                                                object:nil];
 
     [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(roomSelected:)
+                                                 name:SRRoomManagerRoomSelectedNotification
+                                               object:nil];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(gitReposDidUpdate:)
                                                  name:SRGitRepoCreatedNotification
                                                object:nil];
@@ -100,24 +106,12 @@ static os_log_t sidebar_log;
 
 - (void)syncStatusDidUpdate:(NSNotification *)notification {
     NSDictionary *userInfo = notification.userInfo;
-    NSString *status = userInfo[@"status"];
-    float progress = [userInfo[@"progress"] floatValue];
-    
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.syncLabel.stringValue = status ?: @"Idle";
-        if (progress < 1.0 && progress >= 0.0) {
-            [self.syncProgress startAnimation:nil];
-            self.syncStatusContainer.hidden = NO;
-        } else {
-            [self.syncProgress stopAnimation:nil];
-            // Hide after a short delay if idle
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if ([self.syncLabel.stringValue isEqualToString:@"Idle"] || [self.syncLabel.stringValue hasPrefix:@"Synced"]) {
-                    self.syncStatusContainer.hidden = YES;
-                }
-            });
-        }
-    });
+    NSString *host = userInfo[SRRoomSyncStatusHostKey];
+    if (self.selectedRoomHost.length == 0 || ![host isEqualToString:self.selectedRoomHost]) {
+        return;
+    }
+
+    [self applySyncStatus:userInfo[SRRoomSyncStatusKey] progress:[userInfo[SRRoomSyncStatusProgressKey] floatValue]];
 }
 
 - (void)roomsDidUpdate:(NSNotification *)notification {
@@ -129,6 +123,12 @@ static os_log_t sidebar_log;
             [self.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
         }
     });
+}
+
+- (void)roomSelected:(NSNotification *)notification {
+    RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
+    self.selectedRoomHost = room.host;
+    [self refreshSelectedRoomSyncStatus];
 }
 
 - (void)setupUI {
@@ -326,6 +326,30 @@ static os_log_t sidebar_log;
             });
         }];
     }
+}
+
+- (void)refreshSelectedRoomSyncStatus {
+    NSString *status = self.selectedRoomHost.length > 0 ? [[SRRoomManager sharedManager] syncStatusForHost:self.selectedRoomHost] : nil;
+    float progress = self.selectedRoomHost.length > 0 ? [[SRRoomManager sharedManager] syncProgressForHost:self.selectedRoomHost] : 1.0f;
+    [self applySyncStatus:status progress:progress];
+}
+
+- (void)applySyncStatus:(nullable NSString *)status progress:(float)progress {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *resolvedStatus = status ?: @"Idle";
+        self.syncLabel.stringValue = resolvedStatus;
+        if (progress < 1.0f && progress >= 0.0f) {
+            [self.syncProgress startAnimation:nil];
+            self.syncStatusContainer.hidden = NO;
+        } else {
+            [self.syncProgress stopAnimation:nil];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                if ([self.syncLabel.stringValue isEqualToString:@"Idle"] || [self.syncLabel.stringValue hasPrefix:@"Synced"]) {
+                    self.syncStatusContainer.hidden = YES;
+                }
+            });
+        }
+    });
 }
 
 - (void)tableViewSelectionDidChange:(NSNotification *)notification {

@@ -39,6 +39,11 @@ extern NSString * const SRRoomManagerEndpointsListKey;
 /// Returns the cached display name for an author, or the author ID if none is stored yet.
 - (NSString *)displayNameForAuthor:(NSString *)author;
 
+- (NSDictionary<NSString *, NSString *> *)peerSyncStatesForHost:(NSString *)host;
+- (NSDictionary<NSString *, NSNumber *> *)peerSyncProgressForHost:(NSString *)host;
+- (nullable NSString *)syncStatusForHost:(NSString *)host;
+- (float)syncProgressForHost:(NSString *)host;
+
 /**
  * Resolves the display name for a given author by querying the feed store for About messages.
  */

@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak) id<SRPeerListDelegate> delegate;
 @property (nonatomic, copy, readonly) NSArray<NSString *> *peers;
 @property (nonatomic, strong, readonly) NSProgressIndicator *progressIndicator;
+@property (nonatomic, copy, nullable) NSString *roomHost;
 - (void)updatePeers:(NSArray<NSString *> *)peers;
 
 @end

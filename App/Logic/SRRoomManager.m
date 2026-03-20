@@ -53,6 +53,10 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 @property (nonatomic, strong) NSMutableArray<RoomConfig *> *internalRooms;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, SSBRoomClient *> *internalClients;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSArray<NSString *> *> *internalRoomEndpoints;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *internalPeerSyncProgressByHost;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *internalPeerSyncStatesByHost;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *internalSyncStatusByHost;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *internalSyncProgressByHost;
 @property (nonatomic, strong) dispatch_queue_t managerQueue;
 /// Set during bootstrap when a metafeed/announce message still needs to be published.
 @property (nonatomic, assign) BOOL needsMetafeedAnnounce;
@@ -81,6 +85,10 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         _internalRooms = [[RoomStorage listRooms] mutableCopy];
         _internalClients = [NSMutableDictionary dictionary];
         _internalRoomEndpoints = [NSMutableDictionary dictionary];
+        _internalPeerSyncProgressByHost = [NSMutableDictionary dictionary];
+        _internalPeerSyncStatesByHost = [NSMutableDictionary dictionary];
+        _internalSyncStatusByHost = [NSMutableDictionary dictionary];
+        _internalSyncProgressByHost = [NSMutableDictionary dictionary];
         _managerQueue = dispatch_queue_create("com.scuttlebutt.roommanager", DISPATCH_QUEUE_SERIAL);
         
         // Auto-connect to saved rooms
@@ -238,12 +246,39 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 }
 
 - (void)roomClient:(SSBRoomClient *)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSMutableDictionary *userInfo = [@{@"status": status, @"progress": @(progress)} mutableCopy];
-        if (author) userInfo[@"author"] = author;
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomSyncStatusChangedNotification
-                                                            object:client
-                                                          userInfo:[userInfo copy]];
+    NSString *host = client.host ?: @"";
+    if (host.length == 0 || status.length == 0) {
+        return;
+    }
+
+    dispatch_async(self.managerQueue, ^{
+        NSMutableDictionary<NSString *, NSNumber *> *progressByAuthor = [self.internalPeerSyncProgressByHost[host] mutableCopy] ?: [NSMutableDictionary dictionary];
+        NSMutableDictionary<NSString *, NSString *> *statusByAuthor = [self.internalPeerSyncStatesByHost[host] mutableCopy] ?: [NSMutableDictionary dictionary];
+
+        if (author.length > 0) {
+            progressByAuthor[author] = @(progress);
+            statusByAuthor[author] = status;
+            self.internalPeerSyncProgressByHost[host] = [progressByAuthor copy];
+            self.internalPeerSyncStatesByHost[host] = [statusByAuthor copy];
+        }
+
+        self.internalSyncStatusByHost[host] = status;
+        self.internalSyncProgressByHost[host] = @(progress);
+
+        NSMutableDictionary *userInfo = [@{
+            SRRoomSyncStatusHostKey: host,
+            SRRoomSyncStatusKey: status,
+            SRRoomSyncStatusProgressKey: @(progress)
+        } mutableCopy];
+        if (author.length > 0) {
+            userInfo[SRRoomSyncStatusAuthorKey] = author;
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomSyncStatusChangedNotification
+                                                                object:client
+                                                              userInfo:[userInfo copy]];
+        });
     });
 }
 
@@ -365,6 +400,13 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 }
 
 - (void)disconnectFromRoom:(NSString *)host {
+    dispatch_sync(self.managerQueue, ^{
+        [self.internalRoomEndpoints removeObjectForKey:host];
+        [self.internalPeerSyncProgressByHost removeObjectForKey:host];
+        [self.internalPeerSyncStatesByHost removeObjectForKey:host];
+        [self.internalSyncStatusByHost removeObjectForKey:host];
+        [self.internalSyncProgressByHost removeObjectForKey:host];
+    });
     SSBRoomClient *client = self.internalClients[host];
     [client disconnect];
 }
@@ -378,6 +420,10 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         [self.internalClients removeAllObjects];
         [self.internalRooms removeAllObjects];
         [self.internalRoomEndpoints removeAllObjects];
+        [self.internalPeerSyncProgressByHost removeAllObjects];
+        [self.internalPeerSyncStatesByHost removeAllObjects];
+        [self.internalSyncStatusByHost removeAllObjects];
+        [self.internalSyncProgressByHost removeAllObjects];
     });
 
     for (SSBRoomClient *client in clientsSnapshot) {
@@ -547,6 +593,10 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         [self.internalClients removeObjectForKey:config.host];
         [self.internalRooms removeObject:config];
         [self.internalRoomEndpoints removeObjectForKey:config.host];
+        [self.internalPeerSyncProgressByHost removeObjectForKey:config.host];
+        [self.internalPeerSyncStatesByHost removeObjectForKey:config.host];
+        [self.internalSyncStatusByHost removeObjectForKey:config.host];
+        [self.internalSyncProgressByHost removeObjectForKey:config.host];
     });
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
@@ -559,6 +609,41 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
     }
 
     return [[SSBFeedStore sharedStore] displayNameForAuthor:author];
+}
+
+- (NSDictionary<NSString *, NSString *> *)peerSyncStatesForHost:(NSString *)host {
+    __block NSDictionary<NSString *, NSString *> *snapshot;
+    dispatch_sync(self.managerQueue, ^{
+        snapshot = [self.internalPeerSyncStatesByHost[host] copy] ?: @{};
+    });
+    return snapshot;
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)peerSyncProgressForHost:(NSString *)host {
+    __block NSDictionary<NSString *, NSNumber *> *snapshot;
+    dispatch_sync(self.managerQueue, ^{
+        snapshot = [self.internalPeerSyncProgressByHost[host] copy] ?: @{};
+    });
+    return snapshot;
+}
+
+- (nullable NSString *)syncStatusForHost:(NSString *)host {
+    __block NSString *status;
+    dispatch_sync(self.managerQueue, ^{
+        status = self.internalSyncStatusByHost[host];
+    });
+    return status;
+}
+
+- (float)syncProgressForHost:(NSString *)host {
+    __block float progress = 1.0f;
+    dispatch_sync(self.managerQueue, ^{
+        NSNumber *value = self.internalSyncProgressByHost[host];
+        if (value != nil) {
+            progress = value.floatValue;
+        }
+    });
+    return progress;
 }
 
 - (void)resolveDisplayNameForAuthor:(NSString *)author completion:(void(^)(NSString *name))completion {

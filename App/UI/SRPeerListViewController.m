@@ -1,5 +1,6 @@
 #import "SRPeerListViewController.h"
 #import "SSBFeedStore.h"
+#import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
 #import "SRPlatformLog.h"
 
@@ -185,11 +186,43 @@ static os_log_t peer_list_log;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:SRRoomSyncStatusChangedNotification object:nil];
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)setRoomHost:(NSString *)roomHost {
+    if ((_roomHost == roomHost) || [_roomHost isEqualToString:roomHost]) {
+        return;
+    }
+
+    _roomHost = [roomHost copy];
+    [self reloadSyncStateFromManager];
+}
+
+- (void)reloadSyncStateFromManager {
+    if (self.roomHost.length > 0) {
+        self.peerSyncProgress = [[[SRRoomManager sharedManager] peerSyncProgressForHost:self.roomHost] mutableCopy];
+        self.peerSyncStatus = [[[SRRoomManager sharedManager] peerSyncStatesForHost:self.roomHost] mutableCopy];
+    } else {
+        self.peerSyncProgress = [NSMutableDictionary dictionary];
+        self.peerSyncStatus = [NSMutableDictionary dictionary];
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.tableView reloadData];
+    });
+}
+
 - (void)syncStatusChanged:(NSNotification *)notification {
     NSDictionary *userInfo = notification.userInfo;
-    NSString *author = userInfo[@"author"];
-    NSString *status = userInfo[@"status"];
-    float progress = [userInfo[@"progress"] floatValue];
+    NSString *host = userInfo[SRRoomSyncStatusHostKey];
+    NSString *author = userInfo[SRRoomSyncStatusAuthorKey];
+    NSString *status = userInfo[SRRoomSyncStatusKey];
+    float progress = [userInfo[SRRoomSyncStatusProgressKey] floatValue];
+
+    if (self.roomHost.length == 0 || ![host isEqualToString:self.roomHost]) {
+        return;
+    }
     
     if (author) {
         os_log_debug(peer_list_log, "Sync status updated for %{public}@: %{public}@ (%f)", author, status, progress);

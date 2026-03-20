@@ -6,6 +6,7 @@
 #import <SSBNetwork/SSBRoomClient.h>
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRNotificationNames.h"
+#import "../Logic/SRRoomManager.h"
 #import "SRPlatformLog.h"
 
 static os_log_t profile_log;
@@ -113,6 +114,8 @@ static os_log_t profile_log;
     } else {
         SSBLogWarning(SSBLogCategoryUI, @"   Cannot replicate: client=%@ host=%@", self.client ? @"yes" : @"no", self.client.host);
     }
+
+    [self refreshSyncStatusFromManager];
     
     [self updateFollowButton];
 }
@@ -194,12 +197,27 @@ static os_log_t profile_log;
 
 - (void)syncStatusChanged:(NSNotification *)notification {
     NSDictionary *userInfo = notification.userInfo;
-    NSString *author = userInfo[@"author"];
-    NSString *status = userInfo[@"status"];
-    float progress = [userInfo[@"progress"] floatValue];
-    
-    if ([author isEqualToString:self.peerID]) {
+    NSString *host = userInfo[SRRoomSyncStatusHostKey];
+    NSString *author = userInfo[SRRoomSyncStatusAuthorKey];
+    NSString *status = userInfo[SRRoomSyncStatusKey];
+    float progress = [userInfo[SRRoomSyncStatusProgressKey] floatValue];
+
+    if (self.client.host.length > 0 &&
+        [host isEqualToString:self.client.host] &&
+        [author isEqualToString:self.peerID]) {
         [self.headerView updateSyncProgress:progress status:status];
+    }
+}
+
+- (void)refreshSyncStatusFromManager {
+    if (self.client.host.length == 0 || self.peerID.length == 0) {
+        return;
+    }
+
+    NSString *status = [[SRRoomManager sharedManager] peerSyncStatesForHost:self.client.host][self.peerID];
+    NSNumber *progress = [[SRRoomManager sharedManager] peerSyncProgressForHost:self.client.host][self.peerID];
+    if (status.length > 0 && progress != nil) {
+        [self.headerView updateSyncProgress:progress.floatValue status:status];
     }
 }
 

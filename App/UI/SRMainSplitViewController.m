@@ -186,6 +186,8 @@ static void SRPeerDiscoveryAppend(NSString *line) {
                            room.name ?: @"<none>"]);
 
     [self.homeVC.headerView updateWithIdentity:room.host name:room.name];
+    self.peerListVC.roomHost = room.host;
+    self.homeVC.composeVC.roomHost = room.host;
 
     [self.homeVC.feedVC.progressIndicator startAnimation:nil];
     [self.peerListVC.progressIndicator startAnimation:nil];
@@ -293,9 +295,13 @@ static void SRPeerDiscoveryAppend(NSString *line) {
     if (!self.selectedRoom) {
         os_log_debug(split_log, "updatePeerList called but no room selected");
         SRPeerDiscoveryAppend(@"updatePeerList no selected room");
+        self.peerListVC.roomHost = nil;
+        self.homeVC.composeVC.roomHost = nil;
         [self.peerListVC updatePeers:@[]];
         return;
     }
+    self.peerListVC.roomHost = self.selectedRoom.host;
+    self.homeVC.composeVC.roomHost = self.selectedRoom.host;
     NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[self.selectedRoom.host];
     os_log_debug(split_log, "updatePeerList for %{public}@ - found %lu peers", self.selectedRoom.host, (unsigned long)peers.count);
     SRPeerDiscoveryAppend([NSString stringWithFormat:@"updatePeerList host=%@ peers=%lu",

@@ -32,6 +32,19 @@
                                                object:nil];
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)setRoomHost:(NSString *)roomHost {
+    if ((_roomHost == roomHost) || [_roomHost isEqualToString:roomHost]) {
+        return;
+    }
+
+    _roomHost = [roomHost copy];
+    [self refreshPublishState];
+}
+
 - (void)setupUI {
     self.cwField = [[NSTextField alloc] init];
     self.cwField.placeholderString = @"Content Warning (optional)";
@@ -94,15 +107,30 @@
 
 - (void)syncStatusDidUpdate:(NSNotification *)notification {
     NSDictionary *userInfo = notification.userInfo;
-    NSString *status = userInfo[@"status"];
+    NSString *host = userInfo[SRRoomSyncStatusHostKey];
+
+    if (self.roomHost.length == 0 || ![host isEqualToString:self.roomHost]) {
+        return;
+    }
+
+    [self applySyncStatus:userInfo[SRRoomSyncStatusKey]];
+}
+
+- (void)refreshPublishState {
+    NSString *status = self.roomHost.length > 0 ? [[SRRoomManager sharedManager] syncStatusForHost:self.roomHost] : nil;
+    [self applySyncStatus:status];
+}
+
+- (void)applySyncStatus:(nullable NSString *)status {
+    NSString *resolvedStatus = status ?: @"Idle";
     
     dispatch_async(dispatch_get_main_queue(), ^{
         // Disable publish if syncing or queued
-        BOOL isSyncing = [status containsString:@"Syncing"] || [status containsString:@"Queued"];
+        BOOL isSyncing = [resolvedStatus containsString:@"Syncing"] || [resolvedStatus containsString:@"Queued"];
         self.publishButton.enabled = !isSyncing;
         
-        if ([status containsString:@"Queued"]) {
-            self.publishButton.title = [NSString stringWithFormat:@"Publish (%@)", status];
+        if ([resolvedStatus containsString:@"Queued"]) {
+            self.publishButton.title = [NSString stringWithFormat:@"Publish (%@)", resolvedStatus];
         } else if (isSyncing) {
             self.publishButton.title = @"Syncing...";
         } else {

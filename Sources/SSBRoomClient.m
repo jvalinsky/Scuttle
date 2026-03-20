@@ -1315,7 +1315,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (%lu feeds)", peerID, (unsigned long)clock.count);
         }
 
-        - (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID {
+- (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID {
     os_log_debug(ssb_room_log, "Received clock update from %{public}@ with %lu entries", peerID, (unsigned long)update.count);
     
     NSMutableDictionary *targetClock;
@@ -1331,7 +1331,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
             NSInteger seq = [val integerValue];
             os_log_debug(ssb_room_log, "Valid clock for %{public}@ is %ld", author, (long)seq);
             targetClock[author] = @(ABS(seq));
-            [self updateSyncProgressForAuthor:author];
+            [self updateSyncProgressForAuthor:author fromPeer:peerID];
         }
     }];
 }
@@ -1384,7 +1384,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
                 targetClock[msg.author] = @(msg.sequence);
             }
             
-            [self updateSyncProgressForAuthor:msg.author];
+            [self updateSyncProgressForAuthor:msg.author fromPeer:peerID];
         }
     }
 }
@@ -1393,11 +1393,43 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     [self processIncomingMessage:response fromPeer:nil];
 }
 
-- (void)updateSyncProgressForAuthor:(NSString *)author {
+- (nullable NSNumber *)remoteSequenceNumberForAuthor:(NSString *)author fromPeer:(nullable NSString *)peerID {
+    if (author.length == 0) {
+        return nil;
+    }
+
+    if (peerID.length > 0) {
+        NSDictionary *peerState = self.peerEBTState[peerID];
+        NSNumber *peerSequence = peerState[@"clock"][author];
+        if (peerSequence != nil) {
+            return peerSequence;
+        }
+    }
+
+    NSNumber *sharedSequence = self.remoteClock[author];
+    if (sharedSequence != nil) {
+        return sharedSequence;
+    }
+
+    for (NSDictionary *peerState in self.peerEBTState.allValues) {
+        NSNumber *peerSequence = peerState[@"clock"][author];
+        if (peerSequence != nil) {
+            return peerSequence;
+        }
+    }
+
+    return nil;
+}
+
+- (void)updateSyncProgressForAuthor:(NSString *)author fromPeer:(nullable NSString *)peerID {
+    if (author.length == 0) {
+        return;
+    }
+
     SSBFeedState *state = [self.feedStore feedStateForAuthor:author];
     NSInteger localSeq = state ? state.maxSequence : 0;
     
-    NSNumber *remoteSeqNum = self.remoteClock[author];
+    NSNumber *remoteSeqNum = [self remoteSequenceNumberForAuthor:author fromPeer:peerID];
     if (remoteSeqNum) {
         NSInteger remoteSeq = [remoteSeqNum integerValue];
         // Handle EBT passive notes (negative)
@@ -1426,19 +1458,18 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     }
 }
 
-- (void)reportSyncStatus:(NSString *)status progress:(float)progress author:(NSString *)author {
-    if (!author) return;
-    self.internalPeerSyncProgress[author] = @(progress);
-    self.internalPeerSyncStates[author] = status;
-    
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomSyncStatusChangedNotification
-                                                            object:self
-                                                          userInfo:@{@"author": author, @"status": status, @"progress": @(progress)}];
-        
-        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
-            [self.delegate roomClient:self didUpdateSyncStatus:status progress:progress author:author];
+- (void)reportSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author {
+    dispatch_async(self.clientQueue, ^{
+        if (author.length > 0) {
+            self.internalPeerSyncProgress[author] = @(progress);
+            self.internalPeerSyncStates[author] = status;
         }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+                [self.delegate roomClient:self didUpdateSyncStatus:status progress:progress author:author];
+            }
+        });
     });
 }
 

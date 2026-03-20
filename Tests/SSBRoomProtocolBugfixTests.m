@@ -5,9 +5,11 @@
 #import <SSBNetwork/SSBBoxStream.h>
 #import <SSBNetwork/SSBCommonCryptoCompat.h>
 #import <objc/runtime.h>
+#import <string.h>
 #import "../Sources/SSBTunnelConnection.h"
 #import "../Sources/SSBMuxRPCSession.h"
 #import "../Sources/tweetnacl.h"
+#import "../App/Logic/SRNotificationNames.h"
 
 /**
  * Bug Condition Exploration Tests for SSB Room Protocol Compliance
@@ -30,10 +32,13 @@
 @interface SSBRoomClient (TestAccess)
 - (void)handleDecryptedMuxRPCData:(NSData *)data;
 - (void)handleAttendantsResponse:(id)response;
+- (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID;
+- (void)reportSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author;
 - (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items;
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
 - (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
+@property (nonatomic, strong) dispatch_queue_t clientQueue;
 @property (nonatomic, strong) NSMutableData *rpcBuffer;
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, SSBRPCCallState *> *pendingRequests;
 @property (nonatomic, assign) int32_t nextRequestID;
@@ -3061,6 +3066,63 @@
     NSLog(@"[PRESERVATION TEST] Confirmed: Request types use correct MuxRPC flags");
 }
 
+#pragma mark - GUI Sync State Regression Tests
+
+- (void)testPeerSpecificRemoteClockUpdatesPeerSyncState {
+    NSString *peerID = [self feedIDForByte:0x31];
+    NSString *author = [self feedIDForByte:0x32];
+    NSMutableDictionary *peerState = [@{
+        @"requestID": @1,
+        @"clock": [NSMutableDictionary dictionary]
+    } mutableCopy];
+    [self.client setValue:[@{ peerID: peerState } mutableCopy] forKey:@"peerEBTState"];
+
+    [self.client handleRemoteClockUpdate:@{ author: @5 } fromPeer:peerID];
+    [self flushClientQueue:self.client];
+
+    XCTAssertEqualObjects(self.client.peerSyncStates[author], @"Receiving: 0/5");
+    XCTAssertEqualWithAccuracy(self.client.peerSyncProgress[author].floatValue, 0.0f, 0.001f);
+}
+
+- (void)testPeerSpecificClockAdvancesStatusBeyondHandshaking {
+    NSString *peerID = [self feedIDForByte:0x33];
+    NSString *author = [self feedIDForByte:0x34];
+    NSMutableDictionary *peerState = [@{
+        @"requestID": @1,
+        @"clock": [NSMutableDictionary dictionary]
+    } mutableCopy];
+    [self.client setValue:[@{ peerID: peerState } mutableCopy] forKey:@"peerEBTState"];
+
+    [self.client reportSyncStatus:@"Handshaking..." progress:0.1f author:author];
+    [self flushClientQueue:self.client];
+    XCTAssertEqualObjects(self.client.peerSyncStates[author], @"Handshaking...");
+
+    [self.client handleRemoteClockUpdate:@{ author: @1 } fromPeer:peerID];
+    [self flushClientQueue:self.client];
+
+    NSString *status = self.client.peerSyncStates[author];
+    XCTAssertNotEqualObjects(status, @"Handshaking...");
+    XCTAssertTrue([status hasPrefix:@"Receiving"] || [status isEqualToString:@"Ready"]);
+}
+
+- (void)testRoomClientReportSyncStatusDoesNotPostGlobalNotification {
+    NSString *author = [self feedIDForByte:0x35];
+    __block NSInteger notificationCount = 0;
+    id token = [[NSNotificationCenter defaultCenter] addObserverForName:SRRoomSyncStatusChangedNotification
+                                                                 object:nil
+                                                                  queue:[NSOperationQueue mainQueue]
+                                                             usingBlock:^(NSNotification * _Nonnull note) {
+        notificationCount += 1;
+    }];
+
+    [self.client reportSyncStatus:@"Connecting..." progress:0.0f author:author];
+    [self flushClientQueue:self.client];
+    [self drainMainQueue];
+    [[NSNotificationCenter defaultCenter] removeObserver:token];
+
+    XCTAssertEqual(notificationCount, 0);
+}
+
 /**
  * Helper method to generate random data of specified length
  */
@@ -3082,6 +3144,30 @@
         [hex appendFormat:@"%02x", bytes[i]];
     }
     return hex;
+}
+
+- (SSBRoomClient *)testClientWithHost:(NSString *)host {
+    NSData *serverPubKey = [NSMutableData dataWithLength:32];
+    NSData *localIdentity = [NSMutableData dataWithLength:64];
+    return [[SSBRoomClient alloc] initWithHost:host
+                                          port:8008
+                                  serverPubKey:serverPubKey
+                                 localIdentity:localIdentity];
+}
+
+- (NSString *)feedIDForByte:(uint8_t)value {
+    NSMutableData *data = [NSMutableData dataWithLength:32];
+    memset(data.mutableBytes, value, data.length);
+    return [NSString stringWithFormat:@"@%@.ed25519", [data base64EncodedStringWithOptions:0]];
+}
+
+- (void)flushClientQueue:(SSBRoomClient *)client {
+    dispatch_sync(client.clientQueue, ^{});
+    [self drainMainQueue];
+}
+
+- (void)drainMainQueue {
+    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
 }
 
 @end
