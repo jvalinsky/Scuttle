@@ -1307,8 +1307,20 @@ static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
         [self reportSyncStatus:@"Connecting..." progress:0.0 author:peerID];
         [self connectToPeer:peerID];
     } else {
-        os_log_debug(ssb_room_log, "Tunnel exists but NOT connected yet for %{public}@", peerID);
-        [self reportSyncStatus:@"Handshaking..." progress:0.1 author:peerID];
+        // Tunnel exists but NOT connected yet — only show "Handshaking..." if we don't already
+        // have a terminal error status (e.g. "Stranger", "Unavailable") that should be preserved.
+        NSString *currentStatus = self.internalPeerSyncStates[peerID];
+        BOOL isTerminalError = ([currentStatus isEqualToString:@"Stranger"] ||
+                                [currentStatus isEqualToString:@"Unavailable"] ||
+                                [currentStatus isEqualToString:@"This Device"]);
+        if (isTerminalError) {
+            os_log_debug(ssb_room_log, "Tunnel exists but preserving terminal status '%{public}@' for %{public}@", currentStatus, peerID);
+            // Clean up the stale tunnel object since it will never connect
+            [self.activeTunnels removeObjectForKey:peerID];
+        } else {
+            os_log_debug(ssb_room_log, "Tunnel exists but NOT connected yet for %{public}@", peerID);
+            [self reportSyncStatus:@"Handshaking..." progress:0.1 author:peerID];
+        }
     }
 }
 
