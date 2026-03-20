@@ -45,6 +45,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *remoteClock;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *internalPeerSyncProgress;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *internalPeerSyncStates;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDate *> *peerNextTunnelRetryAt;
 @property (nonatomic, strong) NSMapTable<SSBMuxRPCSession *, NSNumber *> *ebtRequestIDsBySession;
 
 /// Tracks per-peer EBT state to handle bilateral replication properly.
@@ -139,6 +140,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         _pendingPublishQueue = [NSMutableArray array];
         _internalPeerSyncProgress = [NSMutableDictionary dictionary];
         _internalPeerSyncStates = [NSMutableDictionary dictionary];
+        _peerNextTunnelRetryAt = [NSMutableDictionary dictionary];
         _remoteClock = [NSMutableDictionary dictionary];
         _ebtRequestIDsBySession = [NSMapTable weakToStrongObjectsMapTable];
         _peerEBTState = [NSMutableDictionary dictionary];
@@ -258,6 +260,45 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     }
 
     return @"Unavailable";
+}
+
+- (NSTimeInterval)tunnelRetryDelayForStatus:(NSString *)status {
+    if ([status isEqualToString:@"Stranger"]) {
+        return 60.0;
+    }
+    if ([status isEqualToString:@"This Device"]) {
+        return 300.0;
+    }
+    if ([status isEqualToString:@"Disconnected"]) {
+        return 5.0;
+    }
+    return 15.0;
+}
+
+- (nullable NSDate *)nextTunnelRetryDateForPeer:(NSString *)peerID {
+    if (peerID.length == 0) {
+        return nil;
+    }
+
+    __block NSDate *retryDate = nil;
+    dispatch_sync(self.clientQueue, ^{
+        retryDate = self.peerNextTunnelRetryAt[peerID];
+    });
+    return retryDate;
+}
+
+- (void)setNextTunnelRetryDate:(nullable NSDate *)retryDate forPeer:(NSString *)peerID {
+    if (peerID.length == 0) {
+        return;
+    }
+
+    dispatch_async(self.clientQueue, ^{
+        if (retryDate) {
+            self.peerNextTunnelRetryAt[peerID] = retryDate;
+        } else {
+            [self.peerNextTunnelRetryAt removeObjectForKey:peerID];
+        }
+    });
 }
 
 - (BOOL)isAttendantsEventDictionary:(NSDictionary *)dict {
@@ -476,25 +517,10 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         return;
     }
 
-    [self log:[NSString stringWithFormat:@"Probing room.attendants snapshot (%@)", reason ?: @"no reason"]];
-    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"probe room.attendants (async) reason=%@",
+    [self log:[NSString stringWithFormat:@"Switching to room.attendants discovery (%@)", reason ?: @"no reason"]];
+    [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"probe room.attendants (source) reason=%@",
                                          reason ?: @"<none>"]];
-
-    __weak typeof(self) weakSelf = self;
-    [self sendRPCRequest:@[@"room", @"attendants"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf) {
-            return;
-        }
-        if (error) {
-            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"room.attendants probe error: %@",
-                                                       error.localizedDescription ?: @"<unknown>"]];
-            return;
-        }
-        [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"room.attendants probe response class=%@",
-                                                   NSStringFromClass([response class])]];
-        [strongSelf handleAttendantsResponse:response];
-    }];
+    [self subscribeToEndpointDiscoveryMethod:@[@"room", @"attendants"] reason:reason ?: @"room.attendants probe"];
 }
 
 - (void)armEndpointDiscoveryFallbackTimerForMethod:(NSArray<NSString *> *)method generation:(uint64_t)generation {
@@ -800,9 +826,22 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         }
     });
     
-    if (self.inviteToken) {
+    if ([self shouldRedeemInviteAfterSetup]) {
         [self redeemInvite:self.inviteToken completion:nil];
     }
+}
+
+- (BOOL)shouldRedeemInviteAfterSetup {
+    if (self.inviteToken.length == 0) {
+        return NO;
+    }
+    if (self.usedHTTPInvite) {
+        return NO;
+    }
+    if (self.serverManifest && ![self manifestSupportsRPCPath:@[@"room", @"claimInvite"]]) {
+        return NO;
+    }
+    return YES;
 }
 
 - (void)redeemInvite:(NSString *)token completion:(nullable SSBRPCCallback)completion {
@@ -845,6 +884,23 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.delegate roomClient:self didUpdateSyncStatus:@"Syncing your feed..." progress:0.0 author:[self localPublicID]];
         });
+    }
+
+    if (![self shouldAttemptRoomHistorySync]) {
+        SSBLogInfo(SSBLogCategorySync, @"Skipping room feed sync: createHistoryStream unsupported by room");
+        self.isSyncingLocalFeed = NO;
+        [self processPublishQueue];
+        if ([self.delegate respondsToSelector:@selector(roomClientDidSyncLocalFeed:)]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.delegate roomClientDidSyncLocalFeed:self];
+            });
+        }
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.delegate roomClient:self didUpdateSyncStatus:@"Idle" progress:1.0 author:[self localPublicID]];
+            });
+        }
+        return;
     }
     
     NSDictionary *args = @{@"id": myId, @"limit": @100, @"reverse": @NO, @"live": @NO};
@@ -911,6 +967,13 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
             });
         }
     }
+}
+
+- (BOOL)shouldAttemptRoomHistorySync {
+    if (!self.serverManifest) {
+        return NO;
+    }
+    return [self manifestSupportsRPCPath:@[@"createHistoryStream"]];
 }
 
 - (void)fetchFeedForPeer:(NSString *)peerID limit:(NSInteger)limit completion:(nullable SSBRPCCallback)completion {
@@ -1208,6 +1271,15 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 - (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)roomHost {
     os_log_debug(ssb_room_log, "replicateFromPeer: %{public}@ via room: %{public}@", peerID, roomHost);
     SSBLogInfo(SSBLogCategoryReplication, @"🔄 replicateFromPeer: %@ via room: %@", [peerID substringToIndex:MIN(8, peerID.length)], roomHost);
+
+    NSDate *retryDate = [self nextTunnelRetryDateForPeer:peerID];
+    if (retryDate && [retryDate timeIntervalSinceNow] > 0) {
+        os_log_debug(ssb_room_log,
+                     "Skipping tunnel retry for %{public}@ until %{public}@",
+                     peerID,
+                     retryDate.description);
+        return;
+    }
     
     SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
     if (tunnel) {
@@ -1767,6 +1839,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
             os_log_error(ssb_room_log, "Tunnel connection failed to %@", targetPeerId);
             [strongSelf.activeTunnels removeObjectForKey:targetPeerId];
             NSString *status = error ? [strongSelf syncStatusForTunnelError:error] : @"Unavailable";
+            NSTimeInterval retryDelay = [strongSelf tunnelRetryDelayForStatus:status];
+            [strongSelf setNextTunnelRetryDate:[NSDate dateWithTimeIntervalSinceNow:retryDelay] forPeer:targetPeerId];
             [strongSelf reportSyncStatus:status progress:1.0 author:targetPeerId];
             return;
         }
@@ -1795,6 +1869,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         __strong typeof(weakSelfOuter) strongSelfOuter = weakSelfOuter;
         if (strongSelfOuter) {
             os_log_info(ssb_room_log, "Tunnel to %@ is ready for RPC!", targetPeerId);
+            [strongSelfOuter setNextTunnelRetryDate:nil forPeer:targetPeerId];
             [strongSelfOuter reportTunnelReadyForPeer:targetPeerId];
             [strongSelfOuter replicateFromPeer:targetPeerId viaRoom:strongSelfOuter.host];
         }
@@ -1948,6 +2023,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (strongSelf) {
             os_log_info(ssb_room_log, "Incoming tunnel from %@ is ready!", originPeerId);
+            [strongSelf setNextTunnelRetryDate:nil forPeer:originPeerId];
             [strongSelf reportTunnelReadyForPeer:originPeerId];
             [strongSelf replicateFromPeer:originPeerId viaRoom:strongSelf.host];
         }

@@ -39,6 +39,13 @@
 - (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items;
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
 - (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
+- (void)performInitialSetup;
+- (void)probeRoomAttendantsSnapshotWithReason:(NSString *)reason;
+- (void)syncLocalFeed;
+- (BOOL)shouldRedeemInviteAfterSetup;
+- (BOOL)shouldAttemptRoomHistorySync;
+- (nullable NSDate *)nextTunnelRetryDateForPeer:(NSString *)peerID;
+- (void)setNextTunnelRetryDate:(nullable NSDate *)retryDate forPeer:(NSString *)peerID;
 - (void)reportTunnelReadyForPeer:(NSString *)peerID;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, strong) dispatch_queue_t clientQueue;
@@ -91,9 +98,83 @@
 }
 @end
 
+@interface MockTransportConnection : NSObject <SSBTransportConnection>
+@property (nonatomic, assign) SSBTransportConnectionState state;
+@property (nonatomic, strong, nullable) SSBTransportEndpoint *endpoint;
+@property (nonatomic, assign) NSUInteger sendCount;
+@property (nonatomic, strong) NSMutableArray<NSData *> *sentPayloads;
+@property (nonatomic, copy, nullable) SSBTransportConnectionStateHandler stateHandler;
+@end
+
+@implementation MockTransportConnection
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _state = SSBTransportConnectionStatePreparing;
+        _sentPayloads = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (void)setStateChangedHandler:(SSBTransportConnectionStateHandler)handler {
+    self.stateHandler = handler;
+}
+
+- (void)start {
+}
+
+- (void)cancel {
+    self.state = SSBTransportConnectionStateCancelled;
+}
+
+- (void)receiveMessageWithCompletion:(SSBTransportConnectionReceiveHandler)completion {
+    if (completion) {
+        completion(nil, nil, YES, nil);
+    }
+}
+
+- (void)receiveMinimumLength:(uint32_t)minimumLength
+               maximumLength:(uint32_t)maximumLength
+                  completion:(SSBTransportConnectionReceiveHandler)completion {
+    if (completion) {
+        completion(nil, nil, YES, nil);
+    }
+}
+
+- (void)sendData:(NSData *)data
+      isComplete:(BOOL)isComplete
+      completion:(SSBTransportConnectionSendHandler)completion {
+    self.sendCount += 1;
+    [self.sentPayloads addObject:data ?: [NSData data]];
+    if (completion) {
+        completion(nil);
+    }
+}
+
+@end
+
+@interface SSBTunnelConnection (TestAccess)
+@property (nonatomic, strong) id<SSBTransportConnection> serverConnection;
+@property (nonatomic, strong) NSMutableArray<NSData *> *incomingBuffer;
+@property (nonatomic, strong) dispatch_queue_t tunnelQueue;
+@end
+
 @interface SSBRoomProtocolBugfixTests : XCTestCase
 @property (nonatomic, strong) SSBRoomClient *client;
 @property (nonatomic, strong) TestRoomClientDelegate *testDelegate;
+@end
+
+@interface RetryAwareRoomClient : SSBRoomClient
+@property (nonatomic, assign) NSUInteger connectToPeerCallCount;
+@end
+
+@implementation RetryAwareRoomClient
+
+- (void)connectToPeer:(NSString *)targetPeerId {
+    self.connectToPeerCallCount += 1;
+}
+
 @end
 
 @implementation SSBRoomProtocolBugfixTests
@@ -3185,6 +3266,117 @@
 
     XCTAssertEqualObjects(self.client.peerSyncStates[peerID], @"Connected");
     XCTAssertEqualWithAccuracy(self.client.peerSyncProgress[peerID].floatValue, 0.2f, 0.001f);
+}
+
+- (void)testTunnelConnectionBuffersIncomingDataUntilAcceptedSocketIsReady {
+    NSData *peerPublicKey = [NSMutableData dataWithLength:32];
+    NSData *localIdentity = [NSMutableData dataWithLength:64];
+    SSBTunnelConnection *tunnel = [[SSBTunnelConnection alloc] initWithPeerId:[self feedIDForByte:0x39]
+                                                                peerPublicKey:peerPublicKey
+                                                                localIdentity:localIdentity
+                                                                  roomSession:[[SSBMuxRPCSession alloc] init]
+                                                                  tunnelReqID:7
+                                                                     isServer:NO];
+
+    MockTransportConnection *connection = [[MockTransportConnection alloc] init];
+    tunnel.serverConnection = connection;
+
+    NSData *payload = [@"hello" dataUsingEncoding:NSUTF8StringEncoding];
+    [tunnel receiveTunnelData:payload];
+    dispatch_sync(tunnel.tunnelQueue, ^{});
+
+    XCTAssertEqual(connection.sendCount, 0u);
+    XCTAssertEqual(tunnel.incomingBuffer.count, 1u);
+
+    connection.state = SSBTransportConnectionStateReady;
+    [tunnel receiveTunnelData:tunnel.incomingBuffer.firstObject];
+    [tunnel.incomingBuffer removeAllObjects];
+    dispatch_sync(tunnel.tunnelQueue, ^{});
+
+    XCTAssertEqual(connection.sendCount, 1u);
+    XCTAssertEqualObjects(connection.sentPayloads.firstObject, payload);
+}
+
+- (void)testReplicateFromPeerSkipsImmediateRetryAfterTerminalFailure {
+    RetryAwareRoomClient *client = [[RetryAwareRoomClient alloc] initWithHost:@"test.room"
+                                                                         port:8008
+                                                                 serverPubKey:[NSMutableData dataWithLength:32]
+                                                                localIdentity:[NSMutableData dataWithLength:64]];
+    NSString *peerID = [self feedIDForByte:0x3A];
+
+    [client reportSyncStatus:@"Stranger" progress:1.0f author:peerID];
+    [self flushClientQueue:client];
+    [client setNextTunnelRetryDate:[NSDate dateWithTimeIntervalSinceNow:60.0] forPeer:peerID];
+    [self flushClientQueue:client];
+
+    [client replicateFromPeer:peerID viaRoom:client.host];
+
+    XCTAssertEqual(client.connectToPeerCallCount, 0u);
+    XCTAssertEqualObjects(client.peerSyncStates[peerID], @"Stranger");
+}
+
+- (void)testShouldRedeemInviteAfterSetupSkipsHTTPInvites {
+    [self.client setValue:@"invite-token" forKey:@"inviteToken"];
+    [self.client setValue:@YES forKey:@"usedHTTPInvite"];
+
+    XCTAssertFalse([self.client shouldRedeemInviteAfterSetup]);
+}
+
+- (void)testProbeRoomAttendantsSnapshotUsesSourceRequest {
+    XCTestExpectation *requestSent = [self expectationWithDescription:@"room.attendants source request sent"];
+    __block NSArray *capturedName = nil;
+    __block NSString *capturedType = nil;
+
+    self.client.rpcSession.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
+        NSDictionary *body = [NSJSONSerialization JSONObjectWithData:message.body options:0 error:nil];
+        if (![body isKindOfClass:[NSDictionary class]]) {
+            return;
+        }
+
+        capturedName = body[@"name"];
+        capturedType = body[@"type"];
+        [requestSent fulfill];
+    };
+
+    [self.client setValue:@YES forKey:@"isConnected"];
+    [self.client probeRoomAttendantsSnapshotWithReason:@"test"];
+
+    [self waitForExpectations:@[requestSent] timeout:2.0];
+
+    XCTAssertEqualObjects(capturedName, (@[@"room", @"attendants"]));
+    XCTAssertEqualObjects(capturedType, @"source");
+}
+
+- (void)testShouldAttemptRoomHistorySyncRequiresCreateHistoryStreamSupport {
+    [self.client setValue:@{} forKey:@"serverManifest"];
+    XCTAssertFalse([self.client shouldAttemptRoomHistorySync]);
+
+    [self.client setValue:@{@"createHistoryStream": @"source"} forKey:@"serverManifest"];
+    XCTAssertTrue([self.client shouldAttemptRoomHistorySync]);
+}
+
+- (void)testSyncLocalFeedSkipsUnsupportedHistoryRequest {
+    __block BOOL sentCreateHistoryStream = NO;
+    self.client.rpcSession.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
+        NSDictionary *body = [NSJSONSerialization JSONObjectWithData:message.body options:0 error:nil];
+        if (![body isKindOfClass:[NSDictionary class]]) {
+            return;
+        }
+
+        if ([body[@"name"] isEqual:@[@"createHistoryStream"]]) {
+            sentCreateHistoryStream = YES;
+        }
+    };
+
+    [self.client setValue:@{} forKey:@"serverManifest"];
+    [self.client setValue:@YES forKey:@"isConnected"];
+
+    [self.client syncLocalFeed];
+    [self flushClientQueue:self.client];
+    [self drainMainQueue];
+
+    XCTAssertFalse(sentCreateHistoryStream);
+    XCTAssertFalse([[self.client valueForKey:@"isSyncingLocalFeed"] boolValue]);
 }
 
 /**

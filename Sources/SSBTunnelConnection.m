@@ -198,8 +198,12 @@
         
         os_log_debug(strongSelf.log, "receiveTunnelData: %lu bytes", (unsigned long)data.length);
         
-        if (!strongSelf.serverConnection) {
-            os_log_debug(strongSelf.log, "serverConnection NOT READY, buffering %lu bytes", (unsigned long)data.length);
+        if (!strongSelf.serverConnection ||
+            strongSelf.serverConnection.state != SSBTransportConnectionStateReady) {
+            os_log_debug(strongSelf.log,
+                         "serverConnection unavailable or not ready (state=%lu), buffering %lu bytes",
+                         (unsigned long)strongSelf.serverConnection.state,
+                         (unsigned long)data.length);
             [strongSelf.incomingBuffer addObject:data];
             return;
         }
