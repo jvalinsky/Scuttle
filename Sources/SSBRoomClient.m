@@ -15,6 +15,7 @@
 
 static os_log_t ssb_room_log;
 static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
+static const void *SSBRoomClientQueueKey = &SSBRoomClientQueueKey;
 
 @interface SSBRoomClient ()
 @property (nonatomic, copy) NSString *host;
@@ -54,6 +55,14 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 @end
 
 @implementation SSBRoomClient
+
+- (void)performClientQueueSync:(dispatch_block_t)block {
+    if (dispatch_get_specific(SSBRoomClientQueueKey)) {
+        block();
+        return;
+    }
+    dispatch_sync(self.clientQueue, block);
+}
 
 + (void)initialize {
     if (self == [SSBRoomClient class]) {
@@ -123,6 +132,10 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         _isConnected = NO;
         _isFeedSynced = YES; // Assume synced until proven otherwise
         _clientQueue = dispatch_queue_create("com.ssbc.room.client", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_set_specific(_clientQueue,
+                                    SSBRoomClientQueueKey,
+                                    (void *)SSBRoomClientQueueKey,
+                                    NULL);
         _transportBackend = [SSBTransport defaultBackend];
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
@@ -156,17 +169,17 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 
 - (NSDictionary<NSString *, NSNumber *> *)peerSyncProgress {
     __block NSDictionary *snapshot;
-    dispatch_sync(self.clientQueue, ^{
+    [self performClientQueueSync:^{
         snapshot = [self.internalPeerSyncProgress copy];
-    });
+    }];
     return snapshot;
 }
 
 - (NSDictionary<NSString *, NSString *> *)peerSyncStates {
     __block NSDictionary *snapshot;
-    dispatch_sync(self.clientQueue, ^{
+    [self performClientQueueSync:^{
         snapshot = [self.internalPeerSyncStates copy];
-    });
+    }];
     return snapshot;
 }
 
@@ -174,9 +187,9 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 
 - (NSArray<NSString *> *)currentAttendants {
     __block NSArray *snapshot;
-    dispatch_sync(self.clientQueue, ^{
+    [self performClientQueueSync:^{
         snapshot = [self.attendantsList copy];
-    });
+    }];
     return snapshot;
 }
 
@@ -281,9 +294,9 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     }
 
     __block NSDate *retryDate = nil;
-    dispatch_sync(self.clientQueue, ^{
+    [self performClientQueueSync:^{
         retryDate = self.peerNextTunnelRetryAt[peerID];
-    });
+    }];
     return retryDate;
 }
 
@@ -654,17 +667,17 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 
 - (NSDictionary<NSString *, NSNumber *> *)currentRemoteClock {
     __block NSDictionary *snapshot;
-    dispatch_sync(self.clientQueue, ^{
+    [self performClientQueueSync:^{
         snapshot = [self.remoteClock copy];
-    });
+    }];
     return snapshot;
 }
 
 - (NSInteger)pendingMessagesCount {
     __block NSInteger count;
-    dispatch_sync(self.clientQueue, ^{
+    [self performClientQueueSync:^{
         count = self.pendingPublishQueue.count;
-    });
+    }];
     return count;
 }
 

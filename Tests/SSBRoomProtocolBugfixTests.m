@@ -46,6 +46,7 @@
 - (BOOL)shouldAttemptRoomHistorySync;
 - (nullable NSDate *)nextTunnelRetryDateForPeer:(NSString *)peerID;
 - (void)setNextTunnelRetryDate:(nullable NSDate *)retryDate forPeer:(NSString *)peerID;
+- (void)performClientQueueSync:(dispatch_block_t)block;
 - (void)reportTunnelReadyForPeer:(NSString *)peerID;
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, strong) dispatch_queue_t clientQueue;
@@ -3313,6 +3314,24 @@
 
     XCTAssertEqual(client.connectToPeerCallCount, 0u);
     XCTAssertEqualObjects(client.peerSyncStates[peerID], @"Stranger");
+}
+
+- (void)testNextTunnelRetryDateCanBeReadFromClientQueue {
+    NSString *peerID = [self feedIDForByte:0x3B];
+    NSDate *retryDate = [NSDate dateWithTimeIntervalSinceNow:30.0];
+    XCTestExpectation *finished = [self expectationWithDescription:@"retry date read on client queue"];
+    __block NSDate *capturedRetryDate = nil;
+
+    [self.client setNextTunnelRetryDate:retryDate forPeer:peerID];
+    [self flushClientQueue:self.client];
+
+    dispatch_async(self.client.clientQueue, ^{
+        capturedRetryDate = [self.client nextTunnelRetryDateForPeer:peerID];
+        [finished fulfill];
+    });
+
+    [self waitForExpectations:@[finished] timeout:2.0];
+    XCTAssertEqualObjects(capturedRetryDate, retryDate);
 }
 
 - (void)testShouldRedeemInviteAfterSetupSkipsHTTPInvites {
