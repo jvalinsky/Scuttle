@@ -2,12 +2,7 @@
 #import <SSBNetwork/SSBButtwoo.h>
 #import <SSBNetwork/SSBBIPF.h>
 #import <SSBNetwork/SSBBFE.h>
-
-// TweetNaCl functions linked via SSBNetwork.framework.
-extern int crypto_sign_ed25519_keypair(unsigned char *pk, unsigned char *sk);
-extern int crypto_sign_ed25519(unsigned char *sm, unsigned long long *smlen,
-                               const unsigned char *m, unsigned long long mlen,
-                               const unsigned char *sk);
+#import <SSBNetwork/tweetnacl.h>
 #define crypto_sign_BYTES 64
 
 // blake3_256 exposed for known-answer testing.
@@ -81,7 +76,11 @@ static NSData *BTWBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 
 - (void)setUp {
     [super setUp];
-    BTWGenerateKeypair(&_publicKey, &_secretKey);
+    NSData *publicKey = nil;
+    NSData *secretKey = nil;
+    BTWGenerateKeypair(&publicKey, &secretKey);
+    self.publicKey = publicKey;
+    self.secretKey = secretKey;
 }
 
 #pragma mark - BLAKE3 known-answer test
@@ -193,7 +192,7 @@ static NSData *BTWBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 
 - (void)testValidateMessage_tooLarge {
     // > 8192 bytes
-    NSData *big = [NSData dataWithLength:9000];
+    NSData *big = [NSMutableData dataWithLength:9000];
     XCTAssertFalse([SSBButtwoo validateMessage:big]);
 }
 
@@ -212,7 +211,7 @@ static NSData *BTWBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 - (void)testValidateMessage_payloadNotList {
     // payload element is a plain string, not a BIPF-encoded list
     NSData *fakePayload = [@"not a list" dataUsingEncoding:NSUTF8StringEncoding];
-    NSData *fakeSig = BTWSignatureBFE([NSData dataWithLength:64]);
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
     NSData *encoded = [SSBBIPF encodeList:@[fakePayload, fakeSig]];
     XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
 }
@@ -221,7 +220,7 @@ static NSData *BTWBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     // payload list has 3 elements instead of 5
     NSData *authorBFE = BTWAuthorBFE(self.publicKey);
     NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @1, BTWNilBFE()]];
-    NSData *fakeSig = BTWSignatureBFE([NSData dataWithLength:64]);
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
     NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
     XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
 }

@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
-#import "SSBFeedStore.h"
-#import "SSBMessage.h"
-#import "SSBGitObjectStore.h"
+#import <SSBNetwork/SSBFeedStore.h>
+#import <SSBNetwork/SSBMessage.h>
+#import <SSBNetwork/SSBGitObjectStore.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

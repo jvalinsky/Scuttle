@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
-#import "SSBFeedCodec.h"
-#import "SSBBencode.h"
+#import <SSBNetwork/SSBFeedCodec.h>
+#import <SSBNetwork/SSBBencode.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

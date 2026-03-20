@@ -1,8 +1,8 @@
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
-#import <SSBNetwork/SSBKeychain.h>
-#import <os/log.h>
+#import <SSBNetwork/SSBSecretStore.h>
+#import "SRPlatformLog.h"
 
 static os_log_t profile_header_log;
 
@@ -146,7 +146,7 @@ static os_log_t profile_header_log;
 }
 
 - (void)loadLocalIdentity {
-    NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
+    NSData *savedIdentity = SSBLoadIdentitySecret();
     if (savedIdentity && savedIdentity.length >= 64) {
         NSData *pkData = [savedIdentity subdataWithRange:NSMakeRange(32, 32)];
         NSString *feedId = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];

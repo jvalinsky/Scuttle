@@ -1,8 +1,8 @@
 #import "SRSeedRecoveryViewController.h"
 #import "../../Sources/SSBMetafeed.h"
 #import "../Logic/SRQRUtils.h"
-#import <SSBNetwork/SSBKeychain.h>
-#import <os/log.h>
+#import <SSBNetwork/SSBSecretStore.h>
+#import "SRPlatformLog.h"
 
 static os_log_t recovery_log;
 
@@ -140,7 +140,7 @@ static os_log_t recovery_log;
     }
 
     // Load the local metafeed keys to attempt decryption.
-    NSData *localSeed = [SSBKeychain loadMetafeedSeed];
+    NSData *localSeed = SSBLoadMetafeedSeed();
     if (!localSeed) {
         self.statusLabel.stringValue = @"No local metafeed seed. Cannot decrypt.";
         self.statusLabel.textColor = [NSColor systemRedColor];
@@ -170,15 +170,15 @@ static os_log_t recovery_log;
     }
 
     // Persist the recovered seed and root ID.
-    if (![SSBKeychain saveMetafeedSeed:recoveredSeed] ||
-        ![SSBKeychain saveMetafeedRootID:recoveredMetafeed.ID]) {
+    if (!SSBSaveMetafeedSeed(recoveredSeed) ||
+        !SSBSaveMetafeedRootID(recoveredMetafeed.ID)) {
         self.statusLabel.stringValue = @"Failed to save recovered seed to keychain.";
         self.statusLabel.textColor = [NSColor systemRedColor];
         return;
     }
 
     // The announce for the recovered metafeed still needs to be published.
-    [SSBKeychain saveMetafeedAnnounced:NO];
+    SSBSaveMetafeedAnnounced(NO);
 
     os_log_info(recovery_log, "Seed recovered; new root metafeed: %{public}@", recoveredMetafeed.ID);
     self.statusLabel.stringValue = [NSString stringWithFormat:@"Recovered metafeed: %@",

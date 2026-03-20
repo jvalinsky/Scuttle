@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
-#import "SSBBFE.h"
-#import "SSBMessage.h"
+#import <SSBNetwork/SSBBFE.h>
+#import <SSBNetwork/SSBMessage.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -3,7 +3,7 @@
 #import "../../Sources/SSBGitRepo.h"
 #import "../../Sources/SSBQueryEngine.h"
 #import "../Logic/SRRoomManager.h"
-#import "../../Sources/SSBKeychain.h"
+#import "../../Sources/SSBSecretStore.h"
 
 @interface SRGitRepoListViewController ()
 @property (nonatomic, strong) NSScrollView *scrollView;
@@ -135,8 +135,8 @@
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         NSDictionary *query;
         if (self.listType == SRGitRepoListTypeMyRepos) {
-            NSData *secret = [SSBKeychain loadIdentitySecret];
-            NSString *myID = [SSBKeychain publicIDFromSecret:secret];
+            NSData *secret = SSBLoadIdentitySecret();
+            NSString *myID = SSBPublicIDFromSecret(secret);
             query = @{
                 @"AND": @[
                     @{ @"EQUAL": @[ @[@"value", @"content", @"type"], @"git-repo" ] },
@@ -145,8 +145,8 @@
             };
         } else {
             // For now, simplified: all git-repos not by me
-            NSData *secret = [SSBKeychain loadIdentitySecret];
-            NSString *myID = [SSBKeychain publicIDFromSecret:secret];
+            NSData *secret = SSBLoadIdentitySecret();
+            NSString *myID = SSBPublicIDFromSecret(secret);
             query = @{
                 @"AND": @[
                     @{ @"EQUAL": @[ @[@"value", @"content", @"type"], @"git-repo" ] },

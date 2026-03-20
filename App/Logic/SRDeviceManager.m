@@ -2,8 +2,9 @@
 #import "SRRoomManager.h"
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBRoomClient.h"
-#import <SSBNetwork/SSBKeychain.h>
-#import <os/log.h>
+#import "../../Sources/SSBMetafeed.h"
+#import "../../Sources/SSBSecretStore.h"
+#import "SRPlatformLog.h"
 
 static os_log_t device_log;
 
@@ -35,8 +36,8 @@ static NSString * const kDeviceFeedIDKey = @"com.scuttlebutt.deviceFeedID";
         return;
     }
 
-    NSData *seed = [SSBKeychain loadMetafeedSeed];
-    NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+    NSData *seed = SSBLoadMetafeedSeed();
+    NSString *metafeedRootID = SSBLoadMetafeedRootID();
     if (!seed || !metafeedRootID) {
         os_log_error(device_log, "registerThisDevice: no metafeed seed; skipping");
         return;
@@ -91,7 +92,7 @@ static NSString * const kDeviceFeedIDKey = @"com.scuttlebutt.deviceFeedID";
 }
 
 - (NSArray<NSString *> *)registeredDeviceFeedIDs {
-    NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+    NSString *metafeedRootID = SSBLoadMetafeedRootID();
     if (!metafeedRootID) return @[];
     return [[SSBFeedStore sharedStore] deviceFeedIDsForMetafeedID:metafeedRootID];
 }

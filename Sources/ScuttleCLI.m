@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import "SSBLogCompat.h"
-#import "SSBKeychain.h"
+#import "SSBSecretStore.h"
 #import "SSBFeedStore.h"
 #import "SSBRoomClient.h"
 #import "SSBMessageCodec.h"
@@ -19,10 +19,18 @@
 
 @implementation ScuttleCLI
 
+static NSString *ScuttleDataDirectory(void) {
+    NSString *xdgData = NSProcessInfo.processInfo.environment[@"XDG_DATA_HOME"];
+    if (xdgData.length > 0) {
+        return [xdgData stringByAppendingPathComponent:@"scuttle"];
+    }
+    return [NSHomeDirectory() stringByAppendingPathComponent:@".local/share/scuttle"];
+}
+
 - (instancetype)init {
     self = [super init];
     if (self) {
-        NSString *scuttleDir = [NSHomeDirectory() stringByAppendingPathComponent:@".local/share/scuttle"];
+        NSString *scuttleDir = ScuttleDataDirectory();
         [[NSFileManager defaultManager] createDirectoryAtPath:scuttleDir withIntermediateDirectories:YES attributes:nil error:nil];
 
         NSString *dbPath = [scuttleDir stringByAppendingPathComponent:@"ssb.db"];
@@ -62,9 +70,9 @@
 #pragma mark - Identity
 
 - (void)cmdInit {
-    NSData *existing = [SSBKeychain loadIdentitySecret];
+    NSData *existing = SSBLoadIdentitySecret();
     if (existing) {
-        NSString *publicID = [SSBKeychain publicIDFromSecret:existing];
+        NSString *publicID = SSBPublicIDFromSecret(existing);
         printf("Identity already exists: %s\n", [publicID UTF8String]);
         printf("Use 'whoami' to view details.\n");
         self.shouldExit = YES;
@@ -79,38 +87,38 @@
         return;
     }
 
-    NSString *publicID = [SSBKeychain publicIDFromSecret:secret];
+    NSString *publicID = SSBPublicIDFromSecret(secret);
     printf("Generated identity: %s\n", [publicID UTF8String]);
 
     // Bootstrap metafeed
-    NSData *existingSeed = [SSBKeychain loadMetafeedSeed];
+    NSData *existingSeed = SSBLoadMetafeedSeed();
     if (!existingSeed) {
         NSData *seed = [SSBMetafeed generateSeed];
         if (seed) {
             SSBMetafeed *rootMetafeed = [SSBMetafeed createRootMetafeedFromSeed:seed];
             if (rootMetafeed) {
-                [SSBKeychain saveMetafeedSeed:seed];
-                [SSBKeychain saveMetafeedRootID:rootMetafeed.ID];
+                SSBSaveMetafeedSeed(seed);
+                SSBSaveMetafeedRootID(rootMetafeed.ID);
                 printf("Metafeed root:     %s\n", [rootMetafeed.ID UTF8String]);
             }
         }
     }
 
-    printf("\nIdentity stored in keychain. Ready to connect to rooms.\n");
+    printf("\nIdentity stored in secure local storage. Ready to connect to rooms.\n");
     self.shouldExit = YES;
 }
 
 - (void)cmdWhoami {
-    NSData *secret = [SSBKeychain loadIdentitySecret];
+    NSData *secret = SSBLoadIdentitySecret();
     if (!secret) {
         printf("No identity found. Run 'scuttle-cli init' to create one.\n");
         self.shouldExit = YES;
         return;
     }
-    NSString *publicID = [SSBKeychain publicIDFromSecret:secret];
+    NSString *publicID = SSBPublicIDFromSecret(secret);
     printf("Public ID:     %s\n", [publicID UTF8String]);
 
-    NSString *rootID = [SSBKeychain loadMetafeedRootID];
+    NSString *rootID = SSBLoadMetafeedRootID();
     if (rootID) {
         printf("Metafeed root: %s\n", [rootID UTF8String]);
     } else {
@@ -185,14 +193,14 @@
     NSArray *textParts = [args subarrayWithRange:NSMakeRange(2, args.count - 2)];
     NSString *text = [textParts componentsJoinedByString:@" "];
 
-    NSData *secret = [SSBKeychain loadIdentitySecret];
+    NSData *secret = SSBLoadIdentitySecret();
     if (!secret || secret.length < 64) {
         printf("Error: No identity. Run 'scuttle-cli init' first.\n");
         self.shouldExit = YES;
         return;
     }
 
-    NSString *author = [SSBKeychain publicIDFromSecret:secret];
+    NSString *author = SSBPublicIDFromSecret(secret);
     SSBFeedState *state = [self.feedStore feedStateForAuthor:author];
     NSInteger nextSeq = state ? state.maxSequence + 1 : 1;
     NSString *previousKey = state.maxKey;
@@ -266,13 +274,13 @@
 }
 
 - (void)cmdFeed {
-    NSData *secret = [SSBKeychain loadIdentitySecret];
+    NSData *secret = SSBLoadIdentitySecret();
     if (!secret) {
         printf("Error: No identity. Run 'scuttle-cli init' first.\n");
         self.shouldExit = YES;
         return;
     }
-    NSString *localId = [SSBKeychain publicIDFromSecret:secret];
+    NSString *localId = SSBPublicIDFromSecret(secret);
     NSArray<SSBMessage *> *messages = [self.feedStore messagesForAuthor:localId fromSequence:1 limit:50];
     if (messages.count == 0) {
         printf("No messages yet. Run 'scuttle-cli publish \"Hello\"' to post.\n");
@@ -309,13 +317,13 @@
     printf("Processing invite: %s\n", [input UTF8String]);
 
     if ([input hasPrefix:@"http"]) {
-        NSData *secret = [SSBKeychain loadIdentitySecret];
+        NSData *secret = SSBLoadIdentitySecret();
         if (!secret) {
             printf("Error: No identity. Run 'scuttle-cli init' first.\n");
             self.shouldExit = YES;
             return;
         }
-        NSString *localId = [SSBKeychain publicIDFromSecret:secret];
+        NSString *localId = SSBPublicIDFromSecret(secret);
         __weak typeof(self) weakSelf = self;
         [RoomInviteHandler resolveHTTPSInvite:input localId:localId completion:^(RoomConfig *config, NSError *error) {
             if (config) {
@@ -361,7 +369,7 @@
     }
     NSString *host = args[2];
 
-    NSData *secret = [SSBKeychain loadIdentitySecret];
+    NSData *secret = SSBLoadIdentitySecret();
     if (!secret) {
         printf("Error: No identity. Run 'scuttle-cli init' first.\n");
         self.shouldExit = YES;
@@ -412,7 +420,7 @@
 
 - (void)cmdPeers {
     // Show cached attendants from last connection if available
-    NSData *secret = [SSBKeychain loadIdentitySecret];
+    NSData *secret = SSBLoadIdentitySecret();
     if (!secret) {
         printf("Error: No identity.\n");
         self.shouldExit = YES;
@@ -429,15 +437,15 @@
     printf("Scuttle Status\n");
     printf("==============\n\n");
 
-    NSData *secret = [SSBKeychain loadIdentitySecret];
+    NSData *secret = SSBLoadIdentitySecret();
     if (secret) {
-        NSString *publicID = [SSBKeychain publicIDFromSecret:secret];
+        NSString *publicID = SSBPublicIDFromSecret(secret);
         printf("Identity:  %s\n", [publicID UTF8String]);
     } else {
         printf("Identity:  (none — run 'init')\n");
     }
 
-    NSString *rootID = [SSBKeychain loadMetafeedRootID];
+    NSString *rootID = SSBLoadMetafeedRootID();
     printf("Metafeed:  %s\n", rootID ? [rootID UTF8String] : "(none)");
 
     NSInteger totalMsgs = [self.feedStore totalMessageCount];

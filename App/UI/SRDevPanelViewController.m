@@ -1,6 +1,6 @@
 #import "SRDevPanelViewController.h"
 #import "../../Sources/SSBNetwork.h"
-#import "../../Sources/SSBKeychain.h"
+#import "../../Sources/SSBSecretStore.h"
 
 @interface SRDevPanelViewController ()
 @property (nonatomic, strong) NSTextView *logView;
@@ -58,9 +58,9 @@
 }
 
 - (void)refreshData {
-    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSData *localSecret = SSBLoadIdentitySecret();
     if (localSecret && localSecret.length >= 64) {
-        NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+        NSString *pubkey = SSBPublicIDFromSecret(localSecret);
         self.pubkeyLabel.stringValue = [NSString stringWithFormat:@"Public Key: %@", pubkey ?: @"(error)"];
     }
     

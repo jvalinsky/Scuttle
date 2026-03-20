@@ -1,4 +1,4 @@
-#import <Cocoa/Cocoa.h>
+#import "SRPlatformUI.h"
 #import "AppDelegate.h"
 
 int main(int argc, const char * argv[]) {

@@ -1,0 +1,19 @@
+include $(GNUSTEP_MAKEFILES)/common.make
+
+APP_NAME = ScuttleRoom
+
+ScuttleRoom_OBJC_FILES = \
+    $(filter-out Sources/GNUstepDemo.m Sources/HeadlessDemo.m Sources/ScuttleCLI.m Sources/SSBKeychain_Linux.m Sources/SSBKeychain_macOS.m Sources/SSBURLSessionShim.m, \
+        $(wildcard Sources/*.m App/*.m App/Logic/*.m App/UI/*.m))
+
+ScuttleRoom_C_FILES = \
+    Sources/tweetnacl.c \
+    Sources/blake2b.c \
+    Sources/blake3.c \
+    Sources/randombytes.c \
+    Sources/SSBDiffCore.c
+
+ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks -I./Sources -I./App -I./App/Logic -I./App/UI -I.
+ADDITIONAL_LDFLAGS += -ldispatch -lobjc -lcrypto -lsqlite3 -lz
+
+include $(GNUSTEP_MAKEFILES)/application.make

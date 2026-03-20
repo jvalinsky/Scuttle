@@ -1,4 +1,4 @@
-#import <Cocoa/Cocoa.h>
+#import "SRPlatformUI.h"
 #import "../../Sources/SSBGitRepo.h"
 #import "../../Sources/SSBRoomClient.h"
 

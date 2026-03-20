@@ -4,6 +4,13 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class SSBRoomClient;
+@class SRFeedItem;
+
+@protocol SRFeedItemOwner <NSObject>
+@optional
+- (void)itemDidRequestReply:(SRFeedItem *)item;
+- (void)itemDidRequestLike:(SRFeedItem *)item;
+@end
 
 @interface SRFeedItem : NSCollectionViewItem
 
@@ -17,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSButton *qrButton;
 @property (nonatomic, strong) NSTextField *timestampLabel;
 @property (nonatomic, strong) NSImageView *blobImageView;
-@property (nonatomic, weak) id owner;
+@property (nonatomic, weak) id<SRFeedItemOwner> owner;
 @property (nonatomic, weak, nullable) SSBRoomClient *client;
 
 + (nullable NSString *)extractBlobIDFromMessage:(SSBMessage *)msg;

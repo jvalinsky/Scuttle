@@ -2,14 +2,14 @@
 #import "SRDeviceManager.h"
 #import "RoomStorage.h"
 #import "SRNotificationNames.h"
-#import <Cocoa/Cocoa.h>
+#import "SRPlatformUI.h"
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBRoomClient.h"
 #import "../../Sources/SSBMetafeed.h"
-#import <SSBNetwork/SSBKeychain.h>
+#import "../../Sources/SSBRandom.h"
+#import "../../Sources/SSBSecretStore.h"
 #import "RoomInviteHandler.h"
-#import <Security/Security.h>
-#import <os/log.h>
+#import "../../Sources/SSBLogCompat.h"
 
 static os_log_t ssb_room_log;
 static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
@@ -122,8 +122,8 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
 - (void)joinRoomWithInvite:(NSString *)invite completion:(void (^)(BOOL success, NSError * _Nullable error))completion {
     if ([invite hasPrefix:@"http"]) {
-        NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
-        NSString *myId = [SSBKeychain publicIDFromSecret:savedIdentity];
+        NSData *savedIdentity = SSBLoadIdentitySecret();
+        NSString *myId = SSBPublicIDFromSecret(savedIdentity);
         if (!myId) {
             if (completion) completion(NO, [NSError errorWithDomain:@"SRRoomManager" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"No identity found. Please reset and create a new identity."}]);
             return;
@@ -169,7 +169,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         return;
     }
 
-    NSData *savedIdentity = [SSBKeychain loadIdentitySecret];
+    NSData *savedIdentity = SSBLoadIdentitySecret();
     os_log_info(ssb_room_log, "Creating client for %{public}@ (identity present: %d)", config.host, savedIdentity != nil);
 
     SSBRoomClient *client = [[SSBRoomClient alloc] initWithConfig:config localIdentity:savedIdentity];
@@ -276,15 +276,15 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 }
 
 - (void)checkForIncomingSeedBackups {
-    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
-    NSString *classicFeedID = [SSBKeychain publicIDFromSecret:identitySecret];
-    NSData *localSeed = [SSBKeychain loadMetafeedSeed];
+    NSData *identitySecret = SSBLoadIdentitySecret();
+    NSString *classicFeedID = SSBPublicIDFromSecret(identitySecret);
+    NSData *localSeed = SSBLoadMetafeedSeed();
     if (!localSeed || !classicFeedID) return;
 
     SSBMetafeed *localMetafeed = [SSBMetafeed createRootMetafeedFromSeed:localSeed];
     if (!localMetafeed) return;
 
-    NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+    NSString *metafeedRootID = SSBLoadMetafeedRootID();
 
     NSArray<SSBMessage *> *seedMessages = [[SSBFeedStore sharedStore]
         messagesOfType:@"metafeed/seed" limit:50];
@@ -326,9 +326,9 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
     SSBMetafeed *recoveredMetafeed = [SSBMetafeed createRootMetafeedFromSeed:seed];
     if (!recoveredMetafeed) return;
 
-    if ([SSBKeychain saveMetafeedSeed:seed] &&
-        [SSBKeychain saveMetafeedRootID:recoveredMetafeed.ID]) {
-        [SSBKeychain saveMetafeedAnnounced:NO];
+    if (SSBSaveMetafeedSeed(seed) &&
+        SSBSaveMetafeedRootID(recoveredMetafeed.ID)) {
+        SSBSaveMetafeedAnnounced(NO);
         self.needsMetafeedAnnounce = YES;
         os_log_info(ssb_room_log, "Identity restored from backup; new root: %{public}@",
                     recoveredMetafeed.ID);
@@ -338,9 +338,9 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 - (void)roomClientDidSyncLocalFeed:(SSBRoomClient *)client {
     if (!self.needsMetafeedAnnounce) return;
 
-    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
-    NSString *classicFeedID = [SSBKeychain publicIDFromSecret:identitySecret];
-    NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+    NSData *identitySecret = SSBLoadIdentitySecret();
+    NSString *classicFeedID = SSBPublicIDFromSecret(identitySecret);
+    NSString *metafeedRootID = SSBLoadMetafeedRootID();
     if (!classicFeedID || !metafeedRootID) return;
 
     NSDictionary *content = [SSBMetafeed createMetafeedAnnounceMessage:metafeedRootID
@@ -351,7 +351,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
     NSError *publishError;
     SSBMessage *published = [client publishLocalMessageWithContent:content error:&publishError];
     if (published) {
-        [SSBKeychain saveMetafeedAnnounced:YES];
+        SSBSaveMetafeedAnnounced(YES);
         self.needsMetafeedAnnounce = NO;
         os_log_info(ssb_room_log, "Metafeed announce published on classic feed: %{public}@", metafeedRootID);
 
@@ -411,17 +411,17 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
 - (void)bootstrapMetafeedIfNeeded {
     // Nothing to do if a seed is already stored.
-    if ([SSBKeychain loadMetafeedSeed]) {
+    if (SSBLoadMetafeedSeed()) {
         // Still need to re-arm the announce flag if it was never published
         // (e.g. app was killed between bootstrap and first successful sync).
-        if (![SSBKeychain loadMetafeedAnnounced]) {
+        if (!SSBLoadMetafeedAnnounced()) {
             self.needsMetafeedAnnounce = YES;
         }
         return;
     }
 
     // No identity = nothing to bootstrap yet; called again after generateLocalIdentity.
-    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
+    NSData *identitySecret = SSBLoadIdentitySecret();
     if (!identitySecret) return;
 
     NSData *seed = [SSBMetafeed generateSeed];
@@ -436,7 +436,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         return;
     }
 
-    if (![SSBKeychain saveMetafeedSeed:seed] || ![SSBKeychain saveMetafeedRootID:rootMetafeed.ID]) {
+    if (!SSBSaveMetafeedSeed(seed) || !SSBSaveMetafeedRootID(rootMetafeed.ID)) {
         os_log_error(ssb_room_log, "Metafeed bootstrap: failed to save to keychain");
         return;
     }
@@ -448,8 +448,8 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 #pragma mark - Key Rotation (Phase 3)
 
 - (void)revokeSubfeed:(NSString *)feedID reason:(nullable NSString *)reason {
-    NSData *seed = [SSBKeychain loadMetafeedSeed];
-    NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+    NSData *seed = SSBLoadMetafeedSeed();
+    NSString *metafeedRootID = SSBLoadMetafeedRootID();
     if (!seed || !metafeedRootID) {
         os_log_error(ssb_room_log, "revokeSubfeed: no metafeed seed/rootID in keychain");
         return;
@@ -483,8 +483,8 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 - (void)replaceSubfeed:(NSString *)oldFeedID
             completion:(void(^)(NSString *, NSError *))completion {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        NSData *seed = [SSBKeychain loadMetafeedSeed];
-        NSString *metafeedRootID = [SSBKeychain loadMetafeedRootID];
+        NSData *seed = SSBLoadMetafeedSeed();
+        NSString *metafeedRootID = SSBLoadMetafeedRootID();
         if (!seed || !metafeedRootID) {
             NSError *err = [NSError errorWithDomain:@"SRRoomManager" code:1
                 userInfo:@{NSLocalizedDescriptionKey: @"No metafeed seed in keychain"}];
@@ -502,7 +502,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
         // Use a random nonce so the new key is distinct even if the feed name matches.
         NSMutableData *nonce = [NSMutableData dataWithLength:32];
-        (void)SecRandomCopyBytes(kSecRandomDefault, 32, nonce.mutableBytes);
+        (void)SSBFillRandomBytes(nonce.mutableBytes, 32);
 
         NSDictionary *addContent = [rootMetafeed addDerivedFeedMessage:@"main"
                                                                purpose:SSBMetafeedPurposeV1

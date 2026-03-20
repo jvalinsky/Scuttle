@@ -32,6 +32,8 @@ typedef NS_ENUM(NSInteger, SSBMetafeedMessageType) {
 + (nullable NSData *)deriveKeyFromSeed:(NSData *)seed
                                    info:(NSString *)info;
 
++ (nullable NSData *)deriveRootKeyFromSeed:(NSData *)seed;
+
 + (nullable NSDictionary<NSString *, id> *)createMetafeed:(NSString *)metafeedID
                           addExistingFeed:(NSString *)feedID
                                    purpose:(SSBMetafeedPurpose)purpose;
@@ -67,6 +69,10 @@ typedef NS_ENUM(NSInteger, SSBMetafeedMessageType) {
 + (nullable NSData *)generateSeed;
 
 + (nullable NSData *)sha256:(NSData *)data;
+
++ (NSString *)nameForPurpose:(SSBMetafeedPurpose)purpose;
+
++ (SSBMetafeedPurpose)purposeFromString:(NSString *)purposeString;
 
 + (nullable NSDictionary<NSString *, id> *)createSeedMessage:(NSData *)seed
                                  forMetafeed:(NSString *)metafeedID

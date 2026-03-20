@@ -6,7 +6,7 @@
 #import "SSBMuxRPCSession.h"
 #import "SSBQueryEngine.h"
 #import "SSBMuxRPC.h"
-#import "SSBKeychain.h"
+#import "SSBSecretStore.h"
 #import "../App/Logic/SRNotificationNames.h"
 #import "SSBSecretHandshake.h"
 #import "SSBBlobStore.h"
@@ -116,7 +116,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         if (localIdentitySecret) {
             _localIdentitySecret = localIdentitySecret;
         } else {
-            NSData *saved = [SSBKeychain loadIdentitySecret];
+            NSData *saved = SSBLoadIdentitySecret();
             if (saved) {
                 _localIdentitySecret = saved;
             } else {
@@ -1215,34 +1215,40 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     NSDictionary *args = @{@"version": @3};
 
     __weak typeof(self) weakSelf = self;
+    __weak SSBMuxRPCSession *weakSession = session;
     SSBRPCCallback ebtCallback = ^(id _Nullable response, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
+        __strong SSBMuxRPCSession *strongSession = weakSession;
         if (!strongSelf) return;
         if (error) {
             os_log_error(ssb_room_log, "EBT Replication stream error: %{public}@", error);
             strongSelf.isEBTRunning = NO;
             return;
         }
-        [strongSelf handleEBTMessage:response requestID:0 flags:0 session:session];
-        };
+        if (!strongSession) return;
+        [strongSelf handleEBTMessage:response requestID:0 flags:0 session:strongSession];
+    };
 
-        self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
+    self.ebtRequestID = [session sendRequest:@[@"ebt", @"replicate"] args:@[args] type:@"duplex" completion:ebtCallback];
 
-        session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
-        [weakSelf handleEBTMessage:payload requestID:requestID flags:flags session:session];
-        };
+    session.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        __strong SSBMuxRPCSession *strongSession = weakSession;
+        if (!strongSelf || !strongSession) return;
+        [strongSelf handleEBTMessage:payload requestID:requestID flags:flags session:strongSession];
+    };
 
-        self.isEBTRunning = YES;
-        self.remoteClock = [NSMutableDictionary dictionary];
+    self.isEBTRunning = YES;
+    self.remoteClock = [NSMutableDictionary dictionary];
 
-        // Send initial clock
-        [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
-        os_log_info(ssb_room_log, "Started EBT replication with clock of %lu feeds", (unsigned long)clock.count);
-        }
+    // Send initial clock
+    [session sendData:clock forRequest:self.ebtRequestID isEnd:NO];
+    os_log_info(ssb_room_log, "Started EBT replication with clock of %lu feeds", (unsigned long)clock.count);
+}
 
-        - (void)startEBTReplication {
-        [self startEBTReplicationWithSession:self.rpcSession];
-        }
+- (void)startEBTReplication {
+    [self startEBTReplicationWithSession:self.rpcSession];
+}
 
         - (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags session:(SSBMuxRPCSession *)session {
             if (reqID != 0) {
@@ -1889,7 +1895,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 }
 
 - (NSString *)localPublicID {
-    return [SSBKeychain publicIDFromSecret:self.localIdentitySecret] ?: @"";
+    return SSBPublicIDFromSecret(self.localIdentitySecret) ?: @"";
 }
 
 - (NSString *)serverPublicID {
@@ -1972,8 +1978,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
 }
 
 + (void)resetLocalIdentity {
-    [SSBKeychain deleteIdentitySecret];
-    [SSBKeychain savePublishedMessageCount:0];
+    SSBDeleteIdentitySecret();
+    SSBSavePublishedMessageCount(0);
     os_log_info(ssb_room_log, "Local identity reset. A new one will be generated on next connection.");
 }
 
@@ -1983,7 +1989,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     crypto_sign_keypair(pk, sk);
     NSData *secret = [NSData dataWithBytes:sk length:64];
     
-    [SSBKeychain saveIdentitySecret:secret];
+    SSBSaveIdentitySecret(secret);
     
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRLocalIdentityGeneratedNotification object:nil];

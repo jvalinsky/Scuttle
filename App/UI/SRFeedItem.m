@@ -285,15 +285,11 @@
 }
 
 - (void)replyAction:(id)sender {
-    if ([self.owner respondsToSelector:@selector(itemDidRequestReply:)]) {
-        [self.owner performSelector:@selector(itemDidRequestReply:) withObject:self];
-    }
+    [self.owner itemDidRequestReply:self];
 }
 
 - (void)likeAction:(id)sender {
-    if ([self.owner respondsToSelector:@selector(itemDidRequestLike:)]) {
-        [self.owner performSelector:@selector(itemDidRequestLike:) withObject:self];
-    }
+    [self.owner itemDidRequestLike:self];
 }
 
 @end

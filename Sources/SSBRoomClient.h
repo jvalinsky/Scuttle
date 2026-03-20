@@ -1,9 +1,9 @@
 #import <Foundation/Foundation.h>
-#import "SSBMuxRPC.h"
-#import "RoomInviteHandler.h"
-#import "SSBFeedStore.h"
-#import "SSBMessageCodec.h"
-#import "SSBLogger.h"
+#import <SSBNetwork/SSBMuxRPC.h>
+#import <SSBNetwork/RoomInviteHandler.h>
+#import <SSBNetwork/SSBFeedStore.h>
+#import <SSBNetwork/SSBMessageCodec.h>
+#import <SSBNetwork/SSBLogger.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

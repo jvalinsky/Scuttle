@@ -9,16 +9,31 @@
 
 #define MAX_LINE 1024
 
+static void resolve_socket_path(char *path, size_t path_size) {
+    const char *xdg_state = getenv("XDG_STATE_HOME");
+    if (xdg_state && xdg_state[0] != '\0') {
+        snprintf(path, path_size, "%s/scuttle/scuttle_helper.sock", xdg_state);
+        return;
+    }
+
+    const char *xdg_data = getenv("XDG_DATA_HOME");
+    if (xdg_data && xdg_data[0] != '\0') {
+        snprintf(path, path_size, "%s/scuttle/scuttle_helper.sock", xdg_data);
+        return;
+    }
+
+    const char *home = getenv("HOME");
+    if (!home) home = getpwuid(getuid())->pw_dir;
+    snprintf(path, path_size, "%s/.local/state/scuttle/scuttle_helper.sock", home);
+}
+
 int connect_to_app(void) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) return -1;
-    
-    const char *home = getenv("HOME");
-    if (!home) home = getpwuid(getuid())->pw_dir;
-    
+
     char path[256];
-    snprintf(path, sizeof(path), "%s/.ssb/scuttle_helper.sock", home);
-    
+    resolve_socket_path(path, sizeof(path));
+
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;

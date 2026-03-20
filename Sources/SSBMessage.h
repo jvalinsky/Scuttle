@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "SSBBFE.h"
+#import <SSBNetwork/SSBBFE.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -14,9 +14,9 @@
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMessageCodec.h"
 #import "../../Sources/SSBLogger.h"
-#import "../../Sources/SSBKeychain.h"
+#import "../../Sources/SSBSecretStore.h"
 #import "../Logic/SRNotificationNames.h"
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 static os_log_t split_log;
 static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
@@ -87,8 +87,8 @@ static void SRPeerDiscoveryAppend(NSString *line) {
     };
 
     // Populate identity header.
-    NSData *localSecret = [SSBKeychain loadIdentitySecret];
-    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    NSData *localSecret = SSBLoadIdentitySecret();
+    NSString *pubkey = SSBPublicIDFromSecret(localSecret);
     if (pubkey) {
         [self.homeVC.headerView updateWithIdentity:pubkey name:nil];
         [[SRRoomManager sharedManager] resolveDisplayNameForAuthor:pubkey completion:^(NSString *name) {
@@ -140,8 +140,8 @@ static void SRPeerDiscoveryAppend(NSString *line) {
 #pragma mark - Notification handlers
 
 - (void)identityDidGenerate:(NSNotification *)notification {
-    NSData *localSecret = [SSBKeychain loadIdentitySecret];
-    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    NSData *localSecret = SSBLoadIdentitySecret();
+    NSString *pubkey = SSBPublicIDFromSecret(localSecret);
     if (pubkey) {
         [self.homeVC.headerView updateWithIdentity:pubkey name:nil];
     }

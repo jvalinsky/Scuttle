@@ -1,7 +1,7 @@
 #import "SRQRUtils.h"
 #import <CoreImage/CoreImage.h>
 #import <QuartzCore/QuartzCore.h>
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 @implementation SRQRUtils
 

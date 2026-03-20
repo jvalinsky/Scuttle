@@ -13,7 +13,7 @@
 
 - (void)testInitialState {
     XCTAssertEqual(self.machine.syncState, SSBSyncStateIdle);
-    XCTAssertEqual(self.machine.connectionState, SSBConnectionStateDisconnected);
+    XCTAssertEqual(self.machine.connectionState, SSBClientConnectionStateDisconnected);
 }
 
 - (void)testSyncStateTransitions {
@@ -28,20 +28,20 @@
 }
 
 - (void)testConnectionStateTransitions {
-    [self.machine transitionToConnectionState:SSBConnectionStateConnecting];
-    XCTAssertEqual(self.machine.connectionState, SSBConnectionStateConnecting);
+    [self.machine transitionToConnectionState:SSBClientConnectionStateConnecting];
+    XCTAssertEqual(self.machine.connectionState, SSBClientConnectionStateConnecting);
     
-    [self.machine transitionToConnectionState:SSBConnectionStateHandshake];
-    XCTAssertEqual(self.machine.connectionState, SSBConnectionStateHandshake);
+    [self.machine transitionToConnectionState:SSBClientConnectionStateHandshake];
+    XCTAssertEqual(self.machine.connectionState, SSBClientConnectionStateHandshake);
     
-    [self.machine transitionToConnectionState:SSBConnectionStateConnected];
-    XCTAssertEqual(self.machine.connectionState, SSBConnectionStateConnected);
+    [self.machine transitionToConnectionState:SSBClientConnectionStateConnected];
+    XCTAssertEqual(self.machine.connectionState, SSBClientConnectionStateConnected);
 }
 
 - (void)testCanPublish {
     XCTAssertFalse(self.machine.canPublish, "Cannot publish when disconnected");
     
-    self.machine.connectionState = SSBConnectionStateConnected;
+    self.machine.connectionState = SSBClientConnectionStateConnected;
     self.machine.syncState = SSBSyncStateIdle;
     XCTAssertTrue(self.machine.canPublish, "Can publish when connected and idle");
     
@@ -81,7 +81,7 @@
 - (void)testStateToString {
     XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateIdle], @"Idle");
     XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateSyncingLocal], @"SyncingLocal");
-    XCTAssertEqualObjects([self.machine connectionStateToString:SSBConnectionStateConnected], @"Connected");
+    XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateConnected], @"Connected");
 }
 
 @end

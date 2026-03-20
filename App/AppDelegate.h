@@ -1,7 +1,10 @@
-#import <Cocoa/Cocoa.h>
-#import <UserNotifications/UserNotifications.h>
+#import "SRPlatformUI.h"
 
-@interface AppDelegate : NSObject <NSApplicationDelegate, UNUserNotificationCenterDelegate, NSWindowRestoration>
+#ifdef __APPLE__
+@interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowRestoration>
+#else
+@interface AppDelegate : NSObject <NSApplicationDelegate, NSWindowRestoration>
+#endif
 
 @property (strong) NSWindow *window;
 

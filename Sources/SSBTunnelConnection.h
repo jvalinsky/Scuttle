@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "SSBMuxRPCSession.h"
+#import <SSBNetwork/SSBMuxRPCSession.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

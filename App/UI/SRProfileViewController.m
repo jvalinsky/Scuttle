@@ -6,7 +6,7 @@
 #import <SSBNetwork/SSBRoomClient.h>
 #import "SRProfileHeaderView.h"
 #import "../Logic/SRNotificationNames.h"
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 static os_log_t profile_log;
 

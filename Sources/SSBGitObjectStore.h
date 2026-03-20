@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "SSBGitPackDecoder.h"
+#import <SSBNetwork/SSBGitPackDecoder.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

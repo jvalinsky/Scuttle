@@ -1,4 +1,5 @@
-#import <Cocoa/Cocoa.h>
+#import "SRPlatformUI.h"
+#import "SRFeedItem.h"
 #import <SSBNetwork/SSBFeedStore.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -18,7 +19,7 @@ typedef NS_ENUM(NSInteger, SRFeedType) {
     SRFeedTypeGlobal
 };
 
-@interface SRFeedViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDelegateFlowLayout>
+@interface SRFeedViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDelegateFlowLayout, SRFeedItemOwner>
 
 @property (nonatomic, weak) id<SRFeedViewControllerDelegate> delegate;
 @property (nonatomic, assign) SRFeedType feedType;

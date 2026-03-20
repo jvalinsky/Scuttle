@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
-#import "SSBLog.h"
-#import "SSBBitset.h"
-#import "SSBPrefixIndex.h"
+#import <SSBNetwork/SSBLog.h>
+#import <SSBNetwork/SSBBitset.h>
+#import <SSBNetwork/SSBPrefixIndex.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

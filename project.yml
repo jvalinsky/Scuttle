@@ -16,7 +16,7 @@ targets:
           - SSBKeychain_Linux.m
           - SSBKeychain_macOS.m
       - path: App/Logic/SRNotificationNames.m
-        group: AppLogic
+        group: App/Logic
     dependencies:
       - sdk: libsqlite3.tbd
       - sdk: Security.framework
@@ -31,7 +31,7 @@ targets:
     sources:
       - path: Tests
       - path: App/UI/SRContentContainerViewController.m
-        group: AppUI
+        group: App/UI
     dependencies:
       - target: SSBNetwork
     settings:

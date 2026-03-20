@@ -76,8 +76,124 @@
           go
         ];
 
+        gnustepEnv = ''
+          . ${pkgs.gnustep-make}/share/GNUstep/Makefiles/GNUstep.sh
+          export GNUSTEP_MAKEFILES=${pkgs.gnustep-make}/share/GNUstep/Makefiles
+          export LD_LIBRARY_PATH="${libobjc}/lib:${libdispatch}/lib:${gnustep-base-custom}/lib:$LD_LIBRARY_PATH"
+          export GNUSTEP_PATHLIST="${pkgs.gnustep-back}/lib/GNUstep:${pkgs.gnustep-gui}/lib/GNUstep:${gnustep-base-custom}/lib/GNUstep:$GNUSTEP_PATHLIST"
+        '';
+
+        mkScuttleTarget =
+          {
+            pname,
+            makefile,
+            executableName,
+            appBundleName ? null,
+          }:
+          stdenv.mkDerivation {
+            inherit pname;
+            version = "0.1.0";
+            src = ./.;
+
+            nativeBuildInputs = with pkgs; [
+              pkg-config
+              gnumake
+              gnustep-make
+              makeWrapper
+            ];
+
+            buildInputs = commonDeps ++ linuxDeps;
+
+            dontConfigure = true;
+
+            buildPhase = ''
+              runHook preBuild
+              ${gnustepEnv}
+              make -f ${makefile}
+              runHook postBuild
+            '';
+
+            installPhase = ''
+              runHook preInstall
+              ${gnustepEnv}
+              mkdir -p "$out/bin" "$out/Applications"
+
+              binPath="$(find . -type f -name '${executableName}' -perm -111 | head -n 1 || true)"
+              if [ -n "$binPath" ]; then
+                install -m755 "$binPath" "$out/bin/${executableName}"
+              fi
+
+              if [ -n "${if appBundleName == null then "" else appBundleName}" ]; then
+                appPath="$(find . -type d -name '${if appBundleName == null then "" else appBundleName}.app' | head -n 1 || true)"
+                if [ -n "$appPath" ]; then
+                  cp -R "$appPath" "$out/Applications/"
+                  cat > "$out/bin/scuttle-gui" <<EOF
+#!${pkgs.runtimeShell}
+export GNUSTEP_PATHLIST="${pkgs.gnustep-back}/lib/GNUstep:${pkgs.gnustep-gui}/lib/GNUstep:${gnustep-base-custom}/lib/GNUstep:\$GNUSTEP_PATHLIST"
+export LD_LIBRARY_PATH="${libobjc}/lib:${libdispatch}/lib:${gnustep-base-custom}/lib:\$LD_LIBRARY_PATH"
+exec "$out/Applications/${if appBundleName == null then "" else appBundleName}.app/${if appBundleName == null then "" else appBundleName}" "\$@"
+EOF
+                  chmod +x "$out/bin/scuttle-gui"
+                fi
+              fi
+              runHook postInstall
+            '';
+          };
+
+        linuxPackages =
+          if pkgs.stdenv.isLinux then
+            rec {
+              scuttle-cli = mkScuttleTarget {
+                pname = "scuttle-cli";
+                makefile = "GNUmakefile";
+                executableName = "scuttle-cli";
+              };
+
+              scuttle-gui = mkScuttleTarget {
+                pname = "scuttle-gui";
+                makefile = "GNUmakefile.gui";
+                executableName = "ScuttleRoom";
+                appBundleName = "ScuttleRoom";
+              };
+
+              default = scuttle-cli;
+            }
+          else
+            { };
+
+        linuxApps =
+          if pkgs.stdenv.isLinux then
+            {
+              scuttle-cli = flake-utils.lib.mkApp {
+                drv = linuxPackages.scuttle-cli;
+                exePath = "/bin/scuttle-cli";
+              };
+              scuttle-gui = flake-utils.lib.mkApp {
+                drv = linuxPackages.scuttle-gui;
+                exePath = "/bin/scuttle-gui";
+              };
+              default = flake-utils.lib.mkApp {
+                drv = linuxPackages.scuttle-cli;
+                exePath = "/bin/scuttle-cli";
+              };
+            }
+          else
+            { };
+
       in
       {
+        packages = linuxPackages;
+
+        apps = linuxApps;
+
+        checks =
+          if pkgs.stdenv.isLinux then
+            {
+              inherit (linuxPackages) scuttle-cli scuttle-gui;
+            }
+          else
+            { };
+
         devShells.default = stdenv.mkDerivation {
           name = "scuttle-dev-shell";
 

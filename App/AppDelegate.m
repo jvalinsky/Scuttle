@@ -3,8 +3,8 @@
 #import "Logic/SRNotificationNames.h"
 #import "Logic/SRGitRemoteHelperServer.h"
 #import "UI/SRMainSplitViewController.h"
-#import <os/log.h>
-#import <UserNotifications/UserNotifications.h>
+#import "SRPlatformNotifications.h"
+#import "../Sources/SSBLogCompat.h"
 
 static os_log_t ssb_app_log;
 
@@ -25,7 +25,11 @@ static void SRAppendStartupLog(NSString *message) {
 
 @interface AppDelegate ()
 @property (nonatomic, strong) SRMainSplitViewController *mainVC;
-@property (nonatomic, strong) NSStatusItem *statusItem;
+#ifdef __APPLE__
+@property (nonatomic, strong, nullable) NSStatusItem *statusItem;
+#else
+@property (nonatomic, strong, nullable) id statusItem;
+#endif
 @end
 
 @implementation AppDelegate
@@ -103,13 +107,7 @@ static void SRAppendStartupLog(NSString *message) {
     [self setupStatusItem];
     SRAppendStartupLog(@"status item installed");
     
-    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-    center.delegate = self;
-    [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge) completionHandler:^(BOOL granted, NSError * _Nullable error) {
-        if (granted) {
-            os_log_info(ssb_app_log, "Notifications granted");
-        }
-    }];
+    [[SRPlatformNotifications sharedNotifications] configure];
     SRAppendStartupLog(@"notification authorization requested");
     
     // Initialize Room Manager
@@ -167,13 +165,15 @@ static void SRAppendStartupLog(NSString *message) {
 }
 
 - (void)setupStatusItem {
+#ifdef __APPLE__
     self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
-    self.statusItem.button.image = [NSImage imageWithSystemSymbolName:@"network" accessibilityDescription:@"ScuttleKit"];
-    
+    [self.statusItem button].image = [NSImage imageWithSystemSymbolName:@"network" accessibilityDescription:@"ScuttleKit"];
     [self updateStatusMenu];
-    
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStatusMenu) name:SRRoomManagerDidUpdateRoomsNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleNewMessageNotification:) name:SRNewMessageNotification object:nil];
+#else
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleNewMessageNotification:) name:SRNewMessageNotification object:nil];
+#endif
 }
 
 - (void)handleNewMessageNotification:(NSNotification *)notification {
@@ -189,20 +189,13 @@ static void SRAppendStartupLog(NSString *message) {
 
     NSString *text = content[@"text"] ?: @"New message";
     
-    UNMutableNotificationContent *notifContent = [[UNMutableNotificationContent alloc] init];
-    notifContent.title = [NSString stringWithFormat:@"Message from %@", author];
-    notifContent.body = text;
-    notifContent.sound = [UNNotificationSound defaultSound];
-    
-    UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:[[NSUUID UUID] UUIDString] content:notifContent trigger:nil];
-    [[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:nil];
-}
-
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
-    completionHandler(UNNotificationPresentationOptionList | UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionSound);
+    [[SRPlatformNotifications sharedNotifications] postMessageFromAuthor:author text:text];
 }
 
 - (void)updateStatusMenu {
+#ifndef __APPLE__
+    return;
+#else
     NSMenu *menu = [[NSMenu alloc] init];
     [menu addItemWithTitle:@"ScuttleKit" action:nil keyEquivalent:@""];
     [menu addItem:[NSMenuItem separatorItem]];
@@ -224,6 +217,7 @@ static void SRAppendStartupLog(NSString *message) {
     [menu addItemWithTitle:@"Quit" action:@selector(terminate:) keyEquivalent:@"q"];
     
     self.statusItem.menu = menu;
+#endif
 }
 
 - (void)statusItemRoomAction:(NSMenuItem *)sender {
@@ -249,6 +243,7 @@ static void SRAppendStartupLog(NSString *message) {
 }
 
 - (void)bringToFront:(id)sender {
+#ifdef __APPLE__
     if (@available(macOS 14.0, *)) {
         [NSApp activate];
     } else {
@@ -257,6 +252,7 @@ static void SRAppendStartupLog(NSString *message) {
         [NSApp activateIgnoringOtherApps:YES];
 #pragma clang diagnostic pop
     }
+#endif
     [self.window makeKeyAndOrderFront:nil];
 }
 

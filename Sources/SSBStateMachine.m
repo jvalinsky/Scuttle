@@ -6,7 +6,7 @@
     self = [super init];
     if (self) {
         _syncState = SSBSyncStateIdle;
-        _connectionState = SSBConnectionStateDisconnected;
+        _connectionState = SSBClientConnectionStateDisconnected;
         _logCategory = category;
     }
     return self;
@@ -23,7 +23,7 @@
     self.syncState = newState;
 }
 
-- (void)transitionToConnectionState:(SSBConnectionState)newState {
+- (void)transitionToConnectionState:(SSBClientConnectionState)newState {
     if (self.connectionState == newState) return;
     
     NSString *fromStr = [self connectionStateToString:self.connectionState];
@@ -45,19 +45,19 @@
     }
 }
 
-- (NSString *)connectionStateToString:(SSBConnectionState)state {
+- (NSString *)connectionStateToString:(SSBClientConnectionState)state {
     switch (state) {
-        case SSBConnectionStateDisconnected: return @"Disconnected";
-        case SSBConnectionStateConnecting: return @"Connecting";
-        case SSBConnectionStateHandshake: return @"Handshake";
-        case SSBConnectionStateConnected: return @"Connected";
-        case SSBConnectionStateReconnecting: return @"Reconnecting";
-        case SSBConnectionStateError: return @"Error";
+        case SSBClientConnectionStateDisconnected: return @"Disconnected";
+        case SSBClientConnectionStateConnecting: return @"Connecting";
+        case SSBClientConnectionStateHandshake: return @"Handshake";
+        case SSBClientConnectionStateConnected: return @"Connected";
+        case SSBClientConnectionStateReconnecting: return @"Reconnecting";
+        case SSBClientConnectionStateError: return @"Error";
     }
 }
 
 - (BOOL)canPublish {
-    return self.connectionState == SSBConnectionStateConnected && 
+    return self.connectionState == SSBClientConnectionStateConnected &&
            (self.syncState == SSBSyncStateSynced || self.syncState == SSBSyncStateIdle);
 }
 

@@ -1,8 +1,8 @@
 #import "SRSeedBackupViewController.h"
 #import "../Logic/SRRoomManager.h"
 #import "../../Sources/SSBMetafeed.h"
-#import <SSBNetwork/SSBKeychain.h>
-#import <os/log.h>
+#import <SSBNetwork/SSBSecretStore.h>
+#import "SRPlatformLog.h"
 
 static os_log_t backup_log;
 
@@ -124,7 +124,7 @@ static os_log_t backup_log;
 }
 
 - (void)loadMetafeedID {
-    NSString *rootID = [SSBKeychain loadMetafeedRootID];
+    NSString *rootID = SSBLoadMetafeedRootID();
     self.metafeedIDField.stringValue = rootID ?: @"No metafeed found";
 }
 
@@ -137,7 +137,7 @@ static os_log_t backup_log;
         return;
     }
 
-    NSData *seed = [SSBKeychain loadMetafeedSeed];
+    NSData *seed = SSBLoadMetafeedSeed();
     if (!seed) {
         self.statusLabel.stringValue = @"No metafeed seed found. Please reset your account.";
         self.statusLabel.textColor = [NSColor systemRedColor];
@@ -161,8 +161,8 @@ static os_log_t backup_log;
         return;
     }
 
-    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
-    NSString *classicFeedID = [SSBKeychain publicIDFromSecret:identitySecret];
+    NSData *identitySecret = SSBLoadIdentitySecret();
+    NSString *classicFeedID = SSBPublicIDFromSecret(identitySecret);
     if (!classicFeedID || !identitySecret) {
         self.statusLabel.stringValue = @"No local identity found.";
         self.statusLabel.textColor = [NSColor systemRedColor];

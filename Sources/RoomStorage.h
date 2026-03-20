@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "RoomInviteHandler.h"
+#import <SSBNetwork/RoomInviteHandler.h>
 
 @interface RoomStorage : NSObject
 + (void)saveRoom:(RoomConfig *)config;

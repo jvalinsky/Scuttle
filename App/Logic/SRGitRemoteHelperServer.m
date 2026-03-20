@@ -6,9 +6,27 @@
 #import <sys/socket.h>
 #import <sys/un.h>
 #import <unistd.h>
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 static os_log_t server_log;
+
+static NSString *SRScuttleSocketDirectory(void) {
+    NSString *xdgState = NSProcessInfo.processInfo.environment[@"XDG_STATE_HOME"];
+    if (xdgState.length > 0) {
+        return [xdgState stringByAppendingPathComponent:@"scuttle"];
+    }
+
+    NSString *xdgData = NSProcessInfo.processInfo.environment[@"XDG_DATA_HOME"];
+    if (xdgData.length > 0) {
+        return [xdgData stringByAppendingPathComponent:@"scuttle"];
+    }
+
+    return [NSHomeDirectory() stringByAppendingPathComponent:@".local/state/scuttle"];
+}
+
+static NSString *SRScuttleSocketPath(void) {
+    return [SRScuttleSocketDirectory() stringByAppendingPathComponent:@"scuttle_helper.sock"];
+}
 
 @interface SRGitRemoteClient : NSObject
 @property (nonatomic, assign) int fd;
@@ -51,10 +69,10 @@ static os_log_t server_log;
 }
 
 - (BOOL)start {
-    NSString *ssbDir = [NSHomeDirectory() stringByAppendingPathComponent:@".ssb"];
-    [[NSFileManager defaultManager] createDirectoryAtPath:ssbDir withIntermediateDirectories:YES attributes:nil error:nil];
-    
-    NSString *socketPath = [ssbDir stringByAppendingPathComponent:@"scuttle_helper.sock"];
+    NSString *socketDir = SRScuttleSocketDirectory();
+    [[NSFileManager defaultManager] createDirectoryAtPath:socketDir withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSString *socketPath = SRScuttleSocketPath();
     unlink([socketPath UTF8String]);
     
     _serverSocket = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -102,7 +120,7 @@ static os_log_t server_log;
         close(_serverSocket);
         _serverSocket = -1;
     }
-    NSString *socketPath = [[NSHomeDirectory() stringByAppendingPathComponent:@".ssb"] stringByAppendingPathComponent:@"scuttle_helper.sock"];
+    NSString *socketPath = SRScuttleSocketPath();
     unlink([socketPath UTF8String]);
 }
 
@@ -249,7 +267,10 @@ static os_log_t server_log;
                 return;
             }
             
-            SSBGitRepo *repo = [[SSBGitRepo alloc] initWithRepoID:client.pendingRepoID feedStore:[SSBFeedStore sharedStore] objectStore:nil];
+            SSBGitObjectStore *objectStore = [[SSBGitObjectStore alloc] initWithBlobStore:[SSBBlobStore sharedStore]];
+            SSBGitRepo *repo = [[SSBGitRepo alloc] initWithRepoID:client.pendingRepoID
+                                                        feedStore:[SSBFeedStore sharedStore]
+                                                       objectStore:objectStore];
             [repo publishUpdateWithRefs:@{client.pendingRef: client.pendingSHA}
                                   packs:@[packBlobID]
                                 indexes:@[idxBlobID]

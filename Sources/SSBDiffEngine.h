@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "SSBDiffCore.h"
+#import <SSBNetwork/SSBDiffCore.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

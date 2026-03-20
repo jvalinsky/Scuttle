@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 
-#import "SSBMuxRPC.h"
+#import <SSBNetwork/SSBMuxRPC.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

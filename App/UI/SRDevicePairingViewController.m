@@ -3,8 +3,8 @@
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRQRUtils.h"
 #import "../../Sources/SSBMetafeed.h"
-#import <SSBNetwork/SSBKeychain.h>
-#import <os/log.h>
+#import <SSBNetwork/SSBSecretStore.h>
+#import "SRPlatformLog.h"
 
 static os_log_t pairing_log;
 
@@ -268,7 +268,7 @@ static os_log_t pairing_log;
 - (nullable NSString *)_pairingPayloadForRecipient:(NSString *)recipientID {
     if (recipientID.length == 0) return nil;
 
-    NSData *seed = [SSBKeychain loadMetafeedSeed];
+    NSData *seed = SSBLoadMetafeedSeed();
     if (!seed) {
         self.statusLabel.stringValue = @"No metafeed seed found.";
         return nil;

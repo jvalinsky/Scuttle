@@ -47,7 +47,11 @@ static void MakeStreamPair(SSBBoxStream **outClient, SSBBoxStream **outServer) {
 
 - (void)setUp {
     [super setUp];
-    MakeStreamPair(&_client, &_server);
+    SSBBoxStream *client = nil;
+    SSBBoxStream *server = nil;
+    MakeStreamPair(&client, &server);
+    self.client = client;
+    self.server = server;
 }
 
 #pragma mark - isClient flag

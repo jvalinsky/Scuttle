@@ -4,7 +4,9 @@ TOOL_NAME = scuttle-cli
 
 scuttle-cli_OBJC_FILES = \
     Sources/ScuttleCLI.m \
-    Sources/SSBKeychain_Linux.m \
+    Sources/SSBKeychain.m \
+    Sources/SSBSecretStore.m \
+    Sources/SSBRandom.m \
     Sources/SSBFeedStore.m \
     Sources/SSBRoomClient.m \
     Sources/RoomInviteHandler.m \
@@ -48,7 +50,6 @@ scuttle-cli_OBJC_FILES = \
     Sources/SSBGitIssueStore.m \
     Sources/SSBGitPRStore.m \
     Sources/SSBNetworkShim.m \
-    Sources/SSBURLSessionShim.m \
     App/Logic/SRNotificationNames.m
 
 scuttle-cli_C_FILES = \
@@ -59,7 +60,7 @@ scuttle-cli_C_FILES = \
     Sources/SSBDiffCore.c
 
 # 2026: Enable modern Objective-C features
-ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks -I./Sources -I./App/Logic
+ADDITIONAL_OBJCFLAGS += -fobjc-arc -fblocks -I./Sources -I./App -I./App/Logic -I.
 ADDITIONAL_LDFLAGS += -ldispatch -lobjc -lcrypto -lsqlite3 -lz
 
 include $(GNUSTEP_MAKEFILES)/tool.make

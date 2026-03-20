@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import "SSBLogger.h"
+#import <SSBNetwork/SSBLogger.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -12,28 +12,28 @@ typedef NS_ENUM(NSInteger, SSBSyncState) {
     SSBSyncStateError = 5
 };
 
-typedef NS_ENUM(NSInteger, SSBConnectionState) {
-    SSBConnectionStateDisconnected = 0,
-    SSBConnectionStateConnecting = 1,
-    SSBConnectionStateHandshake = 2,
-    SSBConnectionStateConnected = 3,
-    SSBConnectionStateReconnecting = 4,
-    SSBConnectionStateError = 5
+typedef NS_ENUM(NSInteger, SSBClientConnectionState) {
+    SSBClientConnectionStateDisconnected = 0,
+    SSBClientConnectionStateConnecting = 1,
+    SSBClientConnectionStateHandshake = 2,
+    SSBClientConnectionStateConnected = 3,
+    SSBClientConnectionStateReconnecting = 4,
+    SSBClientConnectionStateError = 5
 };
 
 @interface SSBStateMachine : NSObject
 
 @property (nonatomic, assign) SSBSyncState syncState;
-@property (nonatomic, assign) SSBConnectionState connectionState;
+@property (nonatomic, assign) SSBClientConnectionState connectionState;
 @property (nonatomic, assign) SSBLogCategory logCategory;
 
 - (instancetype)initWithCategory:(SSBLogCategory)category;
 
 - (void)transitionToSyncState:(SSBSyncState)newState;
-- (void)transitionToConnectionState:(SSBConnectionState)newState;
+- (void)transitionToConnectionState:(SSBClientConnectionState)newState;
 
 - (NSString *)syncStateToString:(SSBSyncState)state;
-- (NSString *)connectionStateToString:(SSBConnectionState)state;
+- (NSString *)connectionStateToString:(SSBClientConnectionState)state;
 
 - (BOOL)canPublish;
 - (BOOL)isSyncing;

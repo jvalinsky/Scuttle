@@ -7,7 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (instancetype)sharedServer;
 
-/// Starts the UDS server at ~/.ssb/scuttle_helper.sock
+/// Starts the UDS server at the resolved Scuttle runtime socket path.
 - (BOOL)start;
 
 /// Stops the server and removes the socket file.

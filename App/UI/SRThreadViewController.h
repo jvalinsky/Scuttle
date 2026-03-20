@@ -1,4 +1,5 @@
-#import <Cocoa/Cocoa.h>
+#import "SRPlatformUI.h"
+#import "SRFeedItem.h"
 #import <SSBNetwork/SSBFeedStore.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -13,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)threadViewController:(SRThreadViewController *)vc didReplyToMessage:(SSBMessage *)message;
 @end
 
-@interface SRThreadViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout>
+@interface SRThreadViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout, SRFeedItemOwner>
 
 @property (nonatomic, weak, nullable) id<SRThreadViewControllerDelegate> delegate;
 @property (nonatomic, strong) SSBMessage *rootMessage;

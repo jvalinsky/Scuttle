@@ -1,15 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBGabbyGrove.h>
-#import <CommonCrypto/CommonCrypto.h>
-
-// TweetNaCl Ed25519 functions linked via SSBNetwork.framework.
-extern int crypto_sign_ed25519_keypair(unsigned char *pk, unsigned char *sk);
-extern int crypto_sign_ed25519(unsigned char *sm, unsigned long long *smlen,
-                               const unsigned char *m, unsigned long long mlen,
-                               const unsigned char *sk);
-extern int crypto_sign_open(unsigned char *m, unsigned long long *mlen,
-                            const unsigned char *sm, unsigned long long smlen,
-                            const unsigned char *pk);
+#import <SSBNetwork/tweetnacl.h>
 
 static void GGGenerateKeypair(NSData **outPK, NSData **outSK) {
     unsigned char pk[32], sk[64];
@@ -82,7 +73,11 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 
 - (void)setUp {
     [super setUp];
-    GGGenerateKeypair(&_publicKey, &_secretKey);
+    NSData *publicKey = nil;
+    NSData *secretKey = nil;
+    GGGenerateKeypair(&publicKey, &secretKey);
+    self.publicKey = publicKey;
+    self.secretKey = secretKey;
 }
 
 #pragma mark - Varint Encoding
@@ -146,7 +141,7 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
 }
 
 - (void)testDecodeVarint_roundTrip {
-    for (uint64_t original in @[@0, @1, @127, @128, @300, @16383, @16384]) {
+    for (NSNumber *original in @[@0, @1, @127, @128, @300, @16383, @16384]) {
         NSMutableData *buf = [NSMutableData data];
         [SSBGabbyGrove appendVarint:original.unsignedLongLongValue toData:buf];
         NSUInteger offset = 0;

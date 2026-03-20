@@ -1,7 +1,7 @@
 #import "SRPeerListViewController.h"
 #import "SSBFeedStore.h"
 #import "../Logic/SRNotificationNames.h"
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 static os_log_t peer_list_log;
 

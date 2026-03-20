@@ -2,9 +2,7 @@
 #import "SSBURI.h"
 #import "tweetnacl.h"
 #import "SSBLogCompat.h"
-#ifdef __APPLE__
-#import <Security/Security.h>
-#endif
+#import "SSBRandom.h"
 
 static os_log_t httpAuth_log;
 
@@ -155,8 +153,8 @@ static const NSUInteger kNonceBytesLength = 32;
 
 - (NSString *)generateNonce {
     NSMutableData *nonceData = [NSMutableData dataWithLength:kNonceBytesLength];
-    int result = SecRandomCopyBytes(kSecRandomDefault, kNonceBytesLength, nonceData.mutableBytes);
-    if (result != errSecSuccess) {
+    BOOL result = SSBFillRandomBytes(nonceData.mutableBytes, kNonceBytesLength);
+    if (!result) {
         os_log_error(httpAuth_log, "Failed to generate random nonce: %d", result);
         return nil;
     }

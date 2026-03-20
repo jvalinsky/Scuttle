@@ -6,7 +6,7 @@
 #import "SRMainSplitViewController.h"
 #import "../../Sources/SSBBamboo.h"
 #import "../../Sources/SSBFeedStore.h"
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 static os_log_t sidebar_log;
 

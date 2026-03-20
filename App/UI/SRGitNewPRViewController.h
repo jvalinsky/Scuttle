@@ -1,4 +1,4 @@
-#import <Cocoa/Cocoa.h>
+#import "SRPlatformUI.h"
 #import "../../Sources/SSBRoomClient.h"
 
 NS_ASSUME_NONNULL_BEGIN

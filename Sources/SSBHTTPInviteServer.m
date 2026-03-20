@@ -3,6 +3,7 @@
 #import "SSBURLSessionCompat.h"
 #import "SSBLogCompat.h"
 #import "SSBCommonCryptoCompat.h"
+#import "SSBRandom.h"
 
 static os_log_t server_log;
 
@@ -82,10 +83,7 @@ static os_log_t server_log;
     NSUInteger length = alphabet.length;
     
     for (int i = 0; i < 32; i++) {
-        uint32_t randomIndex;
-        if (SecRandomCopyBytes(kSecRandomDefault, sizeof(randomIndex), &randomIndex) != errSecSuccess) {
-            randomIndex = arc4random();
-        }
+        uint32_t randomIndex = SSBRandomUInt32();
         unichar c = [alphabet characterAtIndex:randomIndex % length];
         [code appendFormat:@"%C", c];
     }

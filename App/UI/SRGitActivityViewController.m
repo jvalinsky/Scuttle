@@ -2,7 +2,7 @@
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBQueryEngine.h"
 #import "../Logic/SRRoomManager.h"
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 @interface SRGitActivityViewController ()
 @property (nonatomic, strong) NSScrollView *scrollView;

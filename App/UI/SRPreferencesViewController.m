@@ -5,11 +5,11 @@
 #import "SRDevicePairingViewController.h"
 #import "../Logic/SRRoomManager.h"
 #import <SSBNetwork/SSBNetwork.h>
-#import <SSBNetwork/SSBKeychain.h>
+#import <SSBNetwork/SSBSecretStore.h>
 #import <SSBNetwork/SSBRoomClient.h>
 #import <SSBNetwork/SSBMessageCodec.h>
 #import <SSBNetwork/SSBFeedStore.h>
-#import <os/log.h>
+#import "SRPlatformLog.h"
 
 static os_log_t prefs_log;
 
@@ -238,7 +238,7 @@ static os_log_t prefs_log;
 }
 
 - (void)loadIdentity {
-    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSData *localSecret = SSBLoadIdentitySecret();
     if (localSecret && localSecret.length >= 64) {
         NSData *pkData = [localSecret subdataWithRange:NSMakeRange(32, 32)];
         NSString *pubkey = [NSString stringWithFormat:@"@%@.ed25519", [pkData base64EncodedStringWithOptions:0]];
@@ -252,10 +252,10 @@ static os_log_t prefs_log;
     
     os_log_info(prefs_log, "Saving profile name: %{public}@", name);
     
-    NSData *localSecret = [SSBKeychain loadIdentitySecret];
+    NSData *localSecret = SSBLoadIdentitySecret();
     if (!localSecret || localSecret.length < 64) return;
     
-    NSString *pubkey = [SSBKeychain publicIDFromSecret:localSecret];
+    NSString *pubkey = SSBPublicIDFromSecret(localSecret);
     
     SSBRoomClient *client = [SRRoomManager sharedManager].clients.allValues.firstObject;
     if (client) {
@@ -310,8 +310,8 @@ static os_log_t prefs_log;
 }
 
 - (void)rotateFeedKeyAction:(id)sender {
-    NSData *identitySecret = [SSBKeychain loadIdentitySecret];
-    NSString *classicFeedID = [SSBKeychain publicIDFromSecret:identitySecret];
+    NSData *identitySecret = SSBLoadIdentitySecret();
+    NSString *classicFeedID = SSBPublicIDFromSecret(identitySecret);
     if (!classicFeedID) {
         NSAlert *err = [[NSAlert alloc] init];
         err.messageText = @"No Identity";

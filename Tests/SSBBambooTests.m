@@ -1,11 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBBamboo.h>
-
-// TweetNaCl functions linked via SSBNetwork.framework.
-extern int crypto_sign_ed25519_keypair(unsigned char *pk, unsigned char *sk);
-extern int crypto_sign_ed25519(unsigned char *sm, unsigned long long *smlen,
-                               const unsigned char *m, unsigned long long mlen,
-                               const unsigned char *sk);
+#import <SSBNetwork/tweetnacl.h>
 #define BAMBOO_SIG_BYTES 64
 
 static void BAMGenerateKeypair(NSData **outPK, NSData **outSK) {
@@ -75,7 +70,11 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
 
 - (void)setUp {
     [super setUp];
-    BAMGenerateKeypair(&_publicKey, &_secretKey);
+    NSData *publicKey = nil;
+    NSData *secretKey = nil;
+    BAMGenerateKeypair(&publicKey, &secretKey);
+    self.publicKey = publicKey;
+    self.secretKey = secretKey;
 }
 
 #pragma mark - lipmaaSequenceFor:
@@ -177,13 +176,13 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
 
 - (void)testValidateEntry_tooShort {
     // Minimum seq=1 is 177 bytes; test with 176
-    NSData *short_ = [NSData dataWithLength:176];
+    NSData *short_ = [NSMutableData dataWithLength:176];
     XCTAssertFalse([SSBBamboo validateEntry:short_]);
 }
 
 - (void)testValidateEntry_minimumSize_allZeros {
     // 177 zero bytes is structurally present but invalid (seq=0)
-    NSData *zeros = [NSData dataWithLength:177];
+    NSData *zeros = [NSMutableData dataWithLength:177];
     XCTAssertFalse([SSBBamboo validateEntry:zeros]);
 }
 
@@ -263,7 +262,7 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
 }
 
 - (void)testComputeEntryID_tooShort {
-    XCTAssertNil([SSBBamboo computeEntryID:[NSData dataWithLength:176]]);
+    XCTAssertNil([SSBBamboo computeEntryID:[NSMutableData dataWithLength:176]]);
 }
 
 - (void)testComputeEntryID_validEntry_returns32Bytes {

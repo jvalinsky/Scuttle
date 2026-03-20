@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SRPreferencesWindowController : NSWindowController
+@interface SRPreferencesWindowController : NSWindowController <NSWindowDelegate>
 
 + (instancetype)sharedPreferencesWindowController;
 

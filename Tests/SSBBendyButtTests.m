@@ -1,8 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBBendyButt.h>
-
-// TweetNaCl keypair function linked via SSBNetwork.framework.
-extern int crypto_sign_ed25519_keypair(unsigned char *pk, unsigned char *sk);
+#import <SSBNetwork/tweetnacl.h>
 
 static void BBGenerateKeypair(NSData **outPK, NSData **outSK) {
     unsigned char pk[32], sk[64];
@@ -20,7 +18,11 @@ static void BBGenerateKeypair(NSData **outPK, NSData **outSK) {
 
 - (void)setUp {
     [super setUp];
-    BBGenerateKeypair(&_publicKey, &_secretKey);
+    NSData *publicKey = nil;
+    NSData *secretKey = nil;
+    BBGenerateKeypair(&publicKey, &secretKey);
+    self.publicKey = publicKey;
+    self.secretKey = secretKey;
 }
 
 #pragma mark - Bencode Integer

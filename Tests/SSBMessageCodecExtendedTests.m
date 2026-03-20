@@ -1,9 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBMessageCodec.h>
-
-// Use the TweetNaCl keypair function linked via SSBNetwork.framework.
-// Ed25519 secret key is 64 bytes: 32-byte seed || 32-byte public key.
-extern int crypto_sign_ed25519_keypair(unsigned char *pk, unsigned char *sk);
+#import <SSBNetwork/tweetnacl.h>
 
 static void GenerateKeypair(NSData **outPublicKey, NSData **outSecretKey) {
     unsigned char pk[32], sk[64];
@@ -27,8 +24,12 @@ static NSString *FeedIdFromPublicKey(NSData *pk) {
 
 - (void)setUp {
     [super setUp];
-    GenerateKeypair(&_publicKey, &_secretKey);
-    self.feedId = FeedIdFromPublicKey(self.publicKey);
+    NSData *publicKey = nil;
+    NSData *secretKey = nil;
+    GenerateKeypair(&publicKey, &secretKey);
+    self.publicKey = publicKey;
+    self.secretKey = secretKey;
+    self.feedId = FeedIdFromPublicKey(publicKey);
 }
 
 #pragma mark - createSignedMessageWithContent:author:sequence:previousKey:secretKey:
