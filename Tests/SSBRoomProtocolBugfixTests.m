@@ -35,6 +35,7 @@
 - (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID;
 - (void)reportSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author;
 - (void)connectToPeer:(NSString *)targetPeerId;
+- (NSArray<NSString *> *)filteredAttendantPeerIDs:(NSArray<NSString *> *)peerIDs;
 - (NSArray<NSString *> *)normalizedPeerIDsFromCollection:(NSArray *)items;
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
 - (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
@@ -3155,6 +3156,19 @@
 
     XCTAssertEqualObjects(capturedTarget, targetPeerID);
     XCTAssertEqualObjects(capturedOrigin, expectedOrigin);
+}
+
+- (void)testFilteredAttendantPeerIDsRemovesLocalIdentity {
+    NSString *localPeerID = [self.client localPublicID];
+    NSString *remotePeerID = [self feedIDForByte:0x37];
+
+    NSArray<NSString *> *filtered = [self.client filteredAttendantPeerIDs:@[
+        localPeerID,
+        remotePeerID,
+        localPeerID
+    ]];
+
+    XCTAssertEqualObjects(filtered, (@[remotePeerID]));
 }
 
 /**

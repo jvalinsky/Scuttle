@@ -222,6 +222,44 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     return [peerIDs copy];
 }
 
+- (NSArray<NSString *> *)filteredAttendantPeerIDs:(NSArray<NSString *> *)peerIDs {
+    NSString *localPeerID = [self localPublicID];
+    NSMutableArray<NSString *> *filtered = [NSMutableArray arrayWithCapacity:peerIDs.count];
+
+    for (NSString *peerID in peerIDs) {
+        if (peerID.length == 0) {
+            continue;
+        }
+        if (localPeerID.length > 0 && [peerID isEqualToString:localPeerID]) {
+            continue;
+        }
+        if (![filtered containsObject:peerID]) {
+            [filtered addObject:peerID];
+        }
+    }
+
+    return [filtered copy];
+}
+
+- (NSString *)syncStatusForTunnelError:(NSError *)error {
+    NSString *description = error.localizedDescription ?: @"";
+    NSString *lowerDescription = description.lowercaseString;
+
+    if ([lowerDescription containsString:@"can't connect to self"]) {
+        return @"This Device";
+    }
+    if ([lowerDescription containsString:@"stranger"]) {
+        return @"Stranger";
+    }
+    if ([lowerDescription containsString:@"not connected"] ||
+        [lowerDescription containsString:@"session terminated"] ||
+        [lowerDescription containsString:@"connection"]) {
+        return @"Disconnected";
+    }
+
+    return @"Unavailable";
+}
+
 - (BOOL)isAttendantsEventDictionary:(NSDictionary *)dict {
     return (dict[@"type"] != nil ||
             dict[@"event"] != nil ||
@@ -323,7 +361,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         BOOL explicitEmpty = ([items isKindOfClass:[NSArray class]] && [(NSArray *)items count] == 0) ||
                              ([items isKindOfClass:[NSDictionary class]] && [(NSDictionary *)items count] == 0);
         if (normalizedItems || explicitEmpty) {
-            NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:normalizedItems ?: @[]];
+            NSArray<NSString *> *peerIDs = [self filteredAttendantPeerIDs:[self normalizedPeerIDsFromCollection:normalizedItems ?: @[]]];
             [self.attendantsList removeAllObjects];
             [self.attendantsList addObjectsFromArray:peerIDs];
             for (NSString *peerID in peerIDs) {
@@ -338,10 +376,13 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         [normalizedType isEqualToString:@"join"] ||
         [normalizedType isEqualToString:@"added"]) {
         NSString *peerID = [self peerIDFromEndpointItem:dict];
-        if (peerID.length > 0 && ![self.attendantsList containsObject:peerID]) {
+        NSString *localPeerID = [self localPublicID];
+        if (peerID.length > 0 &&
+            ![peerID isEqualToString:localPeerID] &&
+            ![self.attendantsList containsObject:peerID]) {
             [self.attendantsList addObject:peerID];
         }
-        if (peerID.length > 0) {
+        if (peerID.length > 0 && ![peerID isEqualToString:localPeerID]) {
             [self replicateFromPeer:peerID viaRoom:self.host];
             return YES;
         }
@@ -1625,7 +1666,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         }
 
         if (!sawEventDictionaries || !handled) {
-            NSArray<NSString *> *peerIDs = [self normalizedPeerIDsFromCollection:items];
+            NSArray<NSString *> *peerIDs = [self filteredAttendantPeerIDs:[self normalizedPeerIDsFromCollection:items]];
             if (peerIDs.count > 0 || items.count == 0) {
                 [self.attendantsList removeAllObjects];
                 [self.attendantsList addObjectsFromArray:peerIDs];
@@ -1671,6 +1712,7 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     
     if (!base64Key) {
         [self log:[NSString stringWithFormat:@"Invalid target peer ID: %@", targetPeerId]];
+        [self reportSyncStatus:@"Unavailable" progress:1.0 author:targetPeerId];
         return;
     }
     
@@ -1680,6 +1722,13 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
     NSData *remotePubKey = [[NSData alloc] initWithBase64EncodedString:paddedKey options:0];
     if (!remotePubKey) {
         [self log:[NSString stringWithFormat:@"Invalid base64 in peer ID: %@", targetPeerId]];
+        [self reportSyncStatus:@"Unavailable" progress:1.0 author:targetPeerId];
+        return;
+    }
+
+    NSString *localPeerID = [self localPublicID];
+    if (localPeerID.length > 0 && [targetPeerId isEqualToString:localPeerID]) {
+        [self reportSyncStatus:@"This Device" progress:1.0 author:targetPeerId];
         return;
     }
     
@@ -1703,6 +1752,8 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
         if (error || !tunnel) {
             os_log_error(ssb_room_log, "Tunnel connection failed to %@", targetPeerId);
             [strongSelf.activeTunnels removeObjectForKey:targetPeerId];
+            NSString *status = error ? [strongSelf syncStatusForTunnelError:error] : @"Unavailable";
+            [strongSelf reportSyncStatus:status progress:1.0 author:targetPeerId];
             return;
         }
         
@@ -1712,6 +1763,11 @@ static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.
             [tunnel receiveTunnelData:[(NSString *)response dataUsingEncoding:NSUTF8StringEncoding]];
         }
     }];
+
+    if (reqID < 0) {
+        [self reportSyncStatus:@"Disconnected" progress:1.0 author:targetPeerId];
+        return;
+    }
     
     SSBTunnelConnection *tunnel = [[SSBTunnelConnection alloc] initWithPeerId:targetPeerId
                                                               peerPublicKey:remotePubKey
