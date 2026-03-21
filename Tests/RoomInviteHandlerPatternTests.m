@@ -169,4 +169,8 @@ static NSString * const kToken     = @"myInviteToken123";
     XCTAssertFalse(config.usedHTTPInvite);
 }
 
+- (void)testRoomConfig_supportsSecureCoding {
+    XCTAssertTrue([RoomConfig supportsSecureCoding]);
+}
+
 @end

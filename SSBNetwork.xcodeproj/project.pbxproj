@@ -17,6 +17,7 @@
 		04C7AFDE66D33FE12818E2BD /* SSBCommonCryptoCompat.h in Headers */ = {isa = PBXBuildFile; fileRef = A5A81CD09551A3E71389FC02 /* SSBCommonCryptoCompat.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		04FBDC2110F3898DE17DD339 /* SSBMessageCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = EBEB65F0F3E4B90137A01A1F /* SSBMessageCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		056267448FB588E609991737 /* RoomStorage.m in Sources */ = {isa = PBXBuildFile; fileRef = DEF75D13D452FFD12BF95D82 /* RoomStorage.m */; };
+		060FA19AC5E41F7F407E2827 /* SSBHTTPInviteServerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E937C1F0F634A302F6EFA7AA /* SSBHTTPInviteServerTests.m */; };
 		07793188AB44D817126DDEE8 /* SSBLogger.h in Headers */ = {isa = PBXBuildFile; fileRef = 9F7DE67CFEEBA3467B609B2F /* SSBLogger.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		088EA1914B889BA085ACA58C /* SSBRandom.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F86B27C518F1B39BF8C8902 /* SSBRandom.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		09CFCF6DF67EF82A30B87E5B /* SRProfileViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = AF4343841D1F5AC58E8E750A /* SRProfileViewController.m */; };
@@ -200,6 +201,7 @@
 		D5440B227F4C7054786FE7DC /* SSBPlatformUI.m in Sources */ = {isa = PBXBuildFile; fileRef = 54993FA915748406466E3ECD /* SSBPlatformUI.m */; };
 		D56980E15001FE3E3CAD1EE3 /* SSBEnvironmentTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 6F8D473EB13F7AAC37D36473 /* SSBEnvironmentTests.m */; };
 		D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */; };
+		1DDD1FE5B276463DAFEC2C79 /* SRMarkdownParserTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 30C8A39879F24CA5B8FC79F2 /* SRMarkdownParserTests.m */; };
 		D97AD8F1257F35250658ABE9 /* SSBMuxRPCFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 190288FEB12E8B92A41A5E81 /* SSBMuxRPCFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		DB5E9556BA12D6B15E4F8D1E /* SRMarkdownParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */; };
 		DBB82DC8B13C45CED1142644 /* SSBTunnelConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = 83E3CAB9BE505FB7319DD5BD /* SSBTunnelConnection.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -400,6 +402,7 @@
 		5AD8CC589734E016CFE33CF9 /* SSBURLSessionShim.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBURLSessionShim.m; sourceTree = "<group>"; };
 		5BC271AF9E4B38FA58499AA1 /* SSBFeedCodecRegistry.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBFeedCodecRegistry.h; sourceTree = "<group>"; };
 		5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ScuttleRoomAppHostSmokeTests.m; sourceTree = "<group>"; };
+		30C8A39879F24CA5B8FC79F2 /* SRMarkdownParserTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRMarkdownParserTests.m; sourceTree = "<group>"; };
 		5C9DE4AAB00958CDF9228482 /* SRGitCommitLogViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitCommitLogViewController.m; sourceTree = "<group>"; };
 		5CFACA659335177FC1F47801 /* SSBFeedStoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStoreTests.m; sourceTree = "<group>"; };
 		5DC024D9C67500F75A076361 /* SSBStateMachine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBStateMachine.m; sourceTree = "<group>"; };
@@ -550,6 +553,7 @@
 		E559364C3B3E4B49DDCD57EC /* SRComposeViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRComposeViewController.h; sourceTree = "<group>"; };
 		E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButt.m; sourceTree = "<group>"; };
 		E727617D6A1CCF811EC16C5F /* SSBLogger.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLogger.m; sourceTree = "<group>"; };
+		E937C1F0F634A302F6EFA7AA /* SSBHTTPInviteServerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPInviteServerTests.m; sourceTree = "<group>"; };
 		EA27BA906C2381C5FCB41AAA /* SRErrorBannerView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRErrorBannerView.h; sourceTree = "<group>"; };
 		EA42BCD3744D19855E0B03E8 /* SSBHTTPAuthTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPAuthTests.m; sourceTree = "<group>"; };
 		EBD4624FAA118699D67BCDA1 /* SSBMuxRPCSession.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPCSession.m; sourceTree = "<group>"; };
@@ -771,6 +775,7 @@
 			children = (
 				5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */,
 				730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */,
+				30C8A39879F24CA5B8FC79F2 /* SRMarkdownParserTests.m */,
 			);
 			name = ScuttleRoomApp;
 			path = Tests/ScuttleRoomApp;
@@ -935,6 +940,7 @@
 				1317A1A8F660F7603D3A2819 /* SSBGitPRStoreTests.m */,
 				F7B1301C88F494B1C520D273 /* SSBGitRepoTests.m */,
 				EA42BCD3744D19855E0B03E8 /* SSBHTTPAuthTests.m */,
+				E937C1F0F634A302F6EFA7AA /* SSBHTTPInviteServerTests.m */,
 				B115240B0A2C547F40EB1C81 /* SSBIndexFeedGeneratorTests.m */,
 				0EDF574FADDCE8095F650677 /* SSBIndexFeedTests.m */,
 				635247B47AA51A4529856144 /* SSBJITDBTests.m */,
@@ -1386,6 +1392,7 @@
 				ADE88F253A10D498DBE15A5F /* SSBGitPackIDXParserTests.m in Sources */,
 				A0A03CD85E2ED7767D9380F8 /* SSBGitRepoTests.m in Sources */,
 				CD2B9FE73ECD707B27C32C86 /* SSBHTTPAuthTests.m in Sources */,
+				060FA19AC5E41F7F407E2827 /* SSBHTTPInviteServerTests.m in Sources */,
 				42A60DEC109789B4A4A569AF /* SSBIndexFeedGeneratorTests.m in Sources */,
 				A7E64CE3C1458E20967232A0 /* SSBIndexFeedTests.m in Sources */,
 				C1824B3ECEE8444DCF5124AB /* SSBJITDBTests.m in Sources */,
@@ -1433,6 +1440,7 @@
 			files = (
 				F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */,
 				D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */,
+				1DDD1FE5B276463DAFEC2C79 /* SRMarkdownParserTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
