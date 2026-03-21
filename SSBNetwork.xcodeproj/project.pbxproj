@@ -240,6 +240,7 @@
 		FEBD8BD9286521356472EA20 /* blake3.c in Sources */ = {isa = PBXBuildFile; fileRef = 489B6722514542B98F26E9A7 /* blake3.c */; };
 		FF410788A201DACBFCCB20E5 /* SSBSecretStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A3BACCDA476AC81C29509A68 /* SSBSecretStore.m */; };
 		FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */ = {isa = PBXBuildFile; fileRef = BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */; };
+		A3B4C5D6E7F8A9B0C1D2E3F4 /* SSBBencodeTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B4C5D6E7F8A9B0C1D2E3F4A5 /* SSBBencodeTests.m */; };
 		FFAAFDC5107EE6DA023C0F01 /* SRSeedBackupViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 95B53160DF31EF5F3BF2BBCF /* SRSeedBackupViewController.m */; };
 /* End PBXBuildFile section */
 
@@ -519,6 +520,7 @@
 		BB7141651B11E395483AAE34 /* SSBGitObjectStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitObjectStore.h; sourceTree = "<group>"; };
 		BB72906EAF25B9DA66BDBAAB /* SRMarkdownParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRMarkdownParser.h; sourceTree = "<group>"; };
 		BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMetafeedTests.m; sourceTree = "<group>"; };
+		B4C5D6E7F8A9B0C1D2E3F4A5 /* SSBBencodeTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBencodeTests.m; sourceTree = "<group>"; };
 		BE3377BD26F6C1E89295CA1D /* SSBDiffCoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBDiffCoreTests.m; sourceTree = "<group>"; };
 		BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBPlatformUITests.m; sourceTree = "<group>"; };
 		BFFBEDA3EFDCAD5D2CAAE423 /* SSBNetworkCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBNetworkCompat.h; sourceTree = "<group>"; };
@@ -967,6 +969,7 @@
 				0265CB33268324FD16537C85 /* SSBMessageCodecExtendedTests.m */,
 				9CFEAF676970339AC9028E46 /* SSBMessageCodecTests.m */,
 				BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */,
+				B4C5D6E7F8A9B0C1D2E3F4A5 /* SSBBencodeTests.m */,
 				FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */,
 				10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */,
 				BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */,
@@ -1420,6 +1423,7 @@
 				498046E7E332BB6D09C938F1 /* SSBMessageCodecExtendedTests.m in Sources */,
 				C2C094E0D4E95F66B044D66F /* SSBMessageCodecTests.m in Sources */,
 				FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */,
+				A3B4C5D6E7F8A9B0C1D2E3F4 /* SSBBencodeTests.m in Sources */,
 				57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */,
 				60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */,
 				5BD11D23C6794EA94D387409 /* SSBPlatformUITests.m in Sources */,
