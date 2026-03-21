@@ -135,11 +135,8 @@ static const int kMaxDeltaRecursion = 50;
 - (nullable NSData *)decompressDataAtOffset:(uint64_t *)offset expectedSize:(uint64_t)expectedSize {
     z_stream strm;
     memset(&strm, 0, sizeof(strm));
-    
-    if (inflateInit(&strm) != Z_OK) {
-        return nil;
-    }
-    
+    inflateInit(&strm);
+
     strm.next_in = (Bytef *)(_bytes + *offset);
     strm.avail_in = (uInt)(_length - *offset);
     

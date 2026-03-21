@@ -54,6 +54,11 @@ static SSBGitObjectStore *SSBGitObjectStoreWithFixturePack(NSString *packFixture
     return objectStore;
 }
 
+// Expose internal method for direct testing
+@interface SSBGitPackDecoder (TestApplyDelta)
+- (nullable NSData *)applyDelta:(NSData *)delta toBase:(NSData *)base;
+@end
+
 @interface SSBGitPackDecoderTests : XCTestCase
 @end
 
@@ -110,6 +115,48 @@ static SSBGitObjectStore *SSBGitObjectStoreWithFixturePack(NSString *packFixture
     SSBGitObject *blob = [decoder objectAtOffset:offset];
     XCTAssertEqual(blob.type, SSBGitObjectTypeBlob);
     XCTAssertEqualObjects(blob.data, SSBGitExpectedFixtureBlob(300));
+}
+
+- (void)testObjectAtOffset_outOfBounds_returnsNil {
+    // offset >= _length triggers the early guard in objectAtOffset:recursionDepth:
+    NSData *packData = SSBGitDecoderFixtureData(@"delta-ref.pack");
+    SSBGitPackDecoder *decoder = [[SSBGitPackDecoder alloc] initWithData:packData];
+    XCTAssertNil([decoder objectAtOffset:packData.length]);
+    XCTAssertNil([decoder objectAtOffset:UINT64_MAX]);
+}
+
+- (void)testObjectAtOffset_corruptedZlibData_returnsNil {
+    // Build a minimal PACK with a blob object header (type=3, size=1) followed
+    // by garbage bytes. inflate() returns Z_DATA_ERROR → decompressDataAtOffset:
+    // returns nil → objectAtOffset: returns nil (covers lines 156-157).
+    NSMutableData *pack = [NSMutableData data];
+    // Header: "PACK" magic, version=2, objectCount=1
+    uint8_t header[] = { 'P','A','C','K', 0,0,0,2, 0,0,0,1 };
+    [pack appendBytes:header length:sizeof(header)];
+    // Object: type=blob (3), size=1, no MSB continuation → byte 0x31
+    uint8_t objHeader = 0x31;
+    [pack appendBytes:&objHeader length:1];
+    // Corrupted zlib data (not a valid zlib stream)
+    uint8_t garbage[] = { 0xFF, 0xFE, 0xFD, 0xFC };
+    [pack appendBytes:garbage length:sizeof(garbage)];
+    // 20-byte trailer (checksum placeholder)
+    [pack appendData:[NSMutableData dataWithLength:20]];
+
+    SSBGitPackDecoder *decoder = [[SSBGitPackDecoder alloc] initWithData:pack];
+    XCTAssertNotNil(decoder);
+    XCTAssertNil([decoder objectAtOffset:12]);
+}
+
+- (void)testApplyDelta_zeroByte_returnsNil {
+    // Build a decoder to call the internal method on.
+    NSData *packData = SSBGitDecoderFixtureData(@"delta-ref.pack");
+    SSBGitPackDecoder *decoder = [[SSBGitPackDecoder alloc] initWithData:packData];
+    // base has 5 bytes
+    NSData *base = [NSData dataWithBytes:"\x01\x02\x03\x04\x05" length:5];
+    // delta: sourceSize=5 (varint 0x05), targetSize=5 (0x05), command=0x00 (invalid → nil)
+    uint8_t deltaBytes[] = { 0x05, 0x05, 0x00 };
+    NSData *delta = [NSData dataWithBytes:deltaBytes length:sizeof(deltaBytes)];
+    XCTAssertNil([decoder applyDelta:delta toBase:base]);
 }
 
 - (void)testRefDeltaRequiresObjectStoreAndResolvesWithRegisteredFixturePack {
