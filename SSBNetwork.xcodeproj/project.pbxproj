@@ -71,6 +71,7 @@
 		48F99812E83E6C20DE5C3423 /* SSBLogTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 7DDF3C4FA9F0E79D1181AAFC /* SSBLogTests.m */; };
 		498046E7E332BB6D09C938F1 /* SSBMessageCodecExtendedTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 0265CB33268324FD16537C85 /* SSBMessageCodecExtendedTests.m */; };
 		4BDB1A3EF6795D472D7D6F74 /* SSBStateMachine.m in Sources */ = {isa = PBXBuildFile; fileRef = 5DC024D9C67500F75A076361 /* SSBStateMachine.m */; };
+		4F02C9AA1693100C8B21B90B /* SSBRoomClientTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 2751E0D72C2B377945B88D97 /* SSBRoomClientTests.m */; };
 		50AB0313BFC76F2CA3EA0412 /* SSBBoxStreamTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 1E3D4AC9B86DD3EF12E5795C /* SSBBoxStreamTests.m */; };
 		5104A60DA830BDD0E3FD16E9 /* SSBGabbyGrove.h in Headers */ = {isa = PBXBuildFile; fileRef = 3335B488C890B60B8211598A /* SSBGabbyGrove.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		512575F53294F4F2A83905F3 /* RoomStorageTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B87A94B0FD7CDAE1342FAEF8 /* RoomStorageTests.m */; };
@@ -223,6 +224,8 @@
 		F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */; };
 		F40816AF8689B701A17C3F1F /* SRPreferencesViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 209EEB77C83197E44CF43F34 /* SRPreferencesViewController.m */; };
 		F4B581556A56E84E22D99E9C /* SRMarkdownParserTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E7D291E5E664B2F3532BF0BD /* SRMarkdownParserTests.m */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* SRQRUtilsTests.m in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* SRQRUtilsTests.m */; };
+		E5F6A7B8C9D0E1F2A3B4C5D6 /* SRFeedItemTests.m in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A3B4C5D6E7 /* SRFeedItemTests.m */; };
 		F67E294D1E14246BD36A4CBD /* SSBGitPackIDXParser.h in Headers */ = {isa = PBXBuildFile; fileRef = 2CA5C3F63B7FF1D1A9ED5A63 /* SSBGitPackIDXParser.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		F83A25694CC4D6FCAD8D20B6 /* SSBFeedCodecRegistryTests.m in Sources */ = {isa = PBXBuildFile; fileRef = A063EBBFD9951CDBF2225989 /* SSBFeedCodecRegistryTests.m */; };
 		F8FABF1E1D9E925E8D84C6BA /* SSBFeedCodecRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = 2295B5A1D4A65D4EC3C1307E /* SSBFeedCodecRegistry.m */; };
@@ -234,7 +237,6 @@
 		FEBD8BD9286521356472EA20 /* blake3.c in Sources */ = {isa = PBXBuildFile; fileRef = 489B6722514542B98F26E9A7 /* blake3.c */; };
 		FF410788A201DACBFCCB20E5 /* SSBSecretStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A3BACCDA476AC81C29509A68 /* SSBSecretStore.m */; };
 		FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */ = {isa = PBXBuildFile; fileRef = BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */; };
-		A1B2C3D4E5F6A7B8C9D0E1F2 /* SSBRoomClientTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* SSBRoomClientTests.m */; };
 		FFAAFDC5107EE6DA023C0F01 /* SRSeedBackupViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 95B53160DF31EF5F3BF2BBCF /* SRSeedBackupViewController.m */; };
 /* End PBXBuildFile section */
 
@@ -360,6 +362,7 @@
 		2629C83B9CB946F64342468E /* SRProfileHeaderView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRProfileHeaderView.h; sourceTree = "<group>"; };
 		26F4AC9DE2F2B696AAFA2DB6 /* SRContentContainerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRContentContainerViewController.h; sourceTree = "<group>"; };
 		271691BC4736F87E224B180D /* SSBSecurityFramer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecurityFramer.h; sourceTree = "<group>"; };
+		2751E0D72C2B377945B88D97 /* SSBRoomClientTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRoomClientTests.m; sourceTree = "<group>"; };
 		283C9749A68D8F1A776839C5 /* SSBLog.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLog.m; sourceTree = "<group>"; };
 		288550C253A5C28CD80B7132 /* SSBButtwoo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBButtwoo.h; sourceTree = "<group>"; };
 		29B7AD9AB28A5B0C4A35BA2E /* SSBBoxStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBoxStream.h; sourceTree = "<group>"; };
@@ -513,7 +516,6 @@
 		BB7141651B11E395483AAE34 /* SSBGitObjectStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitObjectStore.h; sourceTree = "<group>"; };
 		BB72906EAF25B9DA66BDBAAB /* SRMarkdownParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRMarkdownParser.h; sourceTree = "<group>"; };
 		BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMetafeedTests.m; sourceTree = "<group>"; };
-		B2C3D4E5F6A7B8C9D0E1F2A3 /* SSBRoomClientTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRoomClientTests.m; sourceTree = "<group>"; };
 		BE3377BD26F6C1E89295CA1D /* SSBDiffCoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBDiffCoreTests.m; sourceTree = "<group>"; };
 		BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBPlatformUITests.m; sourceTree = "<group>"; };
 		BFFBEDA3EFDCAD5D2CAAE423 /* SSBNetworkCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBNetworkCompat.h; sourceTree = "<group>"; };
@@ -555,6 +557,8 @@
 		E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButt.m; sourceTree = "<group>"; };
 		E727617D6A1CCF811EC16C5F /* SSBLogger.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLogger.m; sourceTree = "<group>"; };
 		E7D291E5E664B2F3532BF0BD /* SRMarkdownParserTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRMarkdownParserTests.m; sourceTree = "<group>"; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* SRQRUtilsTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRQRUtilsTests.m; sourceTree = "<group>"; };
+		F6A7B8C9D0E1F2A3B4C5D6E7 /* SRFeedItemTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRFeedItemTests.m; sourceTree = "<group>"; };
 		E937C1F0F634A302F6EFA7AA /* SSBHTTPInviteServerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPInviteServerTests.m; sourceTree = "<group>"; };
 		EA27BA906C2381C5FCB41AAA /* SRErrorBannerView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRErrorBannerView.h; sourceTree = "<group>"; };
 		EA42BCD3744D19855E0B03E8 /* SSBHTTPAuthTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPAuthTests.m; sourceTree = "<group>"; };
@@ -778,6 +782,8 @@
 				5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */,
 				730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */,
 				E7D291E5E664B2F3532BF0BD /* SRMarkdownParserTests.m */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* SRQRUtilsTests.m */,
+				F6A7B8C9D0E1F2A3B4C5D6E7 /* SRFeedItemTests.m */,
 			);
 			name = ScuttleRoomApp;
 			path = Tests/ScuttleRoomApp;
@@ -952,13 +958,13 @@
 				0265CB33268324FD16537C85 /* SSBMessageCodecExtendedTests.m */,
 				9CFEAF676970339AC9028E46 /* SSBMessageCodecTests.m */,
 				BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */,
-				B2C3D4E5F6A7B8C9D0E1F2A3 /* SSBRoomClientTests.m */,
 				FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */,
 				10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */,
 				BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */,
 				C58DE865B5B08C49DD8C590E /* SSBPrefixIndexTests.m */,
 				A71EE4B1745BAC1B428C1911 /* SSBQueryEngineTests.m */,
 				D07AE7E1E4929627B8C7EB2F /* SSBRandomTests.m */,
+				2751E0D72C2B377945B88D97 /* SSBRoomClientTests.m */,
 				82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */,
 				2CAE292572757E3C242BBCFB /* SSBSecretStoreTests.m */,
 				9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */,
@@ -1405,13 +1411,13 @@
 				498046E7E332BB6D09C938F1 /* SSBMessageCodecExtendedTests.m in Sources */,
 				C2C094E0D4E95F66B044D66F /* SSBMessageCodecTests.m in Sources */,
 				FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */,
-				A1B2C3D4E5F6A7B8C9D0E1F2 /* SSBRoomClientTests.m in Sources */,
 				57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */,
 				60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */,
 				5BD11D23C6794EA94D387409 /* SSBPlatformUITests.m in Sources */,
 				A65977FB96DFD898EA1340C2 /* SSBPrefixIndexTests.m in Sources */,
 				7F2DFDC2D57AB136EC8D3466 /* SSBQueryEngineTests.m in Sources */,
 				030146C1FA786A62708B72BA /* SSBRandomTests.m in Sources */,
+				4F02C9AA1693100C8B21B90B /* SSBRoomClientTests.m in Sources */,
 				554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */,
 				F1A10C34903EA4DA137A7FF3 /* SSBSecretStoreTests.m in Sources */,
 				C8DEF3EEA54F5B3853D3E44D /* SSBStateMachineTests.m in Sources */,
@@ -1444,6 +1450,8 @@
 			files = (
 				F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */,
 				F4B581556A56E84E22D99E9C /* SRMarkdownParserTests.m in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* SRQRUtilsTests.m in Sources */,
+				E5F6A7B8C9D0E1F2A3B4C5D6 /* SRFeedItemTests.m in Sources */,
 				D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
