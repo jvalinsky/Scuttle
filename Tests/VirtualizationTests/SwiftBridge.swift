@@ -1,12 +1,16 @@
 import Foundation
-import containerization
+import Containerization
 import ContainerizationOCI
 import ContainerizationEXT4
 import NIOCore
 import NIOPosix
 
-@objc class SRLinuxTestRunner: NSObject {
+@objc public class SRLinuxTestRunner: NSObject {
     
+    @objc public override init() {
+        super.init()
+    }
+
     // Helper to capture stdout/stderr output
     final class BufferWriter: Writer {
         var data = Data()
@@ -16,10 +20,10 @@ import NIOPosix
         func close() throws {}
     }
 
-    @objc func runCommand(_ command: String, image: String, completion: @escaping (Bool, String?) -> Void) {
+    @objc public func runCommand(_ command: String, image imageReference: String, completion: @escaping (Bool, String?) -> Void) {
         Task {
             do {
-                let output = try await executeInContainer(command: command, imageReference: image)
+                let output = try await executeInContainer(command: command, imageReference: imageReference)
                 completion(true, output)
             } catch {
                 completion(false, error.localizedDescription)
@@ -43,7 +47,7 @@ import NIOPosix
         let imageStore = try ImageStore(path: appRoot, contentStore: contentStore)
         
         // 3. Fetch/Pull Image
-        let image: containerization.Image
+        let image: Containerization.Image
         do {
             image = try await imageStore.get(reference: imageReference)
         } catch {
