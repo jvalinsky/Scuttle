@@ -13,7 +13,7 @@
     self.continueAfterFailure = NO;
     
     // UI tests must launch the application that they test.
-    self.app = [[XCUIApplication alloc] init];
+    self.app = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.scuttlebutt.ScuttleRoomApp"];
     [self.app launch];
 }
 

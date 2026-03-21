@@ -28,6 +28,7 @@ apdb
 build/
 DerivedData/
 .derived/
+.build/
 *.pbxuser
 !default.pbxuser
 *.mode1v3

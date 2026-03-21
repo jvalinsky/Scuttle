@@ -5,7 +5,7 @@
 
 // Expose TestInit for SSBBlobStore to point to a temp directory
 @interface SSBBlobStore (TestInit)
-- (instancetype)initWithDirectory:(NSString *)directory;
+- (instancetype)initWithPath:(NSString *)path;
 - (void)wipeBlobs;
 @end
 
@@ -51,7 +51,7 @@ static NSDictionary<NSString *, NSString *> *SSBGitFixtureManifest(void) {
     [[NSFileManager defaultManager] createDirectoryAtPath:self.blobsDir
                                 withIntermediateDirectories:YES attributes:nil error:nil];
 
-    self.blobStore = [[SSBBlobStore alloc] initWithDirectory:self.blobsDir];
+    self.blobStore = [[SSBBlobStore alloc] initWithPath:self.blobsDir];
     self.objectStore = [[SSBGitObjectStore alloc] initWithBlobStore:self.blobStore];
 }
 

@@ -16,6 +16,15 @@
 @property (nonatomic, strong) NSData *serverPublic;
 @end
 
+// Helper assert for key derivation
+#define XCTAssertCurrentKeysMatch(client, server) \
+    XCTAssertNotNil(client.clientToServerKey); \
+    XCTAssertNotNil(client.serverToClientKey); \
+    XCTAssertEqualObjects(client.clientToServerKey, server.clientToServerKey); \
+    XCTAssertEqualObjects(client.serverToClientKey, server.serverToClientKey); \
+    XCTAssertEqualObjects(client.clientToServerNonce, server.clientToServerNonce); \
+    XCTAssertEqualObjects(client.serverToClientNonce, server.serverToClientNonce);
+
 @implementation SSBSecretHandshakeTests
 
 - (void)setUp {
@@ -151,14 +160,5 @@
     SSBSecretHandshake *server1 = [[SSBSecretHandshake alloc] initWithRole:NO localIdentity:self.serverSecret remotePublicKey:nil];
     XCTAssertFalse(server1.isClient);
 }
-
-// Helper assert for key derivation
-#define XCTAssertCurrentKeysMatch(client, server) \
-    XCTAssertNotNil(client.clientToServerKey); \
-    XCTAssertNotNil(client.serverToClientKey); \
-    XCTAssertEqualObjects(client.clientToServerKey, server.clientToServerKey); \
-    XCTAssertEqualObjects(client.serverToClientKey, server.serverToClientKey); \
-    XCTAssertEqualObjects(client.clientToServerNonce, server.clientToServerNonce); \
-    XCTAssertEqualObjects(client.serverToClientNonce, server.serverToClientNonce);
 
 @end

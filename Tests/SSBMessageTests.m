@@ -35,7 +35,7 @@
     msg.contentType = @"post";
     msg.valueJSON = [@"{\"test\": true}" dataUsingEncoding:NSUTF8StringEncoding];
     msg.content = @{@"test": @YES};
-    msg.feedFormat = SSBBFEFeedFormatButtwoo;
+    msg.feedFormat = SSBBFEFeedFormatButtwooV1;
 
     XCTAssertEqualObjects(msg.key, @"%testHash");
     XCTAssertEqualObjects(msg.author, @"@testPubKey");
@@ -47,7 +47,7 @@
     XCTAssertEqualObjects(msg.contentType, @"post");
     XCTAssertNotNil(msg.valueJSON);
     XCTAssertEqualObjects(msg.content[@"test"], @YES);
-    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatButtwoo);
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatButtwooV1);
 }
 
 - (void)testSSBFeedStateDefaultInitialization {

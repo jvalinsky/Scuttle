@@ -36,6 +36,7 @@ targets:
           - Fixtures
           - GitRemoteSSB
           - ScuttleRoomApp
+          - ScuttleRoomAppUITests
     dependencies:
       - target: SSBNetwork
     settings:

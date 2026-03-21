@@ -78,7 +78,7 @@
 
 - (void)testParseHeaderWithExtraTrailingBytes {
     uint8_t headerBytes[12] = {
-        0x0C, // JSON | Stream = 12
+        0x0A, // JSON | Stream = 10
         0x00, 0x00, 0x00, 0x0A, // length 10
         0xFF, 0xFF, 0xFF, 0xFD, // req -3
         // Extra trailing bytes that shouldn't matter for parseHeader
