@@ -332,6 +332,58 @@
     XCTAssertNil(result);
 }
 
+- (void)testEncodeDict_keyWithLoneSurrogate_returnsNil {
+    // A lone surrogate character cannot be encoded as UTF-8 → encodeString: returns nil
+    // → encodeDict: returns nil at the "if (!keyData)" guard.
+    unichar surrogate = 0xD800;
+    NSString *surrogateKey = [NSString stringWithCharacters:&surrogate length:1];
+    NSMutableDictionary *dict = [NSMutableDictionary dictionary];
+    dict[surrogateKey] = @"value";
+    NSData *result = [SSBBencode encodeDict:dict];
+    XCTAssertNil(result);
+}
+
+- (void)testEncodeList_withDictItem_succeeds {
+    // _encodeItem: with an NSDictionary hits the `isKindOfClass:[NSDictionary class]` branch.
+    NSData *result = [SSBBencode encodeList:@[@{@"k": @42}]];
+    XCTAssertNotNil(result);
+}
+
+- (void)testDecodeList_withInvalidElement_returnsNil {
+    // "lze": list starting 'l', element 'z' is an unknown prefix → decode returns nil
+    // → list decoder returns nil at `if (!item)`.
+    NSMutableData *data = [NSMutableData data];
+    uint8_t bytes[] = { 'l', 'z', 'e' };
+    [data appendBytes:bytes length:3];
+    NSUInteger offset = 0;
+    id result = [SSBBencode decode:data offset:&offset];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeDict_withNonUTF8Key_returnsNil {
+    // Dict key bytes include 0xFF (invalid UTF-8) → `initWithData:encoding:` returns nil
+    // → dict decoder returns nil at `if (!key)`.
+    // Bytes: d 1:\xFF 1:v e  →  "d", "1", ":", 0xFF, "1", ":", "v", "e"
+    uint8_t bytes[] = { 'd', '1', ':', 0xFF, '1', ':', 'v', 'e' };
+    NSData *data = [NSData dataWithBytes:bytes length:sizeof(bytes)];
+    NSUInteger offset = 0;
+    id result = [SSBBencode decode:data offset:&offset];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeDict_withEAsValue_decodesEmptyArray {
+    // "d1:kee": dict with key "k", value starting with 'e' → decode:offset: for
+    // the value hits the `ch == 'e'` branch and returns @[]. Result: {"k": []}.
+    NSData *data = [self dataFromASCII:@"d1:kee"];
+    NSUInteger offset = 0;
+    id result = [SSBBencode decode:data offset:&offset];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result isKindOfClass:[NSDictionary class]]);
+    id value = result[@"k"];
+    XCTAssertTrue([value isKindOfClass:[NSArray class]]);
+    XCTAssertEqual([(NSArray *)value count], 0U);
+}
+
 #pragma mark - Round-trip tests
 
 - (void)testRoundTrip_integer {

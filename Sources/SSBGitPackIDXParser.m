@@ -36,10 +36,7 @@ static const uint32_t kGitIdxVersion = 2;
         
         // Minimal validation of total size
         // 8 header + 1024 fanout + N*20 SHA1 + N*4 CRC + N*4 Offset + 40 trailers
-        // N * (20 + 4 + 4) = N * 28. Check for overflow.
-        if (_objectCount > ((ULONG_MAX - 1032 - 40) / 28)) {
-            return nil;
-        }
+        // N * (20 + 4 + 4) = N * 28. uint32_t max * 28 fits in NSUInteger on 64-bit.
         NSUInteger minRequired = 1032 + _objectCount * 28 + 40;
         if (_length < minRequired) {
             return nil;

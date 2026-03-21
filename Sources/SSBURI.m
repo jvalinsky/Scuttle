@@ -328,11 +328,9 @@
     if (decoded) return decoded;
 
     // Strict fallback parser: only allow valid %HH escapes.
-    if ([encodedAddress containsString:@"%"]) {
-        NSString *strictDecoded = [self manualDecodePercentEncoding:encodedAddress];
-        return strictDecoded.length > 0 ? strictDecoded : nil;
-    }
-    return nil;
+    // (encodedAddress is guaranteed to contain "%" from the check above.)
+    NSString *strictDecoded = [self manualDecodePercentEncoding:encodedAddress];
+    return strictDecoded.length > 0 ? strictDecoded : nil;
 }
 
 + (NSString *)manualDecodePercentEncoding:(NSString *)encoded {

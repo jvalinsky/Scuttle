@@ -164,4 +164,55 @@ static NSData *SSBGitBuildIDXFixture(NSArray<NSDictionary<NSString *, id> *> *en
     XCTAssertEqual([parser offsetForHexString:@"20aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], 0ULL);
 }
 
+- (void)testInitWithData_validHeaderButTruncatedBody_returnsNil {
+    // Valid magic/version, fanout[255]=5 → minRequired = 1032+5*28+40 = 1212.
+    // Padding to 1072 bytes passes the first size guard (>= 1072) but fails
+    // the second guard (_length < minRequired) → returns nil.
+    NSMutableData *data = [NSMutableData data];
+    SSBGitAppendBigUInt32(data, 0xff744f63); // magic
+    SSBGitAppendBigUInt32(data, 2);          // version
+    for (int i = 0; i < 255; i++) SSBGitAppendBigUInt32(data, 0);
+    SSBGitAppendBigUInt32(data, 5); // fanout[255] = 5 objects → 1032 bytes
+    [data appendData:[NSMutableData dataWithLength:40]]; // total = 1072, < 1212
+    SSBGitPackIDXParser *parser = [[SSBGitPackIDXParser alloc] initWithData:data];
+    XCTAssertNil(parser);
+}
+
+- (void)testLookupSHA1_invalidLength_returnsZero {
+    NSData *fixture = SSBGitBuildIDXFixture(@[
+        @{ @"sha": @"aabbccddaabbccddaabbccddaabbccddaabbccdd", @"offset": @(42) }
+    ]);
+    SSBGitPackIDXParser *parser = [[SSBGitPackIDXParser alloc] initWithData:fixture];
+    XCTAssertNotNil(parser);
+    // Pass only 19 bytes — should hit sha1.length != 20 guard
+    NSData *shortSHA = [NSData dataWithBytes:"\xaa\xbb\xcc\xdd\xaa\xbb\xcc\xdd\xaa\xbb\xcc\xdd\xaa\xbb\xcc\xdd\xaa\xbb\xcc" length:19];
+    XCTAssertEqual([parser offsetForSHA1:shortSHA], 0ULL);
+}
+
+- (void)testLookupSHA1_lessThanFirstEntryInRange_returnsZero {
+    // One entry with first byte 0x00. Searching for 0x00000...0000 (all zeros)
+    // which is lexicographically less than "00aaaa...". Binary search: left=0,
+    // right=0, mid=0, cmp<0, mid==0 → break. foundIdx = UINT32_MAX → 0.
+    NSData *fixture = SSBGitBuildIDXFixture(@[
+        @{ @"sha": @"00aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", @"offset": @(100) }
+    ]);
+    SSBGitPackIDXParser *parser = [[SSBGitPackIDXParser alloc] initWithData:fixture];
+    XCTAssertNotNil(parser);
+    XCTAssertEqual([parser offsetForHexString:@"0000000000000000000000000000000000000000"], 0ULL);
+}
+
+- (void)testLookupSHA1_notFoundInMultiEntryRange_returnsZero {
+    // Multiple entries sharing first byte 0x50. Search for something with first
+    // byte 0x50 that falls between the stored entries — binary search terminates
+    // without finding a match (foundIdx == UINT32_MAX).
+    NSData *fixture = SSBGitBuildIDXFixture(@[
+        @{ @"sha": @"50aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", @"offset": @(10) },
+        @{ @"sha": @"50cccccccccccccccccccccccccccccccccccccc", @"offset": @(20) }
+    ]);
+    SSBGitPackIDXParser *parser = [[SSBGitPackIDXParser alloc] initWithData:fixture];
+    XCTAssertNotNil(parser);
+    // "50bb..." is between the two stored SHAs — not found
+    XCTAssertEqual([parser offsetForHexString:@"50bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], 0ULL);
+}
+
 @end
