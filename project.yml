@@ -1,6 +1,10 @@
 name: SSBNetwork
 options:
   bundleIdPrefix: com.scuttlebutt
+packages:
+  containerization:
+    url: https://github.com/apple/containerization.git
+    from: 0.29.0
 targets:
   SSBNetwork:
     type: framework
@@ -112,6 +116,30 @@ targets:
     settings:
       CODE_SIGNING_ALLOWED: NO
       CODE_SIGNING_REQUIRED: NO
+  LinuxTestHostApp:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Tests/LinuxTestHostApp
+    settings:
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: NO
+      GENERATE_INFOPLIST_FILE: YES
+      CODE_SIGN_ENTITLEMENTS: Tests/LinuxTestHostApp/LinuxTestHostApp.entitlements
+  VirtualizationTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    hostApplication: LinuxTestHostApp
+    sources:
+      - path: Tests/VirtualizationTests
+    dependencies:
+      - target: SSBNetwork
+      - package: containerization
+    settings:
+      CODE_SIGN_IDENTITY: ""
+      CODE_SIGNING_REQUIRED: NO
 schemes:
   SSBNetwork:
     build:
@@ -135,3 +163,11 @@ schemes:
     test:
       targets:
         - GitRemoteSSBTests
+  VirtualizationTests:
+    build:
+      targets:
+        LinuxTestHostApp: all
+        VirtualizationTests: all
+    test:
+      targets:
+        - VirtualizationTests
