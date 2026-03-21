@@ -1,4 +1,5 @@
 #import "SSBHTTPInviteServer.h"
+#import "SSBEnvironment.h"
 #import "SSBURI.h"
 #import "SSBURLSessionCompat.h"
 #import "SSBLogCompat.h"
@@ -88,7 +89,7 @@ static os_log_t server_log;
         [code appendFormat:@"%C", c];
     }
     
-    NSDate *now = [NSDate date];
+    NSDate *now = [[SSBEnvironment shared] now];
     NSDate *expires = [now dateByAddingTimeInterval:self.inviteExpirationInterval];
     
     NSDictionary *inviteInfo = @{
@@ -166,7 +167,7 @@ static os_log_t server_log;
         }
         
         NSDate *expiresAt = info[@"expiresAt"];
-        isExpired = [[NSDate date] compare:expiresAt] == NSOrderedDescending;
+        isExpired = [[[SSBEnvironment shared] now] compare:expiresAt] == NSOrderedDescending;
         
         if (isExpired && [self.delegate respondsToSelector:@selector(inviteServer:inviteCodeExpired:)]) {
             [self.delegate inviteServer:self inviteCodeExpired:code];
@@ -255,7 +256,7 @@ static os_log_t server_log;
         
         NSMutableDictionary *updatedInfo = [info mutableCopy];
         updatedInfo[@"claimedCount"] = @(claimedCount + 1);
-        updatedInfo[@"lastClaimedAt"] = [NSDate date];
+        updatedInfo[@"lastClaimedAt"] = [[SSBEnvironment shared] now];
         updatedInfo[@"lastClaimedBy"] = feedId;
         self.inviteCodes[code] = updatedInfo;
         
@@ -392,7 +393,7 @@ static os_log_t server_log;
     __block NSMutableArray<NSString *> *activeCodes = [NSMutableArray array];
     
     dispatch_sync(self.inviteQueue, ^{
-        NSDate *now = [NSDate date];
+        NSDate *now = [[SSBEnvironment shared] now];
         for (NSString *code in self.inviteCodes) {
             NSDictionary *info = self.inviteCodes[code];
             NSDate *expiresAt = info[@"expiresAt"];

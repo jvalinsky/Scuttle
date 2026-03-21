@@ -1,4 +1,5 @@
 #import "SSBMessageCodec.h"
+#import "SSBEnvironment.h"
 #import "SSBFeedCodecRegistry.h"
 #import "tweetnacl.h"
 #import "SSBCommonCryptoCompat.h"
@@ -281,7 +282,7 @@ static os_log_t codecLog(void) {
     }
     unsignedValue[@"author"] = author;
     unsignedValue[@"sequence"] = @(sequence);
-    unsignedValue[@"timestamp"] = @((int64_t)([[NSDate date] timeIntervalSince1970] * 1000));
+    unsignedValue[@"timestamp"] = @((int64_t)([[[SSBEnvironment shared] now] timeIntervalSince1970] * 1000));
     unsignedValue[@"hash"] = @"sha256";
     unsignedValue[@"content"] = content;
 

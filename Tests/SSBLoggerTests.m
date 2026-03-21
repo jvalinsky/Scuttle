@@ -107,4 +107,25 @@
     (void)sink;
 }
 
+- (void)testLog_levelFormatVariadic_doesNotCrash {
+    SSBLogger *logger = [SSBLogger shared];
+    logger.minimumLevel = SSBLogLevelDebug;
+    // Variadic call — can't wrap in XCTAssertNoThrow due to comma parsing
+    [logger log:SSBLogCategoryGeneral level:SSBLogLevelInfo format:@"Test %d %@", 42, @"hello"];
+    XCTAssertTrue(YES);
+}
+
+- (void)testWarning_category_doesNotCrash {
+    XCTAssertNoThrow([[SSBLogger shared] warning:@"test warning" category:SSBLogCategoryGeneral]);
+}
+
+- (void)testError_category_doesNotCrash {
+    XCTAssertNoThrow([[SSBLogger shared] error:@"test error" category:SSBLogCategoryNetwork]);
+}
+
+- (void)testStateToString_returnsFormattedString {
+    NSString *result = [[SSBLogger shared] stateToString:@"MyState" value:42];
+    XCTAssertEqualObjects(result, @"MyState.42");
+}
+
 @end

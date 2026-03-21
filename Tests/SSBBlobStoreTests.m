@@ -1,6 +1,28 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBBlobStore.h>
 #import <SSBNetwork/SSBCommonCryptoCompat.h>
+#import <SSBNetwork/SSBMuxRPCSession.h>
+
+@interface MockMuxRPCSession : SSBMuxRPCSession
+@property (nonatomic, copy) void (^sendRequestBlock)(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error));
+@end
+
+@implementation MockMuxRPCSession
+- (void)sendRequest:(NSArray *)name args:(NSArray *)args type:(NSString *)type completion:(void (^)(id _Nullable response, NSError * _Nullable error))completion {
+    if (self.sendRequestBlock) {
+        self.sendRequestBlock(name, args, type, completion);
+    }
+}
+@end
+
+@interface MockEncodingFailString : NSString
+@end
+
+@implementation MockEncodingFailString
+- (NSUInteger)length { return 4; }
+- (unichar)characterAtIndex:(NSUInteger)index { return 'a'; }
+- (NSData *)dataUsingEncoding:(NSStringEncoding)encoding { return nil; }
+@end
 
 /// Computes SHA-256 of data and returns the canonical SSB blob ID: &<base64>.sha256
 static NSString *BlobIDForData(NSData *data) {
@@ -154,6 +176,153 @@ static NSString *BlobIDForData(NSData *data) {
     NSString *dir = [self.store blobsDirectory];
     XCTAssertNotNil(dir);
     XCTAssertGreaterThan(dir.length, 0);
+}
+
+#pragma mark - fetchBlob:session:completion:
+
+- (void)testFetchBlob_success {
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Fetch completion"];
+    NSData *chunk1 = [@"mock blob " dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *chunk2 = @"content";
+    
+    NSMutableData *fullData = [NSMutableData dataWithData:chunk1];
+    [fullData appendData:[chunk2 dataUsingEncoding:NSUTF8StringEncoding]];
+    NSString *blobId = BlobIDForData(fullData);
+    
+    MockMuxRPCSession *mockSession = [[MockMuxRPCSession alloc] init];
+    
+    mockSession.sendRequestBlock = ^(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error)) {
+        XCTAssertEqualObjects(name, (@[@"blobs", @"get"]));
+        XCTAssertEqualObjects(args, @[blobId]);
+        XCTAssertEqualObjects(type, @"source");
+        
+        completion(chunk1, nil); // NSData chunk
+        completion(chunk2, nil); // NSString chunk
+        completion(@[@"fallback"], nil); // Fallback chunk
+        completion(nil, nil);     // End of stream
+    };
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNotNil(path);
+        XCTAssertNil(error);
+        [expectation fulfill];
+    }];
+    
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+    XCTAssertTrue([self.store hasBlob:blobId]);
+}
+
+- (void)testFetchBlob_failure {
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Fetch completion"];
+    NSString *blobId = @"&AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=.sha256";
+    
+    MockMuxRPCSession *mockSession = [[MockMuxRPCSession alloc] init];
+    mockSession.sendRequestBlock = ^(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error)) {
+        NSError *error = [NSError errorWithDomain:@"SSBMuxRPCSession" code:500 userInfo:@{NSLocalizedDescriptionKey: @"Network error"}];
+        completion(nil, error);
+    };
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNil(path);
+        XCTAssertNotNil(error);
+        [expectation fulfill];
+    }];
+    
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+- (void)testFetchBlob_hashMismatch {
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Fetch completion"];
+    NSString *blobId = @"&wronghashwronghashwronghashwronghash.sha256";
+    NSData *badData = [@"bad data" dataUsingEncoding:NSUTF8StringEncoding];
+    
+    MockMuxRPCSession *mockSession = [[MockMuxRPCSession alloc] init];
+    
+    mockSession.sendRequestBlock = ^(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error)) {
+        completion(badData, nil); // Send bad chunk
+        completion(nil, nil);     // End of stream
+    };
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNil(path);
+        XCTAssertNotNil(error);
+        XCTAssertEqualObjects(error.domain, @"SSBBlobStore");
+        [expectation fulfill];
+    }];
+    
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+- (void)testFetchBlob_alreadyExists {
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Fetch completion"];
+    NSData *blobData = [@"existing blob content" dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *blobId = BlobIDForData(blobData);
+    
+    [self.store storeBlob:blobData forBlobID:blobId];
+    
+    MockMuxRPCSession *mockSession = [[MockMuxRPCSession alloc] init];
+    mockSession.sendRequestBlock = ^(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error)) {
+        XCTFail(@"sendRequest should not be called if blob already exists");
+    };
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNotNil(path);
+        XCTAssertNil(error);
+        [expectation fulfill];
+    }];
+    
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+- (void)testFetchBlob_multipleConcurrent {
+    XCTestExpectation *expect1 = [self expectationWithDescription:@"Fetch 1 completion"];
+    XCTestExpectation *expect2 = [self expectationWithDescription:@"Fetch 2 completion"];
+    NSData *blobData = [@"concurrent content" dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *blobId = BlobIDForData(blobData);
+    
+    MockMuxRPCSession *mockSession = [[MockMuxRPCSession alloc] init];
+    __block void (^holdCompletion)(id _Nullable response, NSError * _Nullable error) = nil;
+    
+    mockSession.sendRequestBlock = ^(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error)) {
+        holdCompletion = completion;
+    };
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNotNil(path);
+        [expect1 fulfill];
+    }];
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNotNil(path);
+        [expect2 fulfill];
+    }];
+    
+    XCTAssertNotNil(holdCompletion);
+    holdCompletion(blobData, nil);
+    holdCompletion(nil, nil);
+    
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+- (void)testFetchBlob_encodingFail {
+    XCTestExpectation *expectation = [self expectationWithDescription:@"Fetch completion"];
+    NSData *blobData = [@"aaaa" dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *blobId = BlobIDForData(blobData);
+    
+    MockMuxRPCSession *mockSession = [[MockMuxRPCSession alloc] init];
+    mockSession.sendRequestBlock = ^(NSArray *name, NSArray *args, NSString *type, void (^completion)(id _Nullable response, NSError * _Nullable error)) {
+        MockEncodingFailString *badString = [[MockEncodingFailString alloc] init];
+        completion(badString, nil); // Should skip appending data
+        completion(nil, nil);        // End of stream
+    };
+    
+    [self.store fetchBlob:blobId session:mockSession completion:^(NSString *path, NSError *error) {
+        XCTAssertNil(path);
+        XCTAssertNotNil(error);
+        [expectation fulfill];
+    }];
+    
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
 }
 
 @end

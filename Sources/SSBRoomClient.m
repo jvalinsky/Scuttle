@@ -1,4 +1,5 @@
 #import "SSBRoomClient.h"
+#import "SSBEnvironment.h"
 #import "SSBLogCompat.h"
 #import "SSBMuxRPCSession.h"
 #import "SSBQueryEngine.h"
@@ -1336,7 +1337,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         // Add to queue instead of blocking
         NSDictionary *queuedItem = @{
             @"content": content,
-            @"timestamp": @([[NSDate date] timeIntervalSince1970])
+            @"timestamp": @([[[SSBEnvironment shared] now] timeIntervalSince1970])
         };
         [self.pendingPublishQueue addObject:queuedItem];
         SSBLogWarning(SSBLogCategorySync, @"⏳ Message QUEUED (feed not synced): type=%@ queue size=%lu", content[@"type"] ?: @"unknown", (unsigned long)self.pendingPublishQueue.count);
@@ -1376,7 +1377,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     msg.sequence = nextSeq;
     msg.previousKey = prevKey;
     msg.claimedTimestamp = [signedValue[@"timestamp"] longLongValue];
-    msg.receivedAt = (int64_t)([[NSDate date] timeIntervalSince1970] * 1000);
+    msg.receivedAt = (int64_t)([[[SSBEnvironment shared] now] timeIntervalSince1970] * 1000);
     msg.contentType = content[@"type"];
     msg.content = content;
     msg.valueJSON = [SSBMessageCodec encodeLegacyValue:signedValue includeSignature:YES];
@@ -2274,11 +2275,11 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 
 - (void)scheduleReconnect {
     __weak typeof(self) weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), self.clientQueue, ^{
+    [[SSBEnvironment shared] dispatchAfter:5.0 queue:self.clientQueue block:^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         [strongSelf connect];
-    });
+    }];
 }
 
 - (void)verifyFeedIntegrity:(NSString *)feedID

@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "SSBEnvironment.h"
 #import "SSBLogCompat.h"
 #import "SSBSecretStore.h"
 #import "SSBFeedStore.h"
@@ -224,7 +225,7 @@ static NSString *ScuttleDataDirectory(void) {
     msg.author = author;
     msg.sequence = nextSeq;
     msg.previousKey = previousKey;
-    msg.claimedTimestamp = (int64_t)([[NSDate date] timeIntervalSince1970] * 1000);
+    msg.claimedTimestamp = (int64_t)([[[SSBEnvironment shared] now] timeIntervalSince1970] * 1000);
     msg.receivedAt = msg.claimedTimestamp;
     msg.content = content;
     msg.contentType = content[@"type"];

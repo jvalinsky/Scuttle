@@ -35,6 +35,8 @@ void ssb_git_remote_handle_list(int app_fd, const char *repo_id);
 void ssb_git_remote_handle_fetch(int app_fd, const char *repo_id, const char *sha);
 void ssb_git_remote_handle_push(int app_fd, const char *repo_id, const char *ref, const char *sha);
 
+extern FILE *(*ssb_git_remote_popen)(const char *command, const char *mode);
+
 int ssb_git_remote_run(int argc, char **argv);
 
 #endif

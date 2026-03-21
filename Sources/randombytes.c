@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <unistd.h>
+
+void SSBEnvironmentRandomBytes(void *buffer, size_t length);
 #include "tweetnacl.h"
 
 #ifdef __APPLE__

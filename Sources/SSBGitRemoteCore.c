@@ -11,6 +11,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+FILE *(*ssb_git_remote_popen)(const char *, const char *) = popen;
+
 static int ssb_git_remote_connect_to_path(const char *path) {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == -1) {
@@ -449,7 +451,7 @@ int ssb_git_remote_run(int argc, char **argv) {
             if (ssb_git_remote_parse_push_request(line, src, sizeof(src), dst, sizeof(dst))) {
                 char sha_cmd[SSB_GIT_REMOTE_MAX_LINE];
                 snprintf(sha_cmd, sizeof(sha_cmd), "git rev-parse %s", src);
-                FILE *process = popen(sha_cmd, "r");
+                FILE *process = ssb_git_remote_popen(sha_cmd, "r");
                 if (process) {
                     char sha[SSB_GIT_REMOTE_MAX_LINE];
                     if (fgets(sha, sizeof(sha), process)) {

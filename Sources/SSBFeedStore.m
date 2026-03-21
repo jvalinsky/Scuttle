@@ -1,4 +1,5 @@
 #import "SSBFeedStore.h"
+#import "SSBEnvironment.h"
 #import "SSBFeedCodecRegistry.h"
 #import "SSBQueryEngine.h"
 #import "SSBTangle.h"
@@ -19,7 +20,6 @@ static const NSInteger kCurrentSchemaVersion = 4;
 
 - (BOOL)_appendMessageToTable:(const char *)tableName message:(SSBMessage *)message error:(NSError **)error;
 - (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key feedFormat:(SSBBFEFeedFormat)feedFormat;
-- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key;
 - (void)_drainQuarantineForKey:(NSString *)satisfiedKey author:(NSString *)author;
 - (SSBMessage *)_getQuarantinedMessageByKey:(NSString *)key;
 - (SSBMessage *)_getQuarantinedMessageForAuthor:(NSString *)author sequence:(NSInteger)sequence;
@@ -316,7 +316,7 @@ static const NSInteger kCurrentSchemaVersion = 4;
 
     int64_t receivedAt = message.receivedAt;
     if (receivedAt == 0) {
-        receivedAt = (int64_t)([[NSDate date] timeIntervalSince1970] * 1000.0);
+        receivedAt = (int64_t)([[[SSBEnvironment shared] now] timeIntervalSince1970] * 1000.0);
     }
 
     BOOL isPrivate = message.isPrivate;
@@ -397,9 +397,6 @@ static const NSInteger kCurrentSchemaVersion = 4;
     }
 }
 
-- (void)_updateFeedStateForAuthor:(NSString *)author sequence:(NSInteger)sequence key:(NSString *)key {
-    [self _updateFeedStateForAuthor:author sequence:sequence key:key feedFormat:SSBBFEFeedFormatClassic];
-}
 
 - (NSArray<NSString *> *)_getMissingDependenciesForMessage:(SSBMessage *)message {
     NSMutableArray<NSString *> *missing = [NSMutableArray array];
@@ -782,11 +779,10 @@ static const NSInteger kCurrentSchemaVersion = 4;
         // "type":"metafeed/tombstone" and "subfeed":<feedID>.
         const char *sql =
             "SELECT 1 FROM messages WHERE content_type = 'metafeed/tombstone' "
-            "AND content_json LIKE ? LIMIT 1";
+            "AND json_extract(content_json, '$.subfeed') = ? LIMIT 1";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(self->_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
-            NSString *pattern = [NSString stringWithFormat:@"%%%@%%", feedID];
-            sqlite3_bind_text(stmt, 1, pattern.UTF8String, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 1, feedID.UTF8String ?: "", -1, SQLITE_TRANSIENT);
             if (sqlite3_step(stmt) == SQLITE_ROW) result = YES;
             sqlite3_finalize(stmt);
         }
