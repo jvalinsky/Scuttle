@@ -80,8 +80,53 @@
 
 - (void)testStateToString {
     XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateIdle], @"Idle");
+    XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateConnecting], @"Connecting");
     XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateSyncingLocal], @"SyncingLocal");
+    XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateSyncingRemote], @"SyncingRemote");
+    XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateSynced], @"Synced");
+    XCTAssertEqualObjects([self.machine syncStateToString:SSBSyncStateError], @"Error");
+}
+
+- (void)testConnectionStateToString_allStates {
+    XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateDisconnected], @"Disconnected");
+    XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateConnecting], @"Connecting");
+    XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateHandshake], @"Handshake");
     XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateConnected], @"Connected");
+    XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateReconnecting], @"Reconnecting");
+    XCTAssertEqualObjects([self.machine connectionStateToString:SSBClientConnectionStateError], @"Error");
+}
+
+- (void)testCanPublish_error_returnsFalse {
+    self.machine.connectionState = SSBClientConnectionStateError;
+    self.machine.syncState = SSBSyncStateIdle;
+    XCTAssertFalse(self.machine.canPublish);
+}
+
+- (void)testCanPublish_reconnecting_returnsFalse {
+    self.machine.connectionState = SSBClientConnectionStateReconnecting;
+    self.machine.syncState = SSBSyncStateSynced;
+    XCTAssertFalse(self.machine.canPublish);
+}
+
+- (void)testIsSyncing_errorState_returnsFalse {
+    self.machine.syncState = SSBSyncStateError;
+    XCTAssertFalse(self.machine.isSyncing);
+}
+
+- (void)testConnectionTransition_toReconnecting {
+    [self.machine transitionToConnectionState:SSBClientConnectionStateConnected];
+    [self.machine transitionToConnectionState:SSBClientConnectionStateReconnecting];
+    XCTAssertEqual(self.machine.connectionState, SSBClientConnectionStateReconnecting);
+}
+
+- (void)testConnectionTransition_toError {
+    [self.machine transitionToConnectionState:SSBClientConnectionStateError];
+    XCTAssertEqual(self.machine.connectionState, SSBClientConnectionStateError);
+}
+
+- (void)testSyncTransition_toError {
+    [self.machine transitionToSyncState:SSBSyncStateError];
+    XCTAssertEqual(self.machine.syncState, SSBSyncStateError);
 }
 
 @end

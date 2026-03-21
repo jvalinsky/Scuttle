@@ -208,6 +208,45 @@
 
 #pragma mark - data property
 
+#pragma mark - Non-multiple-of-8 capacity
+
+- (void)testCountSetBits_nonByteAligned_countsBitsWithinCapacity {
+    // 10 bits = 1 full byte + 2 remaining bits
+    SSBBitset *bs = [[SSBBitset alloc] initWithCapacity:10];
+    [bs setBitAtIndex:0];
+    [bs setBitAtIndex:7]; // last of full byte
+    [bs setBitAtIndex:8]; // first remaining bit
+    [bs setBitAtIndex:9]; // second remaining bit
+    XCTAssertEqual([bs countSetBits], (uint64_t)4);
+}
+
+- (void)testCountSetBits_nonByteAligned_emptyBitset {
+    SSBBitset *bs = [[SSBBitset alloc] initWithCapacity:7];
+    XCTAssertEqual([bs countSetBits], (uint64_t)0);
+}
+
+- (void)testAndWithBitset_selfLarger_zeroesExtraBits {
+    // self has 128 bits, other has 64 bits: extra 64 bits of self should be zero'd
+    SSBBitset *a = [[SSBBitset alloc] initWithCapacity:128];
+    [a setBitAtIndex:0];
+    [a setBitAtIndex:64];  // in the upper half
+    [a setBitAtIndex:100]; // in the upper half
+
+    SSBBitset *b = [[SSBBitset alloc] initWithCapacity:64];
+    [b setBitAtIndex:0];
+
+    [a andWithBitset:b];
+
+    // bit 0: both set → 1
+    XCTAssertTrue([a isBitSetAtIndex:0]);
+    // bits 64 and 100: self had them set but other has no data for that range → 0
+    XCTAssertFalse([a isBitSetAtIndex:64]);
+    XCTAssertFalse([a isBitSetAtIndex:100]);
+    XCTAssertEqual([a countSetBits], (uint64_t)1);
+}
+
+#pragma mark - data property
+
 - (void)testData_notNil {
     SSBBitset *bs = [[SSBBitset alloc] initWithCapacity:64];
     XCTAssertNotNil(bs.data);

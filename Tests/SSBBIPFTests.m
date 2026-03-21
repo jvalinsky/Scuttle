@@ -239,4 +239,182 @@
     XCTAssertGreaterThan(hr.length, 0);
 }
 
+- (void)testHumanReadable_nilReturnsEmpty {
+    NSString *hr = [SSBBIPF humanReadable:nil];
+    XCTAssertEqualObjects(hr, @"");
+}
+
+- (void)testHumanReadable_emptyDataReturnsEmpty {
+    NSString *hr = [SSBBIPF humanReadable:[NSData data]];
+    XCTAssertEqualObjects(hr, @"");
+}
+
+- (void)testHumanReadable_boolTrue {
+    NSData *encoded = [SSBBIPF encodeBool:YES];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertEqualObjects(hr, @"true");
+}
+
+- (void)testHumanReadable_boolFalse {
+    // In this BIPF implementation, false encodes as length=0 which is decoded as NSNull (same as null)
+    NSData *encoded = [SSBBIPF encodeBool:NO];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertEqualObjects(hr, @"null");
+}
+
+- (void)testHumanReadable_null {
+    NSData *encoded = [SSBBIPF encodeNull];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertEqualObjects(hr, @"null");
+}
+
+- (void)testHumanReadable_bytes {
+    uint8_t b[] = {0x01, 0x02};
+    NSData *payload = [NSData dataWithBytes:b length:2];
+    NSData *encoded = [SSBBIPF encodeBytes:payload];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertNotNil(hr);
+    // Should contain '#' delimiters
+    XCTAssertTrue([hr hasPrefix:@"#"]);
+}
+
+- (void)testHumanReadable_integer {
+    NSData *encoded = [SSBBIPF encodeInteger:42];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertEqualObjects(hr, @"42");
+}
+
+- (void)testHumanReadable_double {
+    NSData *encoded = [SSBBIPF encodeDouble:1.5];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertNotNil(hr);
+    XCTAssertGreaterThan(hr.length, 0);
+}
+
+- (void)testHumanReadable_list {
+    NSData *encoded = [SSBBIPF encodeList:@[@"a", @1]];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertTrue([hr hasPrefix:@"["]);
+    XCTAssertTrue([hr hasSuffix:@"]"]);
+}
+
+- (void)testHumanReadable_dict {
+    NSDictionary *dict = @{@"k": @"v"};
+    NSData *encoded = [SSBBIPF encodeDictionary:dict];
+    NSString *hr = [SSBBIPF humanReadable:encoded];
+    XCTAssertTrue([hr hasPrefix:@"{"]);
+    XCTAssertTrue([hr hasSuffix:@"}"]);
+}
+
+#pragma mark - Generic encode: edge cases
+
+- (void)testGenericEncode_nsdata_encodesAsBytes {
+    uint8_t b[] = {0xAB, 0xCD};
+    NSData *data = [NSData dataWithBytes:b length:2];
+    NSData *encoded = [SSBBIPF encode:data];
+    XCTAssertNotNil(encoded);
+    NSUInteger consumed = 0;
+    id decoded = [SSBBIPF decode:encoded consumed:&consumed];
+    XCTAssertEqualObjects(decoded, data);
+}
+
+- (void)testGenericEncode_floatNSNumber_encodesAsDouble {
+    NSNumber *floatNum = @(3.14f);
+    NSData *encoded = [SSBBIPF encode:floatNum];
+    XCTAssertNotNil(encoded);
+}
+
+- (void)testGenericEncode_boolYES_encodesAsBool {
+    NSData *encoded = [SSBBIPF encode:@YES];
+    XCTAssertNotNil(encoded);
+    NSUInteger consumed = 0;
+    id decoded = [SSBBIPF decode:encoded consumed:&consumed];
+    XCTAssertTrue([decoded boolValue]);
+}
+
+- (void)testGenericEncode_nsNull_encodesAsNull {
+    NSData *encoded = [SSBBIPF encode:[NSNull null]];
+    XCTAssertNotNil(encoded);
+}
+
+- (void)testGenericEncode_nil_encodesAsNull {
+    NSData *encoded = [SSBBIPF encode:nil];
+    XCTAssertNotNil(encoded);
+}
+
+- (void)testGenericEncode_unknownType_returnsNil {
+    // NSDate is not a supported BIPF type
+    NSData *encoded = [SSBBIPF encode:[NSDate date]];
+    XCTAssertNil(encoded);
+}
+
+#pragma mark - Generic decode: edge cases
+
+- (void)testGenericDecode_extendedType_returnsNil {
+    // Craft a tag with type bits = 7 (SSBBIPFTypeExtended) to hit the default case
+    // Tag byte: type=7 (0b111), length=0 → tag = (0 << 3) | 7 = 0x07
+    uint8_t tagByte = 0x07;
+    NSData *data = [NSData dataWithBytes:&tagByte length:1];
+    NSUInteger consumed = 0;
+    id result = [SSBBIPF decode:data consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeString_wrongType_returnsNil {
+    // Encode an integer, then try to decode it as a string
+    NSData *encoded = [SSBBIPF encodeInteger:42];
+    NSUInteger consumed = 0;
+    NSString *result = [SSBBIPF decodeString:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeBytes_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeString:@"oops"];
+    NSUInteger consumed = 0;
+    NSData *result = [SSBBIPF decodeBytes:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeInteger_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeString:@"oops"];
+    NSUInteger consumed = 0;
+    NSNumber *result = [SSBBIPF decodeInteger:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeDouble_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeString:@"oops"];
+    NSUInteger consumed = 0;
+    NSNumber *result = [SSBBIPF decodeDouble:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeBool_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeString:@"oops"];
+    NSUInteger consumed = 0;
+    NSNumber *result = [SSBBIPF decodeBool:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeNull_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeInteger:1];
+    NSUInteger consumed = 0;
+    id result = [SSBBIPF decodeNull:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeList_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeString:@"oops"];
+    NSUInteger consumed = 0;
+    NSArray *result = [SSBBIPF decodeList:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeDictionary_wrongType_returnsNil {
+    NSData *encoded = [SSBBIPF encodeString:@"oops"];
+    NSUInteger consumed = 0;
+    NSDictionary *result = [SSBBIPF decodeDictionary:encoded consumed:&consumed];
+    XCTAssertNil(result);
+}
+
 @end

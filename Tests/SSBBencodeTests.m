@@ -263,6 +263,75 @@
     XCTAssertNil(result);
 }
 
+#pragma mark - nil input guards
+
+- (void)testEncodeString_nil_returnsNil {
+    NSData *result = [SSBBencode encodeString:(NSString * _Nonnull)nil];
+    XCTAssertNil(result);
+}
+
+- (void)testEncodeData_nil_returnsNil {
+    NSData *result = [SSBBencode encodeData:(NSData * _Nonnull)nil];
+    XCTAssertNil(result);
+}
+
+- (void)testEncodeList_nil_returnsNil {
+    NSData *result = [SSBBencode encodeList:(NSArray * _Nonnull)nil];
+    XCTAssertNil(result);
+}
+
+- (void)testEncodeDict_nil_returnsNil {
+    NSData *result = [SSBBencode encodeDict:(NSDictionary * _Nonnull)nil];
+    XCTAssertNil(result);
+}
+
+#pragma mark - _encodeItem edge cases
+
+- (void)testEncodeList_withUnencodableItem_returnsNil {
+    // NSDate is not a supported bencode type — list encoding should return nil
+    NSDate *date = [NSDate date];
+    NSData *result = [SSBBencode encodeList:@[date]];
+    XCTAssertNil(result);
+}
+
+- (void)testEncodeDict_withUnencodableValue_returnsNil {
+    // NSDate value is unsupported — dict encoding should return nil
+    NSDate *date = [NSDate date];
+    NSData *result = [SSBBencode encodeDict:@{@"key": date}];
+    XCTAssertNil(result);
+}
+
+- (void)testEncodeList_withFloatNSNumber_encodesAsString {
+    // A float NSNumber hits the fallback "encode as string value" path
+    NSNumber *floatNum = @(3.14f);
+    NSData *result = [SSBBencode encodeList:@[floatNum]];
+    XCTAssertNotNil(result);
+}
+
+#pragma mark - decode edge cases
+
+- (void)testDecodeDict_withIntegerKey_returnsNil {
+    // Dict key must be a byte string; an integer key (i42e) is invalid → returns nil
+    NSData *data = [self dataFromASCII:@"di42e1:ve"];
+    NSUInteger offset = 0;
+    id result = [SSBBencode decode:data offset:&offset];
+    XCTAssertNil(result);
+}
+
+- (void)testDecode_nullOffset_returnsNil {
+    NSData *data = [self dataFromASCII:@"i1e"];
+    id result = [SSBBencode decode:data offset:NULL];
+    XCTAssertNil(result);
+}
+
+- (void)testDecodeDict_invalidValue_returnsNil {
+    // Key is present but the value uses an unknown prefix 'z' → decode returns nil
+    NSData *data = [self dataFromASCII:@"d1:kze"];
+    NSUInteger offset = 0;
+    id result = [SSBBencode decode:data offset:&offset];
+    XCTAssertNil(result);
+}
+
 #pragma mark - Round-trip tests
 
 - (void)testRoundTrip_integer {
