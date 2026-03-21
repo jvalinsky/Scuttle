@@ -3,6 +3,11 @@
 #import <SSBNetwork/tweetnacl.h>
 #define BAMBOO_SIG_BYTES 64
 
+// Expose private class method for testing
+@interface SSBBamboo (Testing)
++ (nullable NSData *)extractLipmaaLink:(NSData *)entryData;
+@end
+
 static void BAMGenerateKeypair(NSData **outPK, NSData **outSK) {
     unsigned char pk[32], sk[64];
     crypto_sign_ed25519_keypair(pk, sk);
@@ -345,6 +350,123 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
     id<SSBFeedCodec> a = [SSBBamboo sharedCodec];
     id<SSBFeedCodec> b = [SSBBamboo sharedCodec];
     XCTAssertEqual(a, b);
+}
+
+#pragma mark - SSBBambooProof NSSecureCoding
+
+- (void)testBambooProof_supportsSecureCoding {
+    XCTAssertTrue([SSBBambooProof supportsSecureCoding]);
+}
+
+- (void)testBambooProof_secureCodingRoundTrip {
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *hash = [SSBBamboo hashData:entry];
+    proof.targetMessage = entry;
+    proof.rootHash = hash;
+    proof.authorPubKey = self.publicKey;
+    proof.lipmaaPath = @[hash];
+
+    NSError *err = nil;
+    NSData *archived = [NSKeyedArchiver archivedDataWithRootObject:proof
+                                            requiringSecureCoding:YES
+                                                            error:&err];
+    XCTAssertNotNil(archived, @"Archive should succeed: %@", err);
+
+    SSBBambooProof *restored = [NSKeyedUnarchiver unarchivedObjectOfClass:[SSBBambooProof class]
+                                                                 fromData:archived
+                                                                    error:&err];
+    XCTAssertNotNil(restored, @"Unarchive should succeed: %@", err);
+    XCTAssertEqualObjects(restored.targetMessage, entry);
+    XCTAssertEqualObjects(restored.rootHash, hash);
+    XCTAssertEqualObjects(restored.authorPubKey, self.publicKey);
+    XCTAssertEqual(restored.lipmaaPath.count, 1U);
+}
+
+#pragma mark - serializeProof: / deserializeProof:
+
+- (void)testSerializeDeserializeProof_roundTrip {
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    proof.targetMessage = entry;
+    proof.rootHash = [SSBBamboo hashData:entry];
+    proof.authorPubKey = self.publicKey;
+    proof.lipmaaPath = @[];
+
+    NSData *serialized = [SSBBamboo serializeProof:proof];
+    XCTAssertNotNil(serialized);
+
+    SSBBambooProof *restored = [SSBBamboo deserializeProof:serialized];
+    XCTAssertNotNil(restored);
+    XCTAssertEqualObjects(restored.targetMessage, proof.targetMessage);
+    XCTAssertEqualObjects(restored.rootHash, proof.rootHash);
+}
+
+- (void)testDeserializeProof_invalidData_returnsNil {
+    NSData *garbage = [@"not a proof" dataUsingEncoding:NSUTF8StringEncoding];
+    SSBBambooProof *result = [SSBBamboo deserializeProof:garbage];
+    XCTAssertNil(result);
+}
+
+#pragma mark - verifyProof:error:
+
+- (void)testVerifyProof_seq1_rootMatchesEntryHash_returnsTrue {
+    NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *entryID = [SSBBamboo computeEntryID:entry];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = entry;
+    proof.rootHash = entryID;
+    proof.authorPubKey = self.publicKey;
+    proof.lipmaaPath = @[];
+
+    NSError *err = nil;
+    BOOL result = [SSBBamboo verifyProof:proof error:&err];
+    XCTAssertTrue(result, @"seq=1 proof where rootHash == entryID should pass: %@", err);
+    XCTAssertNil(err);
+}
+
+- (void)testVerifyProof_seq1_rootMismatch_returnsFalse {
+    NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    uint8_t wrongHash[32] = {0xFF};
+    NSData *badRoot = [NSData dataWithBytes:wrongHash length:32];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = entry;
+    proof.rootHash = badRoot;
+    proof.lipmaaPath = @[];
+
+    BOOL result = [SSBBamboo verifyProof:proof error:nil];
+    XCTAssertFalse(result);
+}
+
+- (void)testVerifyProof_invalidTargetMessage_returnsFalseWithError {
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = [@"garbage" dataUsingEncoding:NSUTF8StringEncoding];
+    proof.rootHash = [NSMutableData dataWithLength:32];
+
+    NSError *err = nil;
+    BOOL result = [SSBBamboo verifyProof:proof error:&err];
+    XCTAssertFalse(result);
+    XCTAssertNotNil(err);
+    XCTAssertEqual(err.code, 101);
+}
+
+#pragma mark - extractLipmaaLink:
+
+- (void)testExtractLipmaaLink_seq1_returnsNil {
+    NSData *entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *link = [SSBBamboo extractLipmaaLink:entry];
+    XCTAssertNil(link, @"seq=1 entry has no lipmaa link");
+}
+
+- (void)testExtractLipmaaLink_tooShort_returnsNil {
+    NSData *tooShort = [NSMutableData dataWithLength:100];
+    XCTAssertNil([SSBBamboo extractLipmaaLink:tooShort]);
+}
+
+- (void)testExtractLipmaaLink_nil_returnsNil {
+    XCTAssertNil([SSBBamboo extractLipmaaLink:nil]);
 }
 
 @end
