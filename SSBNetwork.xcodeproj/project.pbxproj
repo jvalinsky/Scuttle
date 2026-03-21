@@ -224,6 +224,7 @@
 		F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */; };
 		F40816AF8689B701A17C3F1F /* SRPreferencesViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 209EEB77C83197E44CF43F34 /* SRPreferencesViewController.m */; };
 		F4B581556A56E84E22D99E9C /* SRMarkdownParserTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E7D291E5E664B2F3532BF0BD /* SRMarkdownParserTests.m */; };
+		A7B8C9D0E1F2A3B4C5D6E7F8 /* SRRoomManagerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B8C9D0E1F2A3B4C5D6E7F8A9 /* SRRoomManagerTests.m */; };
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* SRQRUtilsTests.m in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* SRQRUtilsTests.m */; };
 		E5F6A7B8C9D0E1F2A3B4C5D6 /* SRFeedItemTests.m in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A3B4C5D6E7 /* SRFeedItemTests.m */; };
 		F67E294D1E14246BD36A4CBD /* SSBGitPackIDXParser.h in Headers */ = {isa = PBXBuildFile; fileRef = 2CA5C3F63B7FF1D1A9ED5A63 /* SSBGitPackIDXParser.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -557,6 +558,7 @@
 		E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButt.m; sourceTree = "<group>"; };
 		E727617D6A1CCF811EC16C5F /* SSBLogger.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLogger.m; sourceTree = "<group>"; };
 		E7D291E5E664B2F3532BF0BD /* SRMarkdownParserTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRMarkdownParserTests.m; sourceTree = "<group>"; };
+		B8C9D0E1F2A3B4C5D6E7F8A9 /* SRRoomManagerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRRoomManagerTests.m; sourceTree = "<group>"; };
 		D4E5F6A7B8C9D0E1F2A3B4C5 /* SRQRUtilsTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRQRUtilsTests.m; sourceTree = "<group>"; };
 		F6A7B8C9D0E1F2A3B4C5D6E7 /* SRFeedItemTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRFeedItemTests.m; sourceTree = "<group>"; };
 		E937C1F0F634A302F6EFA7AA /* SSBHTTPInviteServerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPInviteServerTests.m; sourceTree = "<group>"; };
@@ -782,6 +784,7 @@
 				5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */,
 				730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */,
 				E7D291E5E664B2F3532BF0BD /* SRMarkdownParserTests.m */,
+				B8C9D0E1F2A3B4C5D6E7F8A9 /* SRRoomManagerTests.m */,
 				D4E5F6A7B8C9D0E1F2A3B4C5 /* SRQRUtilsTests.m */,
 				F6A7B8C9D0E1F2A3B4C5D6E7 /* SRFeedItemTests.m */,
 			);
@@ -1450,6 +1453,7 @@
 			files = (
 				F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */,
 				F4B581556A56E84E22D99E9C /* SRMarkdownParserTests.m in Sources */,
+				A7B8C9D0E1F2A3B4C5D6E7F8 /* SRRoomManagerTests.m in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* SRQRUtilsTests.m in Sources */,
 				E5F6A7B8C9D0E1F2A3B4C5D6 /* SRFeedItemTests.m in Sources */,
 				D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */,
