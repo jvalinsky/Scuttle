@@ -2,15 +2,15 @@
 
 Two spec deltas block interoperability with any other Buttwoo implementation:
 
-1. **Phase A — BLAKE3 hash** (`blake3.c` + one call-site change)
-2. **Phase B — BIPF wire format** (`SSBButtwoo.m` + test helper rewrite)
+1. ✅ **Phase A — BLAKE3 hash** (`blake3.c` + one call-site change)
+2. ✅ **Phase B — BIPF wire format** (`SSBButtwoo.m` + test helper rewrite)
 
 Both are self-contained. Phase A can ship independently; Phase B is the larger change.
 `SSBBIPF.h/m` and `SSBBIPFTests.m` already exist, which cuts Phase B scope considerably.
 
 ---
 
-## Phase A — BLAKE3 hash (3 files, ~350 lines of new C)
+## ✅ Phase A — BLAKE3 hash (3 files, ~350 lines of new C)
 
 ### Background
 
@@ -101,7 +101,7 @@ Add `blake3.c` to the `SSBNetwork` compile sources target (same membership as `b
 
 ---
 
-## Phase B — BIPF wire format (2 files changed, ~120 lines rewritten)
+## ✅ Phase B — BIPF wire format (2 files changed, ~120 lines rewritten)
 
 ### Background
 

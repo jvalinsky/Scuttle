@@ -15,7 +15,7 @@ Branch: `claude/review-objc-macos-patterns-8cw3p`
 
 ---
 
-## Phase 10 — Verify BendyButt Hash Algorithm (1 file, quick)
+## ✅ Phase 10 — Verify BendyButt Hash Algorithm (1 file, quick)
 
 **Issue:** Research indicates `ssbc/bendy-butt-spec` defines message IDs as SHA-256 of the
 bencoded `[payload, signature]` bytes — not BLAKE2b-256. Phase 9 applied BLAKE2b-256
@@ -31,7 +31,7 @@ uniformly; if the spec really is SHA-256 here, we need to revert.
 
 ---
 
-## Phase 11 — Fix SSBMetafeed Seed Encryption (1 file)
+## ✅ Phase 11 — Fix SSBMetafeed Seed Encryption (1 file)
 
 **Issue:** The nonce bug (zero nonce) was already fixed — `SecRandomCopyBytes` is in place.
 The remaining bug is the wrong curve primitive:
@@ -61,7 +61,7 @@ public key should go, making round-trip decryption impossible.
 
 ---
 
-## Phase 12 — Fix Bamboo Entry ID (1 file)
+## ✅ Phase 12 — Fix Bamboo Entry ID (1 file)
 
 **Issue:** `computeEntryID:` returns 96 bytes (BLAKE2b(first 32 bytes of entry) ‖ signature).
 The Bamboo reference implementation defines an entry ID as **BLAKE2b-256 of the full entry
@@ -81,7 +81,7 @@ bytes** — a clean 32-byte value. The 96-byte design is non-standard and incomp
 
 ---
 
-## Phase 13 — GabbyGrove Forward Compatibility (1 file)
+## ✅ Phase 13 — GabbyGrove Forward Compatibility (1 file)
 
 **Issue:** The protobuf parser returns `NO` for any unknown wire type. Protobuf's extensibility
 contract requires that parsers skip fields with unknown wire types they can handle, and fail
@@ -106,7 +106,7 @@ only on truly undecodable wire types.
 
 ---
 
-## Phase 14 — BLAKE3 for Buttwoo (optional / lower priority)
+## ✅ Phase 14 — BLAKE3 for Buttwoo (optional / lower priority)
 
 **Issue:** The Buttwoo spec uses BLAKE3 for message IDs. Phase 9 used BLAKE2b-256 as an
 approximation. BLAKE3 is not available in CommonCrypto or tweetnacl; a minimal implementation
@@ -124,7 +124,7 @@ Revisit when `ssbc/ssb-buttwoo` JS implementation ships BLAKE3.
 
 ---
 
-## Phase 15 — BIPF Wire Format for Buttwoo (deferred)
+## ✅ Phase 15 — BIPF Wire Format for Buttwoo (deferred)
 
 **Issue:** The Buttwoo spec uses BIPF (Binary In-Place Format) encoding, not bencode. The
 codebase uses bencode, which matches an older draft of the spec.

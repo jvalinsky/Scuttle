@@ -411,7 +411,7 @@ UI displaying a file:
 
 ## Part 5 — Phased Implementation
 
-### Phase 1 — Data layer (no UI)
+### ✅ Phase 1 — Data layer (no UI)
 1. `SSBGitRepo.h/m` — `git-repo` and `git-update` message publish/query using
    existing `SSBFeedStore` + `SSBQueryEngine`; ref reconstruction
 2. `SSBGitPackIDXParser.h/m` — v2 `.idx` parser (C struct over mmap'd blob bytes)
@@ -421,25 +421,25 @@ UI displaying a file:
 6. `SSBGitPRStore.h/m` — pull-request/post query by repo
 7. Unit tests for all data-layer classes
 
-### Phase 2 — Repo list and activity feed
+### ✅ Phase 2 — Repo list and activity feed
 8. `SRGitSidebarViewController` — sidebar item
 9. `SRGitRepoListViewController` + `SRGitActivityViewController`
 10. Wire into `SRMainSplitViewController`
 
-### Phase 3 — Code browser (file tree + viewer)
+### ✅ Phase 3 — Code browser (file tree + viewer)
 11. `SRGitFileTreeViewController` (NSOutlineView, branch picker)
 12. `SRGitFileViewController` (syntax highlight + Markdown render)
 
-### Phase 4 — Commit log and diffs
+### ✅ Phase 4 — Commit log and diffs
 13. `SRGitCommitLogViewController`
 14. `SRGitDiffViewController` (attributed-string diff renderer)
 
-### Phase 5 — Issues and Pull Requests
+### ✅ Phase 5 — Issues and Pull Requests
 15. `SRGitIssueListViewController` + `SRGitIssueDetailViewController`
 16. `SRGitPRDetailViewController` + `SRGitThreadItemView`
 17. New issue/PR compose forms
 
-### Phase 6 — Push support (git-receive-pack)
+### ✅ Phase 6 — Push support (git-receive-pack)
 18. Implement write path: blob upload + `git-update` publish via `SSBGitRepo`
 19. Wire into git remote helper subprocess or in-process equivalent
 

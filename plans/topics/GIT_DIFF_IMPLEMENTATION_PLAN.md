@@ -56,18 +56,18 @@ A high-level wrapper to bridge the C core with the Scuttle UI.
 
 ## 3. Implementation Steps
 
-### Phase 1: Core Logic (Sources/)
+### ✅ Phase 1: Core Logic (Sources/)
 1.  Create `SSBDiffCore.h/c` with the hashing utility and the skeleton for the four algorithms.
 2.  Implement the **Myers** algorithm (standard greedy SES).
 3.  Implement the **Histogram** algorithm (least-frequent common line splitting).
 4.  Implement the **Patience** algorithm (unique-line LIS backbone).
 
-### Phase 2: ObjC Integration (Sources/)
+### ✅ Phase 2: ObjC Integration (Sources/)
 1.  Create `SSBDiffEngine.h/m` and its associated data models.
 2.  Add logic to split strings into lines and handle hashing before calling the C core.
 3.  Implement "Hunk Grouping" (grouping contiguous edits and adding context lines).
 
-### Phase 3: UI Integration (App/UI/)
+### ✅ Phase 3: UI Integration (App/UI/)
 1.  Update `SRGitDiffViewController.m` to use `SSBDiffEngine`.
 2.  Implement the unified diff renderer in `NSTextView`:
     - Green background for additions (`+`).
