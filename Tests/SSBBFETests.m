@@ -585,4 +585,107 @@ static NSData *BFEMakeKey32(void) {
     XCTAssertEqual(decoded.length, 32U);
 }
 
+#pragma mark - encodeMessageID: without percent prefix
+
+- (void)testEncodeMessageID_bareBase64_noPercentPrefix {
+    // Message ID without % prefix → hits else branch (line 68-70)
+    NSData *hash = BFEMakeKey32();
+    NSString *b64 = [hash base64EncodedStringWithOptions:0];
+    NSData *bfe = [SSBBFE encodeMessageID:b64 format:SSBBFEMessageFormatClassic];
+    XCTAssertNotNil(bfe);
+    XCTAssertEqual(((uint8_t *)bfe.bytes)[0], SSBBFETypeMessage);
+}
+
+- (void)testEncodeMessageID_percentWithNoSuffix_usesRawBase64 {
+    // % prefix but no recognized suffix → line 62: base64Part from index 1
+    NSData *hash = BFEMakeKey32();
+    NSString *b64 = [hash base64EncodedStringWithOptions:0];
+    NSString *msgStr = [NSString stringWithFormat:@"%%%@", b64];
+    NSData *bfe = [SSBBFE encodeMessageID:msgStr format:SSBBFEMessageFormatClassic];
+    XCTAssertNotNil(bfe);
+}
+
+#pragma mark - encodeBlobID: without sha256 suffix
+
+- (void)testEncodeBlobID_ampersandWithNoSuffix_usesRawBase64 {
+    // & prefix but no .sha256 suffix → line 106: base64Part from index 1
+    NSData *hash = BFEMakeKey32();
+    NSString *b64 = [hash base64EncodedStringWithOptions:0];
+    NSString *blobStr = [NSString stringWithFormat:@"&%@", b64];
+    NSData *bfe = [SSBBFE encodeBlobID:blobStr];
+    XCTAssertNotNil(bfe);
+    XCTAssertEqual(((uint8_t *)bfe.bytes)[0], SSBBFETypeBlob);
+}
+
+- (void)testEncodeBlobID_bareBase64_noAmpersandPrefix {
+    // No & prefix → hits else branch
+    NSData *hash = BFEMakeKey32();
+    NSString *b64 = [hash base64EncodedStringWithOptions:0];
+    NSData *bfe = [SSBBFE encodeBlobID:b64];
+    XCTAssertNotNil(bfe);
+    XCTAssertEqual(((uint8_t *)bfe.bytes)[0], SSBBFETypeBlob);
+}
+
+#pragma mark - decode:type:format: for Signature and Encrypted types
+
+- (void)testDecode_signatureType_returnsData {
+    NSMutableData *sig = [NSMutableData dataWithLength:64];
+    NSData *bfe = [SSBBFE encodeSignature:sig];
+    XCTAssertNotNil(bfe);
+    SSBBFEType type;
+    NSInteger fmt;
+    id result = [SSBBFE decode:bfe type:&type format:&fmt];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result isKindOfClass:[NSData class]]);
+    XCTAssertEqual(type, SSBBFETypeSignature);
+}
+
+- (void)testDecode_encryptedType_returnsData {
+    uint8_t ct[] = {0x01, 0x02, 0x03};
+    NSData *ciphertext = [NSData dataWithBytes:ct length:3];
+    NSData *bfe = [SSBBFE encodeEncrypted:ciphertext format:SSBBFEEncryptedFormatBox1];
+    SSBBFEType type;
+    NSInteger fmt;
+    id result = [SSBBFE decode:bfe type:&type format:&fmt];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result isKindOfClass:[NSData class]]);
+    XCTAssertEqual(type, SSBBFETypeEncrypted);
+}
+
+- (void)testDecode_identityType_returnsData {
+    NSData *key = BFEMakeKey32();
+    NSData *bfe = [SSBBFE encodeIdentityPoBox:key];
+    id result = [SSBBFE decodeBFEData:bfe];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result isKindOfClass:[NSData class]]);
+}
+
+#pragma mark - sigilStringFromBFE: missing-format default cases
+
+- (void)testSigilStringFromBFE_feedUnknownFormat_returnsAtBase64 {
+    // Feed with unknown format byte (0xFF) → default case: returns "@<base64>"
+    NSData *key = BFEMakeKey32();
+    NSMutableData *bfe = [NSMutableData data];
+    uint8_t typeByte = (uint8_t)SSBBFETypeFeed, fmtByte = 0xFF;
+    [bfe appendBytes:&typeByte length:1];
+    [bfe appendBytes:&fmtByte length:1];
+    [bfe appendData:key];
+    NSString *result = [SSBBFE sigilStringFromBFE:bfe];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result hasPrefix:@"@"]);
+}
+
+- (void)testSigilStringFromBFE_messageUnknownFormat_returnsPercentBase64 {
+    // Message with unknown format byte → default case: returns "%<base64>"
+    NSData *hash = BFEMakeKey32();
+    NSMutableData *bfe = [NSMutableData data];
+    uint8_t typeByte = (uint8_t)SSBBFETypeMessage, fmtByte = 0xFF;
+    [bfe appendBytes:&typeByte length:1];
+    [bfe appendBytes:&fmtByte length:1];
+    [bfe appendData:hash];
+    NSString *result = [SSBBFE sigilStringFromBFE:bfe];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result hasPrefix:@"%"]);
+}
+
 @end
