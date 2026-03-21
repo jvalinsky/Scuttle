@@ -156,6 +156,31 @@ EOF
                 appBundleName = "ScuttleRoom";
               };
 
+              # OCI Image containing Scuttle CLI and runtime dependencies
+              oci-image = pkgs.dockerTools.buildImage {
+                name = "scuttle-linux";
+                tag = "latest";
+                copyToRoot = pkgs.buildEnv {
+                  name = "image-root";
+                  paths = [
+                    scuttle-cli
+                    pkgs.bashInteractive
+                    pkgs.coreutils
+                    pkgs.dash
+                  ];
+                  pathsToLink = [ "/bin" ];
+                };
+                config = {
+                  Cmd = [ "/bin/scuttle-cli" ];
+                };
+              };
+
+              # Extract the uncompressed Linux kernel Image
+              kernel = pkgs.runCommand "linux-kernel" { } ''
+                mkdir -p $out
+                cp ${pkgs.linux}/Image $out/Image
+              '';
+
               default = scuttle-cli;
             }
           else
