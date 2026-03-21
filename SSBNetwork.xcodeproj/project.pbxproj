@@ -11,6 +11,7 @@
 		02283D6C02AD9EC107C9819E /* SRGitIssueListViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 18EFC38ED2C5B71DCBCBFA8B /* SRGitIssueListViewController.m */; };
 		0234562DB92CBDBB555EA2E6 /* SSBLogCompat.h in Headers */ = {isa = PBXBuildFile; fileRef = 23472A279707CD137C7B56D4 /* SSBLogCompat.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		02B32B268B26D2DC78051FC6 /* SSBThread.h in Headers */ = {isa = PBXBuildFile; fileRef = 91B91E4D73FD27B4DB5709DA /* SSBThread.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		030146C1FA786A62708B72BA /* SSBRandomTests.m in Sources */ = {isa = PBXBuildFile; fileRef = D07AE7E1E4929627B8C7EB2F /* SSBRandomTests.m */; };
 		039B4FFDD41842731258C5A0 /* SSBHTTPInviteServer.h in Headers */ = {isa = PBXBuildFile; fileRef = B9BB92B839045329BFED6CF9 /* SSBHTTPInviteServer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		047DD05B99FEB5CF11CF4C60 /* SSBBendyButt.h in Headers */ = {isa = PBXBuildFile; fileRef = AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		04C7AFDE66D33FE12818E2BD /* SSBCommonCryptoCompat.h in Headers */ = {isa = PBXBuildFile; fileRef = A5A81CD09551A3E71389FC02 /* SSBCommonCryptoCompat.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -21,9 +22,10 @@
 		09CFCF6DF67EF82A30B87E5B /* SRProfileViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = AF4343841D1F5AC58E8E750A /* SRProfileViewController.m */; };
 		0C1D7FBD1348BD23E71449E5 /* SRGitFileTreeViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 7CB05649361BF3D13D7D1D62 /* SRGitFileTreeViewController.m */; };
 		0D1D366D5A65CE84DBE1EA61 /* SSBNetworkCompat.h in Headers */ = {isa = PBXBuildFile; fileRef = BFFBEDA3EFDCAD5D2CAAE423 /* SSBNetworkCompat.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		0DD621C10519FEA388237B27 /* SSBKeychainTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 38E544B2439DE7D25C547881 /* SSBKeychainTests.m */; };
+		0F13D9C5714C40F1BAEFECE2 /* SSBEnvironment.m in Sources */ = {isa = PBXBuildFile; fileRef = 06CBD1B600158274E273AB96 /* SSBEnvironment.m */; };
 		100DE5648624E3613DCE49A9 /* SRGitRemoteHelperServer.m in Sources */ = {isa = PBXBuildFile; fileRef = B854742C04EB967C0EDFCA54 /* SRGitRemoteHelperServer.m */; };
 		1190D3256AD7F5C16C8C3A7B /* SRQRUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = A3D0C2CBE4EC0BDDC7A4ED6F /* SRQRUtils.m */; };
-		11C152594AC253807910556A /* SRContentContainerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = FC2B30DA155289295F25BA1C /* SRContentContainerViewController.m */; };
 		155CCA0FA02016061106A456 /* SRComposeViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 080A56BD6BE1973B64CF3DE6 /* SRComposeViewController.m */; };
 		162F045D34358E23A6010CEC /* SSBMetafeed.h in Headers */ = {isa = PBXBuildFile; fileRef = 189BDF5A7F57785FA15BF879 /* SSBMetafeed.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		1B121A4CF485065E783F8C3B /* SSBSecurityFramer.m in Sources */ = {isa = PBXBuildFile; fileRef = 7F1268FBDBCC7771407ACE30 /* SSBSecurityFramer.m */; };
@@ -59,14 +61,18 @@
 		3E8BB65E48C04F336A6A6AA1 /* SRHomeViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 096BF51FC2AD7F5445ACE8C2 /* SRHomeViewController.m */; };
 		40CEB8355FB2892FEF2B9510 /* SSBGabbyGrove.m in Sources */ = {isa = PBXBuildFile; fileRef = A183D8DFB77759AE7AC8F50C /* SSBGabbyGrove.m */; };
 		428026EB2B87C21CD021920E /* SSBLog.m in Sources */ = {isa = PBXBuildFile; fileRef = 283C9749A68D8F1A776839C5 /* SSBLog.m */; };
+		42A60DEC109789B4A4A569AF /* SSBIndexFeedGeneratorTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B115240B0A2C547F40EB1C81 /* SSBIndexFeedGeneratorTests.m */; };
 		452F2A73E776502374A6A913 /* SSBURLSessionShim.m in Sources */ = {isa = PBXBuildFile; fileRef = 5AD8CC589734E016CFE33CF9 /* SSBURLSessionShim.m */; };
+		464A98EEE0250FF7395602F2 /* SSBPlatformUI.h in Headers */ = {isa = PBXBuildFile; fileRef = ACB4BE9E8F86A13778090855 /* SSBPlatformUI.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		46607D197FB7958CC1532F61 /* SSBBitsetTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 91C0676FA2F23AC5BBC4B647 /* SSBBitsetTests.m */; };
 		47601611268690B763AFBE4E /* SSBFeedCodec.h in Headers */ = {isa = PBXBuildFile; fileRef = C6437C46C04A5C15B34C604A /* SSBFeedCodec.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		4857742C62DA9A3CBB0024A1 /* SSBBambooTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D2909D6CB10BBEF22DA3056 /* SSBBambooTests.m */; };
+		48F99812E83E6C20DE5C3423 /* SSBLogTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 7DDF3C4FA9F0E79D1181AAFC /* SSBLogTests.m */; };
 		498046E7E332BB6D09C938F1 /* SSBMessageCodecExtendedTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 0265CB33268324FD16537C85 /* SSBMessageCodecExtendedTests.m */; };
 		4BDB1A3EF6795D472D7D6F74 /* SSBStateMachine.m in Sources */ = {isa = PBXBuildFile; fileRef = 5DC024D9C67500F75A076361 /* SSBStateMachine.m */; };
 		50AB0313BFC76F2CA3EA0412 /* SSBBoxStreamTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 1E3D4AC9B86DD3EF12E5795C /* SSBBoxStreamTests.m */; };
 		5104A60DA830BDD0E3FD16E9 /* SSBGabbyGrove.h in Headers */ = {isa = PBXBuildFile; fileRef = 3335B488C890B60B8211598A /* SSBGabbyGrove.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		512575F53294F4F2A83905F3 /* RoomStorageTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B87A94B0FD7CDAE1342FAEF8 /* RoomStorageTests.m */; };
 		5160FD40E375BBDC10F5D7A8 /* SSBRandom.m in Sources */ = {isa = PBXBuildFile; fileRef = 6C18A7B85053DBF8C45F1F85 /* SSBRandom.m */; };
 		51C3D7D19592679790C16ED8 /* SRGitActivityViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = C3655E7AD5E9A231E20F4D1D /* SRGitActivityViewController.m */; };
 		534467BE6E7EE4680563A753 /* SSBBencode.m in Sources */ = {isa = PBXBuildFile; fileRef = CB73007D624BF94A2A2B86FA /* SSBBencode.m */; };
@@ -77,12 +83,14 @@
 		554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */; };
 		55FDC8C0D09439EA3B6C7493 /* SSBTransportTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 9D5363A3463419ABCE16BAF7 /* SSBTransportTests.m */; };
 		5627B0DD370FB003FB7B52B7 /* SSBDiffEngineTests.m in Sources */ = {isa = PBXBuildFile; fileRef = AE054062A09A5D7FC6233A5E /* SSBDiffEngineTests.m */; };
+		56B7ACD3BFFB29189DF4558D /* SSBGitIssueStoreTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 209BBAE6F9ABACC61D6F023F /* SSBGitIssueStoreTests.m */; };
 		57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */ = {isa = PBXBuildFile; fileRef = FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */; };
 		585777B3264C53A370D9B1A9 /* SSBMuxRPC.m in Sources */ = {isa = PBXBuildFile; fileRef = 798B55FEB82324DA55E84BE8 /* SSBMuxRPC.m */; };
 		59C7722FFBE59082E6FEFC4E /* SSBFeedStore.m in Sources */ = {isa = PBXBuildFile; fileRef = C55A0EBFE2F7F1BDD456ED11 /* SSBFeedStore.m */; };
 		5A034FEFEE956AD55A643583 /* SSBJITDB.m in Sources */ = {isa = PBXBuildFile; fileRef = 4E3638C32D855B18A7027A66 /* SSBJITDB.m */; };
 		5AF3E0900EE39BCEB8F9512A /* SSBSecurityFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 271691BC4736F87E224B180D /* SSBSecurityFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		5B673560F989EB5A01D8DA2E /* SSBPrefixIndex.m in Sources */ = {isa = PBXBuildFile; fileRef = D9616BE75B56BD72511710FA /* SSBPrefixIndex.m */; };
+		5BD11D23C6794EA94D387409 /* SSBPlatformUITests.m in Sources */ = {isa = PBXBuildFile; fileRef = BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */; };
 		601E289925CF5EB070A9E221 /* SSBGitRemoteCore.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = DEDBF43441B07FDA289999E8 /* SSBGitRemoteCore.h */; };
 		60B91AD5782A44AB4795BB94 /* SRPlatformNotifications.m in Sources */ = {isa = PBXBuildFile; fileRef = 6F167252893424D3563E6DC2 /* SRPlatformNotifications.m */; };
 		60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */; };
@@ -92,6 +100,7 @@
 		657E50EA694DAFFDDAFDE668 /* SSBBlobStore.m in Sources */ = {isa = PBXBuildFile; fileRef = 3CF8EA7DDFCF7270D9B36AE5 /* SSBBlobStore.m */; };
 		664CEBD0C70B916169A625B1 /* SSBTunnelConnection.m in Sources */ = {isa = PBXBuildFile; fileRef = CB0A086FB1BB5C0C93F840AC /* SSBTunnelConnection.m */; };
 		67406A8E52C716EF4D44662C /* GitRemoteSSBTests.m in Sources */ = {isa = PBXBuildFile; fileRef = A273BF4DC6AB7945688ECF74 /* GitRemoteSSBTests.m */; };
+		689CD0186157502F60C0F308 /* SSBEnvironment.h in Headers */ = {isa = PBXBuildFile; fileRef = DCF74277D83AEE59DDE12536 /* SSBEnvironment.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		6A3BCBAE80CBCCC3C91F221C /* SSBButtwoo.h in Headers */ = {isa = PBXBuildFile; fileRef = 288550C253A5C28CD80B7132 /* SSBButtwoo.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		6AEF9B1D506ABA12FE19D771 /* SSBGitObjectStore.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B1CD097563A43B486C59388 /* SSBGitObjectStore.m */; };
 		6B6430F5F0A447F3778F5B85 /* blake2b.h in Headers */ = {isa = PBXBuildFile; fileRef = 07F6512490329993A2DCE8AE /* blake2b.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -140,6 +149,7 @@
 		A5DFC3665C1E63C95FE6AC25 /* SSBGabbyGroveTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 0E38C55C0BBB861B266DEEC7 /* SSBGabbyGroveTests.m */; };
 		A65977FB96DFD898EA1340C2 /* SSBPrefixIndexTests.m in Sources */ = {isa = PBXBuildFile; fileRef = C58DE865B5B08C49DD8C590E /* SSBPrefixIndexTests.m */; };
 		A6A93BFDD12197C8C9CE2A40 /* SSBNetwork.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A7E64CE3C1458E20967232A0 /* SSBIndexFeedTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 0EDF574FADDCE8095F650677 /* SSBIndexFeedTests.m */; };
 		A953F4A5E9AAC735E3C5297E /* SSBNetwork.h in Headers */ = {isa = PBXBuildFile; fileRef = 31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		AC2D8D590BA4C02C2BFC96B5 /* SSBRoomClient.m in Sources */ = {isa = PBXBuildFile; fileRef = 037E18283780BBEE7AC97C12 /* SSBRoomClient.m */; };
 		ACA42138BA90AD2DC2FD1B88 /* SSBGitPRStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 7963BC9A3C85F45852AC0A75 /* SSBGitPRStore.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -148,6 +158,7 @@
 		AF011C94FD6E4F3A06233661 /* SSBStateMachine.h in Headers */ = {isa = PBXBuildFile; fileRef = 875FF3CD2F445423AAF9EE68 /* SSBStateMachine.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		B1007B5185571DCA1608A4BD /* SRGitRepoViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = F039DAC6646232D74A8EF46F /* SRGitRepoViewController.m */; };
 		B40F60D75D99FFFB352DF537 /* SSBTangle.m in Sources */ = {isa = PBXBuildFile; fileRef = EC626AA0CD6651F362F3A259 /* SSBTangle.m */; };
+		B4775FA5F76DAFCEA07C63E8 /* SSBThreadTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 5E393A8AC0DACF08E914D28C /* SSBThreadTests.m */; };
 		B485BFAE122E184363B6D842 /* SSBMuxRPCSession.m in Sources */ = {isa = PBXBuildFile; fileRef = EBD4624FAA118699D67BCDA1 /* SSBMuxRPCSession.m */; };
 		B4B1781611491EA710139777 /* tweetnacl.h in Headers */ = {isa = PBXBuildFile; fileRef = ADF41D2BA8155CDF54C259CB /* tweetnacl.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		B573C6AC8B0FC70C70CD4971 /* SSBURLSessionCompat.h in Headers */ = {isa = PBXBuildFile; fileRef = DB03056A3F9B7F7B7EE87B03 /* SSBURLSessionCompat.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -165,23 +176,26 @@
 		BE9A8D2A4973E05F75341AB6 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 067EE91BF3BEDCAEEB1CA111 /* libsqlite3.tbd */; };
 		C0E58EDFF3DDB730364B792A /* SSBDiffEngine.h in Headers */ = {isa = PBXBuildFile; fileRef = 748EF8C17B9D221D28017C0A /* SSBDiffEngine.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		C111B6D99CDCCCFD9546C012 /* SSBConnectionFSM.m in Sources */ = {isa = PBXBuildFile; fileRef = ED5D14C9A38BFEE04B8CFA16 /* SSBConnectionFSM.m */; };
+		C1824B3ECEE8444DCF5124AB /* SSBJITDBTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 635247B47AA51A4529856144 /* SSBJITDBTests.m */; };
 		C2C094E0D4E95F66B044D66F /* SSBMessageCodecTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 9CFEAF676970339AC9028E46 /* SSBMessageCodecTests.m */; };
 		C675DBFEC6E02324C36C7FF1 /* SSBURI.h in Headers */ = {isa = PBXBuildFile; fileRef = 53D2EEA4027CFD4A5B573A70 /* SSBURI.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		C76DFC32F8EE5EE8564BA1D7 /* SRPlatformUI.m in Sources */ = {isa = PBXBuildFile; fileRef = EF8453B60D09B89FBE6F0E73 /* SRPlatformUI.m */; };
 		C7BE3CAAEA072F92602E5741 /* SRDevicePairingViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = FC3DDBBA5968BFEB11D47EC2 /* SRDevicePairingViewController.m */; };
-		C897B3406635744C11F08D9D /* SRContentContainerViewControllerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B0D276446DEF1A5E2E167DD /* SRContentContainerViewControllerTests.m */; };
 		C8DEF3EEA54F5B3853D3E44D /* SSBStateMachineTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */; };
 		CBEF7CBFE2DE25620C747933 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C584688A6B7BEBBD054A0AF0 /* Security.framework */; };
 		CC0997F533C27140C2C02528 /* SSBKeychain.h in Headers */ = {isa = PBXBuildFile; fileRef = E1F073D53D1470D7FA4928F0 /* SSBKeychain.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		CC3BFA11F1043F8E9ADED415 /* SSBGitPRStoreTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 1317A1A8F660F7603D3A2819 /* SSBGitPRStoreTests.m */; };
 		CCC05D452FE2EE293173490E /* SRContentContainerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = FC2B30DA155289295F25BA1C /* SRContentContainerViewController.m */; };
 		CCDCDE8CBDAA775965E71FB0 /* SSBTransport.m in Sources */ = {isa = PBXBuildFile; fileRef = 7EAC649F464FFF328ABED209 /* SSBTransport.m */; };
 		CCFEEE91364F05EBE5D0CFCF /* SRPeerListViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = EEE022454C543DEEB67B1797 /* SRPeerListViewController.m */; };
+		CD2B9FE73ECD707B27C32C86 /* SSBHTTPAuthTests.m in Sources */ = {isa = PBXBuildFile; fileRef = EA42BCD3744D19855E0B03E8 /* SSBHTTPAuthTests.m */; };
 		CD38B433F28833FDB0A18450 /* RoomStorage.h in Headers */ = {isa = PBXBuildFile; fileRef = 8B1A74C0B6939BE415F1577B /* RoomStorage.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CDE1773169A7406CF7C80E86 /* SSBRoomClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 84FB412E2AF11B61D45E5D7E /* SSBRoomClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		CE872A18DE0EADE849FAB136 /* SRGitFileViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D2AB7217DD1F141948821AA /* SRGitFileViewController.m */; };
 		CEFE6E080E34CA2A1F784CBB /* randombytes.c in Sources */ = {isa = PBXBuildFile; fileRef = 6AD82430655F17B68BA5E2AB /* randombytes.c */; };
 		D2E97B8B13C85E11534E4E89 /* SSBSecretStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 5AD22AE780DC1F27093E6D24 /* SSBSecretStore.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		D4E2DE20C7FD0596A01D9806 /* SSBGitPackDecoderTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 6AF7BB8217665CEB79850DAD /* SSBGitPackDecoderTests.m */; };
+		D5440B227F4C7054786FE7DC /* SSBPlatformUI.m in Sources */ = {isa = PBXBuildFile; fileRef = 54993FA915748406466E3ECD /* SSBPlatformUI.m */; };
 		D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */; };
 		D97AD8F1257F35250658ABE9 /* SSBMuxRPCFramer.h in Headers */ = {isa = PBXBuildFile; fileRef = 190288FEB12E8B92A41A5E81 /* SSBMuxRPCFramer.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		DB5E9556BA12D6B15E4F8D1E /* SRMarkdownParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */; };
@@ -202,6 +216,7 @@
 		F1417032D08E8BFFCC5113F8 /* SRGitPRDetailViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 34DEA09804A0696E84F3CF33 /* SRGitPRDetailViewController.m */; };
 		F1A10C34903EA4DA137A7FF3 /* SSBSecretStoreTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 2CAE292572757E3C242BBCFB /* SSBSecretStoreTests.m */; };
 		F242D9204257ADEF9BE27519 /* SSBBFE.h in Headers */ = {isa = PBXBuildFile; fileRef = 883B75B6F77728C6B18E47AA /* SSBBFE.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */; };
 		F40816AF8689B701A17C3F1F /* SRPreferencesViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 209EEB77C83197E44CF43F34 /* SRPreferencesViewController.m */; };
 		F67E294D1E14246BD36A4CBD /* SSBGitPackIDXParser.h in Headers */ = {isa = PBXBuildFile; fileRef = 2CA5C3F63B7FF1D1A9ED5A63 /* SSBGitPackIDXParser.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		F83A25694CC4D6FCAD8D20B6 /* SSBFeedCodecRegistryTests.m in Sources */ = {isa = PBXBuildFile; fileRef = A063EBBFD9951CDBF2225989 /* SSBFeedCodecRegistryTests.m */; };
@@ -298,17 +313,20 @@
 		033902A4476CA253423233D0 /* SRGitPRListViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitPRListViewController.h; sourceTree = "<group>"; };
 		037E18283780BBEE7AC97C12 /* SSBRoomClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRoomClient.m; sourceTree = "<group>"; };
 		067EE91BF3BEDCAEEB1CA111 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		06CBD1B600158274E273AB96 /* SSBEnvironment.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBEnvironment.m; sourceTree = "<group>"; };
 		07F6512490329993A2DCE8AE /* blake2b.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = blake2b.h; sourceTree = "<group>"; };
 		080A56BD6BE1973B64CF3DE6 /* SRComposeViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRComposeViewController.m; sourceTree = "<group>"; };
 		096BF51FC2AD7F5445ACE8C2 /* SRHomeViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRHomeViewController.m; sourceTree = "<group>"; };
 		0C8F057287283AD2B9906EF1 /* SSBIndexFeed.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBIndexFeed.m; sourceTree = "<group>"; };
 		0CE6935AA71CFF036FA83BEC /* SRProfileViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRProfileViewController.h; sourceTree = "<group>"; };
 		0E38C55C0BBB861B266DEEC7 /* SSBGabbyGroveTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBGabbyGroveTests.m; sourceTree = "<group>"; };
+		0EDF574FADDCE8095F650677 /* SSBIndexFeedTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBIndexFeedTests.m; sourceTree = "<group>"; };
 		0F7900D565D9EE7C8F216DFE /* SSBGitRepo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitRepo.h; sourceTree = "<group>"; };
 		0F86B27C518F1B39BF8C8902 /* SSBRandom.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBRandom.h; sourceTree = "<group>"; };
 		0F898BACBC534627CAE1EB65 /* SSBGitPackDecoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitPackDecoder.h; sourceTree = "<group>"; };
 		10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBNetworkShimLinuxTests.m; sourceTree = "<group>"; };
 		11D82F69E43127C6DD530062 /* blake2b.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = blake2b.c; sourceTree = "<group>"; };
+		1317A1A8F660F7603D3A2819 /* SSBGitPRStoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBGitPRStoreTests.m; sourceTree = "<group>"; };
 		13E59A3B54452B72A68242DA /* SSBMuxRPCFramer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPCFramer.m; sourceTree = "<group>"; };
 		13F4CE327FDC3F8151698123 /* SRFeedItem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRFeedItem.h; sourceTree = "<group>"; };
 		13F677EC0C1828FE97F3E99B /* libSSBGitRemoteCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libSSBGitRemoteCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -325,6 +343,7 @@
 		1E3D4AC9B86DD3EF12E5795C /* SSBBoxStreamTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBoxStreamTests.m; sourceTree = "<group>"; };
 		1F51F5F1533FCEDAF9AF160D /* SSBJITDB.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBJITDB.h; sourceTree = "<group>"; };
 		1FED1D5E48F454E382FCABAA /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		209BBAE6F9ABACC61D6F023F /* SSBGitIssueStoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBGitIssueStoreTests.m; sourceTree = "<group>"; };
 		209EEB77C83197E44CF43F34 /* SRPreferencesViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPreferencesViewController.m; sourceTree = "<group>"; };
 		2295B5A1D4A65D4EC3C1307E /* SSBFeedCodecRegistry.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedCodecRegistry.m; sourceTree = "<group>"; };
 		23472A279707CD137C7B56D4 /* SSBLogCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBLogCompat.h; sourceTree = "<group>"; };
@@ -338,7 +357,6 @@
 		283C9749A68D8F1A776839C5 /* SSBLog.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLog.m; sourceTree = "<group>"; };
 		288550C253A5C28CD80B7132 /* SSBButtwoo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBButtwoo.h; sourceTree = "<group>"; };
 		29B7AD9AB28A5B0C4A35BA2E /* SSBBoxStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBoxStream.h; sourceTree = "<group>"; };
-		2B0D276446DEF1A5E2E167DD /* SRContentContainerViewControllerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRContentContainerViewControllerTests.m; sourceTree = "<group>"; };
 		2C2F8454872B232D3EE44ED0 /* SRMarkdownParser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRMarkdownParser.m; sourceTree = "<group>"; };
 		2C9E3529A3DE43C6E57D4DDD /* SSBDiffCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBDiffCore.h; sourceTree = "<group>"; };
 		2CA5C3F63B7FF1D1A9ED5A63 /* SSBGitPackIDXParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitPackIDXParser.h; sourceTree = "<group>"; };
@@ -353,6 +371,7 @@
 		3335B488C890B60B8211598A /* SSBGabbyGrove.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGabbyGrove.h; sourceTree = "<group>"; };
 		34DEA09804A0696E84F3CF33 /* SRGitPRDetailViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitPRDetailViewController.m; sourceTree = "<group>"; };
 		375AA74F3EEFC3DE2ACCF978 /* SSBMessage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMessage.m; sourceTree = "<group>"; };
+		38E544B2439DE7D25C547881 /* SSBKeychainTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBKeychainTests.m; sourceTree = "<group>"; };
 		3C70C0A06B11C1312D125C45 /* SSBMessageCodec.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMessageCodec.m; sourceTree = "<group>"; };
 		3CF8EA7DDFCF7270D9B36AE5 /* SSBBlobStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBlobStore.m; sourceTree = "<group>"; };
 		3CFD49ECFFA380CE4347EDF1 /* SRGitFileTreeViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitFileTreeViewController.h; sourceTree = "<group>"; };
@@ -372,6 +391,7 @@
 		52F91FC1EEE4D714D64A1F33 /* SRGitRemoteHelperServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitRemoteHelperServer.h; sourceTree = "<group>"; };
 		53D2EEA4027CFD4A5B573A70 /* SSBURI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBURI.h; sourceTree = "<group>"; };
 		542CEDDCC190AE82B7CC5321 /* SRPlatformLog.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRPlatformLog.h; sourceTree = "<group>"; };
+		54993FA915748406466E3ECD /* SSBPlatformUI.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBPlatformUI.m; sourceTree = "<group>"; };
 		54CBA0CB5BD037FB9C4D5324 /* SRDeviceManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRDeviceManager.m; sourceTree = "<group>"; };
 		5AD22AE780DC1F27093E6D24 /* SSBSecretStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBSecretStore.h; sourceTree = "<group>"; };
 		5AD8CC589734E016CFE33CF9 /* SSBURLSessionShim.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBURLSessionShim.m; sourceTree = "<group>"; };
@@ -380,8 +400,10 @@
 		5C9DE4AAB00958CDF9228482 /* SRGitCommitLogViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitCommitLogViewController.m; sourceTree = "<group>"; };
 		5CFACA659335177FC1F47801 /* SSBFeedStoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStoreTests.m; sourceTree = "<group>"; };
 		5DC024D9C67500F75A076361 /* SSBStateMachine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBStateMachine.m; sourceTree = "<group>"; };
+		5E393A8AC0DACF08E914D28C /* SSBThreadTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBThreadTests.m; sourceTree = "<group>"; };
 		5FD97ACAFE931445D4CEBA24 /* SSBBFE.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBFE.m; sourceTree = "<group>"; };
 		61BA0400ED90DA1C669C82F6 /* SSBNetwork.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = SSBNetwork.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		635247B47AA51A4529856144 /* SSBJITDBTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBJITDBTests.m; sourceTree = "<group>"; };
 		65608FA6C12C48DB2B1A4124 /* SRNotificationNames.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRNotificationNames.h; sourceTree = "<group>"; };
 		69F09ABE10A8A86A6586C1D1 /* SRGitActivityViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitActivityViewController.h; sourceTree = "<group>"; };
 		6AD82430655F17B68BA5E2AB /* randombytes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = randombytes.c; sourceTree = "<group>"; };
@@ -395,6 +417,7 @@
 		6D297EFF3464628DE46F32E4 /* SSBPrefixIndex.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBPrefixIndex.h; sourceTree = "<group>"; };
 		6F167252893424D3563E6DC2 /* SRPlatformNotifications.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRPlatformNotifications.m; sourceTree = "<group>"; };
 		6FD11AF287BF3FFCE56C6979 /* SSBIndexFeedGenerator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBIndexFeedGenerator.m; sourceTree = "<group>"; };
+		730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRContentContainerViewControllerTests.m; sourceTree = "<group>"; };
 		7466A4084D3543D750F94190 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		748EF8C17B9D221D28017C0A /* SSBDiffEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBDiffEngine.h; sourceTree = "<group>"; };
 		75516176EABD43E300304542 /* tweetnacl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tweetnacl.c; sourceTree = "<group>"; };
@@ -409,6 +432,7 @@
 		7C93ABCE1C93673360D9CB98 /* SSBQueryEngine.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBQueryEngine.m; sourceTree = "<group>"; };
 		7CB05649361BF3D13D7D1D62 /* SRGitFileTreeViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitFileTreeViewController.m; sourceTree = "<group>"; };
 		7CBAE6D51037FC4AB336DDB3 /* SSBBIPF.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBIPF.h; sourceTree = "<group>"; };
+		7DDF3C4FA9F0E79D1181AAFC /* SSBLogTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLogTests.m; sourceTree = "<group>"; };
 		7E0A7180188F6DC953CB7307 /* GitRemoteSSBTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GitRemoteSSBTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E0DE924CE6405FD56EF6416 /* git-remote-ssb */ = {isa = PBXFileReference; includeInIndex = 0; path = "git-remote-ssb"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E748DFDDA660FFBB10D82FB /* SSBBFETests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBFETests.m; sourceTree = "<group>"; };
@@ -459,6 +483,7 @@
 		AA76B03C5B6C18C48350B8CE /* SRGitFileViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitFileViewController.h; sourceTree = "<group>"; };
 		AAC10FB41E1C644434A5BD39 /* ScuttleRoomAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScuttleRoomAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB3E30DF94326ECA88F8E8B0 /* SSBBencode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBencode.h; sourceTree = "<group>"; };
+		ACB4BE9E8F86A13778090855 /* SSBPlatformUI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBPlatformUI.h; sourceTree = "<group>"; };
 		ADF41D2BA8155CDF54C259CB /* tweetnacl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tweetnacl.h; sourceTree = "<group>"; };
 		AE054062A09A5D7FC6233A5E /* SSBDiffEngineTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBDiffEngineTests.m; sourceTree = "<group>"; };
 		AE263EE668B2B8230CEA86F0 /* SSBBendyButt.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBBendyButt.h; sourceTree = "<group>"; };
@@ -467,18 +492,21 @@
 		AF66A0C93E5F441A1CD1B6B1 /* SSBButtwoo.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBButtwoo.m; sourceTree = "<group>"; };
 		AFA25F5EB6FC3CC2AD36791C /* SRGitDiffViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitDiffViewController.h; sourceTree = "<group>"; };
 		AFE38E82BFCE0732285FBFD3 /* RoomInviteHandlerTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomInviteHandlerTests.m; sourceTree = "<group>"; };
+		B115240B0A2C547F40EB1C81 /* SSBIndexFeedGeneratorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBIndexFeedGeneratorTests.m; sourceTree = "<group>"; };
 		B3ED61B0C360E195DDE9E67F /* SSBMetafeed.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMetafeed.m; sourceTree = "<group>"; };
 		B507F3A075F266677FC73AB2 /* SRSeedRecoveryViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRSeedRecoveryViewController.m; sourceTree = "<group>"; };
 		B5CA17FE0A3895E3E90727F6 /* SSBMessage.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMessage.h; sourceTree = "<group>"; };
 		B688B2B964A3785C3362EB4B /* SRDevicePairingViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRDevicePairingViewController.h; sourceTree = "<group>"; };
 		B73C35617F300D1233DB2B83 /* SSBMuxRPC.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMuxRPC.h; sourceTree = "<group>"; };
 		B854742C04EB967C0EDFCA54 /* SRGitRemoteHelperServer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitRemoteHelperServer.m; sourceTree = "<group>"; };
+		B87A94B0FD7CDAE1342FAEF8 /* RoomStorageTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomStorageTests.m; sourceTree = "<group>"; };
 		B9413A93F0266D34DC142DBD /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		B9BB92B839045329BFED6CF9 /* SSBHTTPInviteServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBHTTPInviteServer.h; sourceTree = "<group>"; };
 		BB7141651B11E395483AAE34 /* SSBGitObjectStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitObjectStore.h; sourceTree = "<group>"; };
 		BB72906EAF25B9DA66BDBAAB /* SRMarkdownParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRMarkdownParser.h; sourceTree = "<group>"; };
 		BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMetafeedTests.m; sourceTree = "<group>"; };
 		BE3377BD26F6C1E89295CA1D /* SSBDiffCoreTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBDiffCoreTests.m; sourceTree = "<group>"; };
+		BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBPlatformUITests.m; sourceTree = "<group>"; };
 		BFFBEDA3EFDCAD5D2CAAE423 /* SSBNetworkCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBNetworkCompat.h; sourceTree = "<group>"; };
 		C1A462699B0111EAFF4B4C1F /* SRRoomManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRRoomManager.m; sourceTree = "<group>"; };
 		C1A9FA581871BCDB3F13D5C3 /* SSBFeedStoreQueryTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBFeedStoreQueryTests.m; sourceTree = "<group>"; };
@@ -498,6 +526,7 @@
 		CB73007D624BF94A2A2B86FA /* SSBBencode.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBencode.m; sourceTree = "<group>"; };
 		CCC950A11DF4B3AFA09AD247 /* SRNotificationNames.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRNotificationNames.m; sourceTree = "<group>"; };
 		CFB8B06F0792B438E6A851A9 /* SSBBamboo.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBamboo.m; sourceTree = "<group>"; };
+		D07AE7E1E4929627B8C7EB2F /* SSBRandomTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBRandomTests.m; sourceTree = "<group>"; };
 		D2DA508E1273039791E82A04 /* SRErrorBannerView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRErrorBannerView.m; sourceTree = "<group>"; };
 		D3756FE6C628386870AE36B1 /* SSBURITests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBURITests.m; sourceTree = "<group>"; };
 		D3C58FAB43BB4545DE6AC18F /* SRGitRepoViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRGitRepoViewController.h; sourceTree = "<group>"; };
@@ -506,6 +535,7 @@
 		D9616BE75B56BD72511710FA /* SSBPrefixIndex.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBPrefixIndex.m; sourceTree = "<group>"; };
 		DB03056A3F9B7F7B7EE87B03 /* SSBURLSessionCompat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBURLSessionCompat.h; sourceTree = "<group>"; };
 		DBE1BEB892EC0BCEBDC8D4BC /* SSBBendyButtTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButtTests.m; sourceTree = "<group>"; };
+		DCF74277D83AEE59DDE12536 /* SSBEnvironment.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBEnvironment.h; sourceTree = "<group>"; };
 		DD4CD311AC4686C2B3588242 /* SSBQueryEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBQueryEngine.h; sourceTree = "<group>"; };
 		DEDBF43441B07FDA289999E8 /* SSBGitRemoteCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBGitRemoteCore.h; sourceTree = "<group>"; };
 		DEF75D13D452FFD12BF95D82 /* RoomStorage.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RoomStorage.m; sourceTree = "<group>"; };
@@ -516,6 +546,7 @@
 		E5D6A0F38B9E9AFA91A44D6D /* SSBBendyButt.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBBendyButt.m; sourceTree = "<group>"; };
 		E727617D6A1CCF811EC16C5F /* SSBLogger.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBLogger.m; sourceTree = "<group>"; };
 		EA27BA906C2381C5FCB41AAA /* SRErrorBannerView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SRErrorBannerView.h; sourceTree = "<group>"; };
+		EA42BCD3744D19855E0B03E8 /* SSBHTTPAuthTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBHTTPAuthTests.m; sourceTree = "<group>"; };
 		EBD4624FAA118699D67BCDA1 /* SSBMuxRPCSession.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SSBMuxRPCSession.m; sourceTree = "<group>"; };
 		EBEB65F0F3E4B90137A01A1F /* SSBMessageCodec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SSBMessageCodec.h; sourceTree = "<group>"; };
 		EC4420740083A0BED47ADBC3 /* SRGitIssueDetailViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SRGitIssueDetailViewController.m; sourceTree = "<group>"; };
@@ -733,6 +764,7 @@
 			isa = PBXGroup;
 			children = (
 				5C5360425553AD6EB98379E8 /* ScuttleRoomAppHostSmokeTests.m */,
+				730082E2B0428969D57DA751 /* SRContentContainerViewControllerTests.m */,
 			);
 			name = ScuttleRoomApp;
 			path = Tests/ScuttleRoomApp;
@@ -777,6 +809,8 @@
 				2C9E3529A3DE43C6E57D4DDD /* SSBDiffCore.h */,
 				748EF8C17B9D221D28017C0A /* SSBDiffEngine.h */,
 				6CDC62B9C3B1EBD032D37CF2 /* SSBDiffEngine.m */,
+				DCF74277D83AEE59DDE12536 /* SSBEnvironment.h */,
+				06CBD1B600158274E273AB96 /* SSBEnvironment.m */,
 				C6437C46C04A5C15B34C604A /* SSBFeedCodec.h */,
 				5BC271AF9E4B38FA58499AA1 /* SSBFeedCodecRegistry.h */,
 				2295B5A1D4A65D4EC3C1307E /* SSBFeedCodecRegistry.m */,
@@ -830,6 +864,8 @@
 				31DBAA46A5AA443FF424EB6E /* SSBNetwork.h */,
 				BFFBEDA3EFDCAD5D2CAAE423 /* SSBNetworkCompat.h */,
 				76114C6810430F1D6D34A775 /* SSBNetworkShim.m */,
+				ACB4BE9E8F86A13778090855 /* SSBPlatformUI.h */,
+				54993FA915748406466E3ECD /* SSBPlatformUI.m */,
 				6D297EFF3464628DE46F32E4 /* SSBPrefixIndex.h */,
 				D9616BE75B56BD72511710FA /* SSBPrefixIndex.m */,
 				DD4CD311AC4686C2B3588242 /* SSBQueryEngine.h */,
@@ -869,7 +905,7 @@
 			children = (
 				9D5B82188337476DFA8D7674 /* RoomInviteHandlerPatternTests.m */,
 				AFE38E82BFCE0732285FBFD3 /* RoomInviteHandlerTests.m */,
-				2B0D276446DEF1A5E2E167DD /* SRContentContainerViewControllerTests.m */,
+				B87A94B0FD7CDAE1342FAEF8 /* RoomStorageTests.m */,
 				4D2909D6CB10BBEF22DA3056 /* SSBBambooTests.m */,
 				DBE1BEB892EC0BCEBDC8D4BC /* SSBBendyButtTests.m */,
 				7E748DFDDA660FFBB10D82FB /* SSBBFETests.m */,
@@ -886,19 +922,30 @@
 				5CFACA659335177FC1F47801 /* SSBFeedStoreTests.m */,
 				51CC92772DB3FD3C04DDA282 /* SSBFramerTests.m */,
 				0E38C55C0BBB861B266DEEC7 /* SSBGabbyGroveTests.m */,
+				209BBAE6F9ABACC61D6F023F /* SSBGitIssueStoreTests.m */,
 				6AF7BB8217665CEB79850DAD /* SSBGitPackDecoderTests.m */,
 				311F4A38DEB255521F212A7C /* SSBGitPackIDXParserTests.m */,
+				1317A1A8F660F7603D3A2819 /* SSBGitPRStoreTests.m */,
 				F7B1301C88F494B1C520D273 /* SSBGitRepoTests.m */,
+				EA42BCD3744D19855E0B03E8 /* SSBHTTPAuthTests.m */,
+				B115240B0A2C547F40EB1C81 /* SSBIndexFeedGeneratorTests.m */,
+				0EDF574FADDCE8095F650677 /* SSBIndexFeedTests.m */,
+				635247B47AA51A4529856144 /* SSBJITDBTests.m */,
+				38E544B2439DE7D25C547881 /* SSBKeychainTests.m */,
 				9A168A6ABFEEDFDAC6A58350 /* SSBLoggerTests.m */,
+				7DDF3C4FA9F0E79D1181AAFC /* SSBLogTests.m */,
 				0265CB33268324FD16537C85 /* SSBMessageCodecExtendedTests.m */,
 				9CFEAF676970339AC9028E46 /* SSBMessageCodecTests.m */,
 				BE1F9B87244B76117D34F6F4 /* SSBMetafeedTests.m */,
 				FE6552872262BEB7ED4D11A7 /* SSBMuxRPCSessionTests.m */,
 				10CF97D96C8A1674DE5DDAC5 /* SSBNetworkShimLinuxTests.m */,
+				BEDFD6AF29737EA299011F28 /* SSBPlatformUITests.m */,
 				C58DE865B5B08C49DD8C590E /* SSBPrefixIndexTests.m */,
+				D07AE7E1E4929627B8C7EB2F /* SSBRandomTests.m */,
 				82A5436B4CFA34D7E02DF80C /* SSBRoomProtocolBugfixTests.m */,
 				2CAE292572757E3C242BBCFB /* SSBSecretStoreTests.m */,
 				9E4586345675FBF2C0A617E4 /* SSBStateMachineTests.m */,
+				5E393A8AC0DACF08E914D28C /* SSBThreadTests.m */,
 				9D5363A3463419ABCE16BAF7 /* SSBTransportTests.m */,
 				D3756FE6C628386870AE36B1 /* SSBURITests.m */,
 			);
@@ -944,6 +991,7 @@
 				3C5FE070E76B93931852DC0D /* SSBConnectionFSM.h in Headers */,
 				BE5F040AE9681ADFBC1356A1 /* SSBDiffCore.h in Headers */,
 				C0E58EDFF3DDB730364B792A /* SSBDiffEngine.h in Headers */,
+				689CD0186157502F60C0F308 /* SSBEnvironment.h in Headers */,
 				47601611268690B763AFBE4E /* SSBFeedCodec.h in Headers */,
 				9DD5A63E4196E9ABAFD2432F /* SSBFeedCodecRegistry.h in Headers */,
 				2411B5A6066C3651E43750E6 /* SSBFeedStore.h in Headers */,
@@ -971,6 +1019,7 @@
 				EB93F6C5DADB67E4C6230F35 /* SSBMuxRPCSession.h in Headers */,
 				A953F4A5E9AAC735E3C5297E /* SSBNetwork.h in Headers */,
 				0D1D366D5A65CE84DBE1EA61 /* SSBNetworkCompat.h in Headers */,
+				464A98EEE0250FF7395602F2 /* SSBPlatformUI.h in Headers */,
 				F9A1C76FE354013865997361 /* SSBPrefixIndex.h in Headers */,
 				54EC2511154518680FE2580C /* SSBQueryEngine.h in Headers */,
 				088EA1914B889BA085ACA58C /* SSBRandom.h in Headers */,
@@ -1201,6 +1250,7 @@
 				C111B6D99CDCCCFD9546C012 /* SSBConnectionFSM.m in Sources */,
 				54085D94536AF7A150629C68 /* SSBDiffCore.c in Sources */,
 				F14124B03F355F6C60F5F3B5 /* SSBDiffEngine.m in Sources */,
+				0F13D9C5714C40F1BAEFECE2 /* SSBEnvironment.m in Sources */,
 				F8FABF1E1D9E925E8D84C6BA /* SSBFeedCodecRegistry.m in Sources */,
 				59C7722FFBE59082E6FEFC4E /* SSBFeedStore.m in Sources */,
 				40CEB8355FB2892FEF2B9510 /* SSBGabbyGrove.m in Sources */,
@@ -1225,6 +1275,7 @@
 				94BD58B272A1B0E2BF74AF40 /* SSBMuxRPCFramer.m in Sources */,
 				B485BFAE122E184363B6D842 /* SSBMuxRPCSession.m in Sources */,
 				987208393F26653637E5E58F /* SSBNetworkShim.m in Sources */,
+				D5440B227F4C7054786FE7DC /* SSBPlatformUI.m in Sources */,
 				5B673560F989EB5A01D8DA2E /* SSBPrefixIndex.m in Sources */,
 				B9B3A56D14EB967B9E3FB310 /* SSBQueryEngine.m in Sources */,
 				5160FD40E375BBDC10F5D7A8 /* SSBRandom.m in Sources */,
@@ -1302,8 +1353,7 @@
 			files = (
 				EBDF39D1C9F2F54ACAFF3A5E /* RoomInviteHandlerPatternTests.m in Sources */,
 				2CFA0B235B87F6A5B03AEE35 /* RoomInviteHandlerTests.m in Sources */,
-				11C152594AC253807910556A /* SRContentContainerViewController.m in Sources */,
-				C897B3406635744C11F08D9D /* SRContentContainerViewControllerTests.m in Sources */,
+				512575F53294F4F2A83905F3 /* RoomStorageTests.m in Sources */,
 				A141F7D05B6B1CB5181E6307 /* SSBBFETests.m in Sources */,
 				65612E3B2106704204383786 /* SSBBIPFTests.m in Sources */,
 				4857742C62DA9A3CBB0024A1 /* SSBBambooTests.m in Sources */,
@@ -1320,19 +1370,30 @@
 				6CB9F1542954E96BC26D674B /* SSBFeedStoreTests.m in Sources */,
 				E3B51FD2F5CD35960B8ABB96 /* SSBFramerTests.m in Sources */,
 				A5DFC3665C1E63C95FE6AC25 /* SSBGabbyGroveTests.m in Sources */,
+				56B7ACD3BFFB29189DF4558D /* SSBGitIssueStoreTests.m in Sources */,
+				CC3BFA11F1043F8E9ADED415 /* SSBGitPRStoreTests.m in Sources */,
 				D4E2DE20C7FD0596A01D9806 /* SSBGitPackDecoderTests.m in Sources */,
 				ADE88F253A10D498DBE15A5F /* SSBGitPackIDXParserTests.m in Sources */,
 				A0A03CD85E2ED7767D9380F8 /* SSBGitRepoTests.m in Sources */,
+				CD2B9FE73ECD707B27C32C86 /* SSBHTTPAuthTests.m in Sources */,
+				42A60DEC109789B4A4A569AF /* SSBIndexFeedGeneratorTests.m in Sources */,
+				A7E64CE3C1458E20967232A0 /* SSBIndexFeedTests.m in Sources */,
+				C1824B3ECEE8444DCF5124AB /* SSBJITDBTests.m in Sources */,
+				0DD621C10519FEA388237B27 /* SSBKeychainTests.m in Sources */,
+				48F99812E83E6C20DE5C3423 /* SSBLogTests.m in Sources */,
 				34FF15FF6455E7947D38A54A /* SSBLoggerTests.m in Sources */,
 				498046E7E332BB6D09C938F1 /* SSBMessageCodecExtendedTests.m in Sources */,
 				C2C094E0D4E95F66B044D66F /* SSBMessageCodecTests.m in Sources */,
 				FF7DC82E65B15A679FEA7D4D /* SSBMetafeedTests.m in Sources */,
 				57ADE586E5351A41A1917F4C /* SSBMuxRPCSessionTests.m in Sources */,
 				60C5A2D25A9096FB0C43DB0D /* SSBNetworkShimLinuxTests.m in Sources */,
+				5BD11D23C6794EA94D387409 /* SSBPlatformUITests.m in Sources */,
 				A65977FB96DFD898EA1340C2 /* SSBPrefixIndexTests.m in Sources */,
+				030146C1FA786A62708B72BA /* SSBRandomTests.m in Sources */,
 				554426DE883B869FC0368A91 /* SSBRoomProtocolBugfixTests.m in Sources */,
 				F1A10C34903EA4DA137A7FF3 /* SSBSecretStoreTests.m in Sources */,
 				C8DEF3EEA54F5B3853D3E44D /* SSBStateMachineTests.m in Sources */,
+				B4775FA5F76DAFCEA07C63E8 /* SSBThreadTests.m in Sources */,
 				55FDC8C0D09439EA3B6C7493 /* SSBTransportTests.m in Sources */,
 				84E4264B3247A3C94237B76C /* SSBURITests.m in Sources */,
 			);
@@ -1358,6 +1419,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F375F57344EE5EC08057BA42 /* SRContentContainerViewControllerTests.m in Sources */,
 				D8F82E715E9B958AF31DC225 /* ScuttleRoomAppHostSmokeTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1697,6 +1759,7 @@
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "";
 				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = "$(inherited) $(SRCROOT)/App/UI $(SRCROOT)/App/Logic $(SRCROOT)/Sources";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1780,6 +1843,7 @@
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "";
 				COMBINE_HIDPI_IMAGES = YES;
+				HEADER_SEARCH_PATHS = "$(inherited) $(SRCROOT)/App/UI $(SRCROOT)/App/Logic $(SRCROOT)/Sources";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

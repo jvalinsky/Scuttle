@@ -1,4 +1,5 @@
 #import "SSBHTTPAuth.h"
+#import "SSBEnvironment.h"
 #import "SSBURI.h"
 #import "tweetnacl.h"
 #import "SSBLogCompat.h"
@@ -62,7 +63,7 @@ static const NSUInteger kNonceBytesLength = 32;
     if (!_expiresAt) {
         return NO;
     }
-    return [[NSDate date] compare:_expiresAt] == NSOrderedDescending;
+    return [[[SSBEnvironment shared] now] compare:_expiresAt] == NSOrderedDescending;
 }
 
 @end
@@ -90,7 +91,7 @@ static const NSUInteger kNonceBytesLength = 32;
     if (!_expiresAt) {
         return NO;
     }
-    return [[NSDate date] compare:_expiresAt] == NSOrderedDescending;
+    return [[[SSBEnvironment shared] now] compare:_expiresAt] == NSOrderedDescending;
 }
 
 @end
@@ -199,13 +200,15 @@ static const NSUInteger kNonceBytesLength = 32;
         return nil;
     }
     
-    NSMutableData *signatureData = [NSMutableData dataWithLength:64];
+    // crypto_sign_ed25519 produces a "signed message" of length 64 + messageData.length.
+    // Allocate the full combined buffer, then return only the leading 64-byte signature.
+    NSMutableData *signedMessage = [NSMutableData dataWithLength:64 + messageData.length];
     unsigned long long sigLen = 0;
-    
-    int result = crypto_sign_ed25519(signatureData.mutableBytes, &sigLen,
+
+    int result = crypto_sign_ed25519(signedMessage.mutableBytes, &sigLen,
                                      messageData.bytes, messageData.length,
                                      secretKey.bytes);
-    
+
     if (result != 0) {
         if (error) {
             *error = [NSError errorWithDomain:SSBHTTPAuthErrorDomain
@@ -214,8 +217,10 @@ static const NSUInteger kNonceBytesLength = 32;
         }
         return nil;
     }
-    
-    return [signatureData base64EncodedStringWithOptions:0];
+
+    // Return the detached 64-byte signature as base64.
+    NSData *detachedSig = [signedMessage subdataWithRange:NSMakeRange(0, 64)];
+    return [detachedSig base64EncodedStringWithOptions:0];
 }
 
 - (BOOL)verifySignature:(NSString *)signature forMessage:(NSString *)message withPublicKey:(NSData *)publicKey error:(NSError **)error {
@@ -247,19 +252,24 @@ static const NSUInteger kNonceBytesLength = 32;
         }
         return NO;
     }
-    
-    NSMutableData *verifiedData = [NSMutableData dataWithLength:messageData.length + 64];
+
+    // crypto_sign_ed25519_open expects the combined "signed message" (64-byte signature + message).
+    // Reconstruct it from the detached signature and the message being verified.
+    NSMutableData *combinedMessage = [NSMutableData dataWithData:signatureData];
+    [combinedMessage appendData:messageData];
+
+    NSMutableData *verifiedData = [NSMutableData dataWithLength:combinedMessage.length];
     unsigned long long verifiedLen = 0;
-    
+
     int result = crypto_sign_ed25519_open(verifiedData.mutableBytes, &verifiedLen,
-                                          signatureData.bytes, signatureData.length,
+                                          combinedMessage.bytes, combinedMessage.length,
                                           publicKey.bytes);
-    
+
     if (result != 0) {
         os_log_info(httpAuth_log, "Signature verification failed");
         return NO;
     }
-    
+
     NSData *computedMessage = [verifiedData subdataWithRange:NSMakeRange(0, verifiedLen)];
     return [computedMessage isEqualToData:messageData];
 }
@@ -452,7 +462,7 @@ static const NSUInteger kNonceBytesLength = 32;
         return nil;
     }
     
-    NSDate *now = [NSDate date];
+    NSDate *now = [[SSBEnvironment shared] now];
     NSDate *expiresAt = nil;
     if (self.tokenExpirationInterval > 0) {
         expiresAt = [now dateByAddingTimeInterval:self.tokenExpirationInterval];
@@ -519,7 +529,7 @@ static const NSUInteger kNonceBytesLength = 32;
     __block NSArray *tokens = nil;
     dispatch_sync(self.authQueue, ^{
         NSMutableArray *activeTokens = [NSMutableArray array];
-        NSDate *now = [NSDate date];
+        NSDate *now = [[SSBEnvironment shared] now];
         
         for (NSString *tokenString in self.tokensByString) {
             SSBHTTPAuthToken *token = self.tokensByString[tokenString];
@@ -579,12 +589,12 @@ static const NSUInteger kNonceBytesLength = 32;
     }
     
     dispatch_sync(self.authQueue, ^{
-        NSDate *expiresAt = [[NSDate date] dateByAddingTimeInterval:self.solutionExpirationInterval];
+        NSDate *expiresAt = [[[SSBEnvironment shared] now] dateByAddingTimeInterval:self.solutionExpirationInterval];
         
         SSBHTTPAuthSolution *solution = [[SSBHTTPAuthSolution alloc] initWithServerChallenge:serverChallenge
                                                                               clientChallenge:@""
                                                                                     clientId:@""
-                                                                                   createdAt:[NSDate date]
+                                                                                   createdAt:[[SSBEnvironment shared] now]
                                                                                    expiresAt:expiresAt];
         
         self.pendingSolutions[serverChallenge] = solution;

@@ -1,5 +1,6 @@
 #import "SSBGitIssueStore.h"
-#import "SSBQueryEngine.h"
+
+static const NSInteger kDefaultQueryLimit = 500;
 
 @implementation SSBGitIssueStore
 
@@ -12,35 +13,36 @@
 }
 
 - (NSArray<SSBMessage *> *)issues {
-    NSDictionary *query = @{
-        @"AND": @[
-            @{ @"EQUAL": @[ @[@"value", @"content", @"type"], @"issue" ] },
-            @{ @"EQUAL": @[ @[@"value", @"content", @"repo"], self.repoID ] }
-        ]
-    };
-    return [self.feedStore querySubset:query options:@{@"descending": @YES}];
+    NSArray<SSBMessage *> *all = [self.feedStore messagesOfType:@"issue" limit:kDefaultQueryLimit];
+    NSMutableArray *result = [NSMutableArray array];
+    for (SSBMessage *msg in all) {
+        if ([msg.content[@"repo"] isEqualToString:self.repoID]) {
+            [result addObject:msg];
+        }
+    }
+    return [result copy];
 }
 
 - (NSArray<SSBMessage *> *)editsForIssue:(NSString *)issueID {
-    NSDictionary *query = @{
-        @"AND": @[
-            @{ @"EQUAL": @[ @[@"value", @"content", @"type"], @"issue-edit" ] },
-            @{ @"EQUAL": @[ @[@"value", @"content", @"root"], issueID ] }
-        ]
-    };
-    // Ascending order for edits to replay state
-    return [self.feedStore querySubset:query options:@{@"descending": @NO}];
+    NSArray<SSBMessage *> *all = [self.feedStore messagesOfType:@"issue-edit" limit:kDefaultQueryLimit];
+    NSMutableArray *result = [NSMutableArray array];
+    for (SSBMessage *msg in all) {
+        if ([msg.content[@"root"] isEqualToString:issueID]) {
+            [result addObject:msg];
+        }
+    }
+    return [result copy];
 }
 
 - (NSArray<SSBMessage *> *)commentsForIssue:(NSString *)issueID {
-    NSDictionary *query = @{
-        @"AND": @[
-            @{ @"EQUAL": @[ @[@"value", @"content", @"type"], @"post" ] },
-            @{ @"EQUAL": @[ @[@"value", @"content", @"root"], issueID ] }
-        ]
-    };
-    // Ascending order for chronological comments
-    return [self.feedStore querySubset:query options:@{@"descending": @NO}];
+    NSArray<SSBMessage *> *all = [self.feedStore messagesOfType:@"post" limit:kDefaultQueryLimit];
+    NSMutableArray *result = [NSMutableArray array];
+    for (SSBMessage *msg in all) {
+        if ([msg.content[@"root"] isEqualToString:issueID]) {
+            [result addObject:msg];
+        }
+    }
+    return [result copy];
 }
 
 @end
