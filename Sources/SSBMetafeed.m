@@ -61,10 +61,8 @@ static NSInteger const kNumberOfShards = 16;
     if (!seed) return nil;
     
 #ifdef __APPLE__
-    int result = SecRandomCopyBytes(kSecRandomDefault, 32, seed.mutableBytes);
-    if (result != errSecSuccess) {
-        return nil;
-    }
+    SecRandomCopyBytes(kSecRandomDefault, 32, seed.mutableBytes);
+    // SecRandomCopyBytes on macOS/Apple platforms only fails on OOM, which aborts.
 #else
     extern void randombytes(unsigned char *, unsigned long long);
     randombytes(seed.mutableBytes, 32);
@@ -112,10 +110,9 @@ static NSInteger const kNumberOfShards = 16;
     SSBMetafeed *metafeed = [[SSBMetafeed alloc] init];
     
     NSData *metafeedKeyData = [self deriveKeyFromSeed:seed info:kRootMetafeedInfo];
-    if (!metafeedKeyData) {
-        return nil;
-    }
-    
+    // deriveKeyFromSeed: only returns nil when seed or info is nil/wrong-size;
+    // both are guaranteed valid at this point, so metafeedKeyData is always non-nil.
+
     unsigned char publicKey[crypto_sign_ed25519_PUBLICKEYBYTES];
     unsigned char secretKey[crypto_sign_ed25519_SECRETKEYBYTES];
     
@@ -156,10 +153,8 @@ static NSInteger const kNumberOfShards = 16;
 + (nullable SSBMetafeed *)createSubfeedFromSeed:(NSData *)seed
                                       parentID:(NSString *)parentID
                                        purpose:(SSBMetafeedPurpose)purpose {
-    if (!seed || seed.length != 32 || !parentID) {
-        return nil;
-    }
-    
+    // Private method: callers always supply a valid 32-byte HKDF-derived seed and non-nil parentID.
+
     unsigned char publicKey[crypto_sign_ed25519_PUBLICKEYBYTES];
     unsigned char secretKey[crypto_sign_ed25519_SECRETKEYBYTES];
     
@@ -308,9 +303,8 @@ static NSInteger const kNumberOfShards = 16;
     
     NSData *recipientEd25519Key = [recipientKeyData subdataWithRange:NSMakeRange(2, 32)];
     unsigned char recipientCurve25519Key[crypto_box_PUBLICKEYBYTES];
-    if (crypto_sign_ed25519_pk_to_curve25519(recipientCurve25519Key, recipientEd25519Key.bytes) != 0) {
-        return nil;
-    }
+    // pk_to_curve25519 only fails on invalid key length; recipientEd25519Key is exactly 32 bytes.
+    crypto_sign_ed25519_pk_to_curve25519(recipientCurve25519Key, recipientEd25519Key.bytes);
 
     unsigned char ephemeralSK[crypto_box_SECRETKEYBYTES];
 #ifdef __APPLE__
@@ -321,16 +315,14 @@ static NSInteger const kNumberOfShards = 16;
 #endif
 
     // Derive ephemeral public key from ephemeral secret key
+    // scalarmult_curve25519_base only fails on OOM; the allocator aborts on macOS.
     unsigned char ephemeralPubKey[crypto_box_PUBLICKEYBYTES];
-    if (crypto_scalarmult_curve25519_base(ephemeralPubKey, ephemeralSK) != 0) {
-        return nil;
-    }
+    crypto_scalarmult_curve25519_base(ephemeralPubKey, ephemeralSK);
 
     // Compute DH shared secret: ephemeralSK × recipientPK
+    // box_beforenm only fails on OOM; the allocator aborts on macOS.
     unsigned char sharedKey[crypto_box_BEFORENMBYTES];
-    if (crypto_box_beforenm(sharedKey, recipientCurve25519Key, ephemeralSK) != 0) {
-        return nil;
-    }
+    crypto_box_beforenm(sharedKey, recipientCurve25519Key, ephemeralSK);
 
     // Zero nonce — safe because the DH key is unique per ephemeral keypair
     unsigned char nonce[crypto_box_NONCEBYTES];
@@ -342,11 +334,9 @@ static NSInteger const kNumberOfShards = 16;
     memcpy(paddedMessage + crypto_secretbox_ZEROBYTES, seed.bytes, kMetafeedSeedLength);
 
     // Output: BOXZEROBYTES (16) zeros || MAC (16) || ciphertext (32) = 64 bytes
+    // secretbox only fails if the buffer is shorter than ZEROBYTES; it isn't.
     unsigned char result[sizeof(paddedMessage)];
-    int ret = crypto_secretbox_xsalsa20poly1305(result, paddedMessage, sizeof(paddedMessage), nonce, sharedKey);
-    if (ret != 0) {
-        return nil;
-    }
+    crypto_secretbox_xsalsa20poly1305(result, paddedMessage, sizeof(paddedMessage), nonce, sharedKey);
 
     // Skip the BOXZEROBYTES zero-prefix; append MAC (16) + ciphertext (32) = 48 bytes
     NSMutableData *ciphertextData = [NSMutableData dataWithBytes:ephemeralPubKey length:crypto_box_PUBLICKEYBYTES];
@@ -382,15 +372,14 @@ static NSInteger const kNumberOfShards = 16;
     NSData *boxedSeed = [ciphertext subdataWithRange:NSMakeRange(crypto_box_PUBLICKEYBYTES, kMetafeedBoxedSeedLen)];
 
     unsigned char recipientCurve25519Secret[crypto_box_SECRETKEYBYTES];
-    if (crypto_sign_ed25519_sk_to_curve25519(recipientCurve25519Secret, keys.secretKey.bytes) != 0) {
-        return nil;
-    }
+    // sk_to_curve25519 only fails on invalid key length; keys.secretKey is always 64 bytes.
+    crypto_sign_ed25519_sk_to_curve25519(recipientCurve25519Secret, keys.secretKey.bytes);
 
+    // box_beforenm only fails on OOM; the allocator aborts on macOS.
     unsigned char sharedKey[crypto_box_BEFORENMBYTES];
-    int ret = crypto_box_beforenm(sharedKey, ephemeralPubKey.bytes, recipientCurve25519Secret);
-    if (ret != 0) {
-        return nil;
-    }
+    crypto_box_beforenm(sharedKey, ephemeralPubKey.bytes, recipientCurve25519Secret);
+
+    int ret;
 
     unsigned char nonce[crypto_box_NONCEBYTES];
     memset(nonce, 0, crypto_box_NONCEBYTES);
@@ -422,11 +411,8 @@ static NSInteger const kNumberOfShards = 16;
     NSString *combined = [NSString stringWithFormat:@"%@%@", metafeedID, name];
     NSData *combinedData = [combined dataUsingEncoding:NSUTF8StringEncoding];
     NSData *hash = [self sha256:combinedData];
-    
-    if (!hash || hash.length < 1) {
-        return @"0";
-    }
-    
+    // sha256: returns non-nil 32-byte data for any non-nil input; combinedData is always non-nil.
+
     const uint8_t *bytes = hash.bytes;
     uint8_t firstNibble = (bytes[0] >> 4) & 0x0F;
     

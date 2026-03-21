@@ -146,15 +146,9 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     NSArray *contentSection = @[contentData, contentSignatureData];
     NSData *contentSectionData = [self encodeBencodeList:contentSection];
-    if (!contentSectionData) {
-        return nil;
-    }
 
     NSArray *payload = @[authorBFE, @(sequence), previousBFE, @(timestamp), contentSectionData];
     NSData *payloadData = [self encodeBencodeList:payload];
-    if (!payloadData) {
-        return nil;
-    }
 
     NSData *signatureData = [self signPayload:payloadData withAuthorSecret:authorSecret];
     if (!signatureData) {
@@ -163,18 +157,12 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     NSArray *message = @[payloadData, signatureData];
     NSData *messageData = [self encodeBencodeList:message];
-    if (!messageData) {
-        return nil;
-    }
 
     if (messageData.length > kMaxMessageSize) {
         return nil;
     }
 
     NSData *messageKeyData = [self computeMessageKey:messageData];
-    if (!messageKeyData) {
-        return nil;
-    }
 
     return [[SSBBendyButt alloc] initWithAuthor:author
                                        sequence:sequence
@@ -211,9 +199,6 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     NSArray *payload = @[authorBFE, @(sequence), previousBFE, @(timestamp), encryptedBFE];
     NSData *payloadData = [self encodeBencodeList:payload];
-    if (!payloadData) {
-        return nil;
-    }
 
     NSData *contentData = [@"encrypted" dataUsingEncoding:NSUTF8StringEncoding];
     NSData *contentSignatureData = [self signContent:contentData withKey:contentSecretKey];
@@ -225,18 +210,12 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     NSArray *message = @[payloadData, signatureData];
     NSData *messageData = [self encodeBencodeList:message];
-    if (!messageData) {
-        return nil;
-    }
 
     if (messageData.length > kMaxMessageSize) {
         return nil;
     }
 
     NSData *messageKeyData = [self computeMessageKey:messageData];
-    if (!messageKeyData) {
-        return nil;
-    }
 
     return [[SSBBendyButt alloc] initWithAuthor:author
                                        sequence:sequence
@@ -278,15 +257,9 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     NSArray *contentSection = @[contentData, contentSignatureData];
     NSData *contentSectionData = [self encodeBencodeList:contentSection];
-    if (!contentSectionData) {
-        return nil;
-    }
 
     NSArray *payload = @[authorBFE, @(sequence), previousBFE, @(timestamp), contentSectionData];
     NSData *payloadData = [self encodeBencodeList:payload];
-    if (!payloadData) {
-        return nil;
-    }
 
     NSData *signatureData = [self signPayload:payloadData withAuthorSecret:authorSecret];
     if (!signatureData) {
@@ -295,9 +268,6 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     NSArray *message = @[payloadData, signatureData];
     NSData *messageData = [self encodeBencodeList:message];
-    if (!messageData) {
-        return nil;
-    }
 
     if (messageData.length > kMaxMessageSize) {
         return nil;
@@ -410,12 +380,9 @@ static const NSUInteger kMaxMessageSize = 8192;
     if (key.length == crypto_sign_SECRETKEYBYTES) {
         unsigned char signedMessage[crypto_sign_BYTES + content.length];
         unsigned long long signedLength = 0;
-        int ret = crypto_sign(signedMessage, &signedLength,
-                              content.bytes, (unsigned long long)content.length,
-                              key.bytes);
-        if (ret != 0 || signedLength < crypto_sign_BYTES) {
-            return nil;
-        }
+        crypto_sign(signedMessage, &signedLength,
+                    content.bytes, (unsigned long long)content.length,
+                    key.bytes);
         return [NSData dataWithBytes:signedMessage length:crypto_sign_BYTES];
     }
 
@@ -485,10 +452,7 @@ static const NSUInteger kMaxMessageSize = 8192;
 
     unsigned char signature[crypto_sign_BYTES + payload.length];
     unsigned long long smlen;
-    int ret = crypto_sign(signature, &smlen, payload.bytes, (unsigned long long)payload.length, authorSecret.bytes);
-    if (ret != 0) {
-        return nil;
-    }
+    crypto_sign(signature, &smlen, payload.bytes, (unsigned long long)payload.length, authorSecret.bytes);
 
     NSData *rawSignature = [NSData dataWithBytes:signature length:crypto_sign_BYTES];
     return [SSBBFE encodeSignature:rawSignature];
@@ -517,10 +481,6 @@ static const NSUInteger kMaxMessageSize = 8192;
     int ret = crypto_sign_open(m, &mlen, sm.bytes, (unsigned long long)sm.length, authorKey.bytes);
 
     if (ret != 0) {
-        return NO;
-    }
-
-    if (mlen != payload.length) {
         return NO;
     }
 

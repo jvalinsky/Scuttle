@@ -159,6 +159,37 @@ static SSBGitObjectStore *SSBGitObjectStoreWithFixturePack(NSString *packFixture
     XCTAssertNil([decoder applyDelta:delta toBase:base]);
 }
 
+- (void)testObjectStore_registerPackBlobTwice_deduplicates {
+    NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:[[NSUUID UUID] UUIDString]];
+    SSBBlobStore *blobStore = [[SSBBlobStore alloc] initWithPath:[base stringByAppendingPathComponent:@"blobs"]];
+    NSString *packBlobID = [blobStore addBlobWithData:SSBGitDecoderFixtureData(@"delta-ref.pack")];
+    NSString *idxBlobID  = [blobStore addBlobWithData:SSBGitDecoderFixtureData(@"delta-ref.idx")];
+    SSBGitObjectStore *store = [[SSBGitObjectStore alloc] initWithBlobStore:blobStore];
+
+    [store registerPackBlob:packBlobID idxBlob:idxBlobID];
+    [store registerPackBlob:packBlobID idxBlob:idxBlobID]; // duplicate — exercises lines 29-32
+
+    // Lookup should still work (pack registered once)
+    NSDictionary *manifest = SSBGitDecoderManifest();
+    SSBGitObject *obj = [store objectForSHA1:manifest[@"commit_head"]];
+    XCTAssertNotNil(obj);
+    [blobStore wipeBlobs];
+}
+
+- (void)testObjectStore_objectForSHA1_notFound_returnsNil {
+    NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:[[NSUUID UUID] UUIDString]];
+    SSBBlobStore *blobStore = [[SSBBlobStore alloc] initWithPath:[base stringByAppendingPathComponent:@"blobs"]];
+    NSString *packBlobID = [blobStore addBlobWithData:SSBGitDecoderFixtureData(@"delta-ref.pack")];
+    NSString *idxBlobID  = [blobStore addBlobWithData:SSBGitDecoderFixtureData(@"delta-ref.idx")];
+    SSBGitObjectStore *store = [[SSBGitObjectStore alloc] initWithBlobStore:blobStore];
+    [store registerPackBlob:packBlobID idxBlob:idxBlobID];
+
+    NSString *missing = @"0000000000000000000000000000000000000000";
+    XCTAssertNil([store objectForSHA1:missing]);        // covers line 78 (return nil after loop)
+    XCTAssertNil([store packBlobIDForSHA1:missing]);    // covers line 104
+    [blobStore wipeBlobs];
+}
+
 - (void)testRefDeltaRequiresObjectStoreAndResolvesWithRegisteredFixturePack {
     NSDictionary<NSString *, NSString *> *manifest = SSBGitDecoderManifest();
     NSData *packData = SSBGitDecoderFixtureData(@"delta-ref.pack");

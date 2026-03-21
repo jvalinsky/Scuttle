@@ -616,4 +616,28 @@
     XCTAssertNil(result);
 }
 
+#pragma mark - Guard coverage
+
+- (void)testEncryptSeedForBackup_invalidFeedID_returnsNil {
+    NSData *seed = [SSBMetafeed generateSeed];
+    SSBMetafeed *recipient = [SSBMetafeed createRootMetafeedFromSeed:[SSBMetafeed generateSeed]];
+    // "not-a-bfe-id" is not in BFE sigil format, so bfeDataFromSigilString: returns nil.
+    NSData *result = [SSBMetafeed encryptSeedForBackup:seed toFeed:@"not-a-bfe-id" feedKeys:recipient.keys];
+    XCTAssertNil(result);
+}
+
+- (void)testDecryptSeedFromMessage_nilMessage_returnsNil {
+    SSBMetafeed *recipient = [SSBMetafeed createRootMetafeedFromSeed:[SSBMetafeed generateSeed]];
+    XCTAssertNil([SSBMetafeed decryptSeedFromMessage:nil feedKeys:recipient.keys]);
+}
+
+- (void)testSha256_nilData_returnsNil {
+    XCTAssertNil([SSBMetafeed sha256:nil]);
+}
+
+- (void)testNameForPurpose_unknownValue_returnsUnknown {
+    NSString *name = [SSBMetafeed nameForPurpose:(SSBMetafeedPurpose)9999];
+    XCTAssertEqualObjects(name, @"unknown");
+}
+
 @end
