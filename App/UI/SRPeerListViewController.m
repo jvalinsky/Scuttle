@@ -104,6 +104,7 @@ static os_log_t peer_list_log;
 @property (nonatomic, strong) NSProgressIndicator *progressIndicator;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *peerSyncProgress;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *peerSyncStatus;
+@property (nonatomic, strong) NSMutableArray *observerTokens;
 @end
 
 @implementation SRPeerListViewController
@@ -196,8 +197,24 @@ static os_log_t peer_list_log;
     
     self.peerSyncProgress = [NSMutableDictionary dictionary];
     self.peerSyncStatus = [NSMutableDictionary dictionary];
+    self.observerTokens = [NSMutableArray array];
     
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:SRRoomSyncStatusChangedNotification object:nil];
+    __weak typeof(self) weakSelf = self;
+    id syncToken = [[NSNotificationCenter defaultCenter] addObserverForName:SRRoomSyncStatusChangedNotification
+                                                                     object:nil
+                                                                      queue:[NSOperationQueue mainQueue]
+                                                                 usingBlock:^(NSNotification * _Nonnull note) {
+        [weakSelf syncStatusChanged:note];
+    }];
+    [self.observerTokens addObject:syncToken];
+
+    id endpointToken = [[NSNotificationCenter defaultCenter] addObserverForName:SRRoomManagerDidUpdateEndpointsNotification
+                                                                         object:nil
+                                                                          queue:[NSOperationQueue mainQueue]
+                                                                     usingBlock:^(NSNotification * _Nonnull note) {
+        [weakSelf endpointsDidUpdate:note];
+    }];
+    [self.observerTokens addObject:endpointToken];
 
     if (self.roomHost.length == 0) {
         [self loadPeers];
@@ -205,12 +222,30 @@ static os_log_t peer_list_log;
 }
 
 - (void)loadPeers {
-    NSArray<NSString *> *allAuthors = [[SSBFeedStore sharedStore] allKnownAuthors];
-    [self updatePeers:allAuthors];
+    NSMutableSet *allPeers = [NSMutableSet setWithArray:[[SSBFeedStore sharedStore] allKnownAuthors]];
+    
+    if (self.roomHost.length > 0) {
+        NSArray *endpoints = [SRRoomManager sharedManager].roomEndpoints[self.roomHost];
+        if (endpoints) {
+            [allPeers addObjectsFromArray:endpoints];
+        }
+    }
+    
+    [self updatePeers:[allPeers allObjects]];
+}
+
+- (void)endpointsDidUpdate:(NSNotification *)notification {
+    NSDictionary *userInfo = notification.userInfo;
+    NSString *host = userInfo[SRRoomManagerEndpointsHostKey];
+    if (self.roomHost.length > 0 && [host isEqualToString:self.roomHost]) {
+        [self loadPeers];
+    }
 }
 
 - (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    for (id token in self.observerTokens) {
+        [[NSNotificationCenter defaultCenter] removeObserver:token];
+    }
 }
 
 - (void)setRoomHost:(NSString *)roomHost {
@@ -219,6 +254,7 @@ static os_log_t peer_list_log;
     }
 
     _roomHost = [roomHost copy];
+    [self loadPeers];
     [self reloadSyncStateFromManager];
 }
 

@@ -3607,6 +3607,17 @@
       "created_at": "2026-03-21T22:53:34.910820-04:00",
       "updated_at": "2026-03-21T22:53:34.910820-04:00",
       "metadata_json": "{\"branch\":\"main\",\"files\":[\"App/UI/SRComposeViewController.m\"]}"
+    },
+    {
+      "id": 329,
+      "change_id": "e86ad0d9-b8db-4ab1-97bd-eda77381c6d6",
+      "node_type": "action",
+      "title": "Fix empty peer list in SRPeerListViewController",
+      "description": "Updated SRPeerListViewController to observe endpoint updates and correctly load peers from SRRoomManager when a room is selected.",
+      "status": "pending",
+      "created_at": "2026-03-21T22:54:47.762962-04:00",
+      "updated_at": "2026-03-21T22:54:47.762962-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"files\":[\"App/UI/SRPeerListViewController.m\"]}"
     }
   ],
   "edges": [
@@ -6491,6 +6502,17 @@
       "weight": 1.0,
       "rationale": null,
       "created_at": "2026-03-21T22:53:34.923213-04:00"
+    },
+    {
+      "id": 263,
+      "from_node_id": 321,
+      "to_node_id": 329,
+      "from_change_id": "2487b835-6ed6-4bb5-ba5a-ee2fa1e6c15f",
+      "to_change_id": "e86ad0d9-b8db-4ab1-97bd-eda77381c6d6",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": null,
+      "created_at": "2026-03-21T22:54:47.772112-04:00"
     }
   ]
 }
