@@ -129,6 +129,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 }
 
 - (void)joinRoomWithInvite:(NSString *)invite completion:(void (^)(BOOL success, NSError * _Nullable error))completion {
+    os_log_info(ssb_room_log, "Joining room with invite: %{public}@", invite);
     if ([invite hasPrefix:@"http"]) {
         NSData *savedIdentity = SSBLoadIdentitySecret();
         NSString *myId = SSBPublicIDFromSecret(savedIdentity);
@@ -157,37 +158,34 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 }
 
 - (void)handleJoinWithConfig:(RoomConfig *)config {
+    os_log_info(ssb_room_log, "Handling join with config: %{public}@ (host: %{public}@)", config.name, config.host);
     [RoomStorage saveRoom:config];
-    dispatch_sync(self.managerQueue, ^{
+    dispatch_async(self.managerQueue, ^{
         [self.internalRooms addObject:config];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
+        });
+        [self connectToRoom:config];
     });
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
-    });
-    [self connectToRoom:config];
 }
 
 - (void)connectToRoom:(RoomConfig *)config {
-    __block BOOL alreadyExists = NO;
-    dispatch_sync(self.managerQueue, ^{
-        alreadyExists = (self.internalClients[config.host] != nil);
-    });
-    if (alreadyExists) {
-        os_log_info(ssb_room_log, "Already have a client for %{public}@", config.host);
-        return;
-    }
+    dispatch_async(self.managerQueue, ^{
+        if (self.internalClients[config.host]) {
+            os_log_info(ssb_room_log, "Already have a client for %{public}@", config.host);
+            return;
+        }
 
-    NSData *savedIdentity = SSBLoadIdentitySecret();
-    os_log_info(ssb_room_log, "Creating client for %{public}@ (identity present: %d)", config.host, savedIdentity != nil);
+        NSData *savedIdentity = SSBLoadIdentitySecret();
+        os_log_info(ssb_room_log, "Creating client for %{public}@ (identity present: %d)", config.host, savedIdentity != nil);
 
-    SSBRoomClient *client = [[SSBRoomClient alloc] initWithConfig:config localIdentity:savedIdentity];
-    client.delegate = self;
-    client.autoReconnect = YES;
+        SSBRoomClient *client = [[SSBRoomClient alloc] initWithConfig:config localIdentity:savedIdentity];
+        client.delegate = self;
+        client.autoReconnect = YES;
 
-    dispatch_sync(self.managerQueue, ^{
         self.internalClients[config.host] = client;
+        [client connect];
     });
-    [client connect];
 }
 
 #pragma mark - SSBRoomClientDelegate

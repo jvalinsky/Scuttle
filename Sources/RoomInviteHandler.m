@@ -50,6 +50,7 @@ static os_log_t invite_log;
 @implementation RoomInviteHandler
 
 + (nullable RoomConfig *)parseInviteCode:(NSString *)inviteString {
+    os_log_info(invite_log, "Parsing invite code: %{public}@", inviteString);
     NSString *trimmed = [inviteString stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     
     // Pattern 1: host:port:pubkey:token

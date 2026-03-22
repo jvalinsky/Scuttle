@@ -40,7 +40,14 @@
 }
 
 - (void)setRootViewController:(NSViewController *)vc {
-    NSAssert(self.stack.count == 0, @"-setRootViewController: called with non-empty stack");
+    // Safely replace current stack if it already has items.
+    while (self.stack.count > 0) {
+        NSViewController *existing = self.stack.lastObject;
+        [self.stack removeLastObject];
+        [existing.view removeFromSuperview];
+        [existing removeFromParentViewController];
+    }
+
     [self.stack addObject:vc];
     [self addChildViewController:vc];
     vc.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
