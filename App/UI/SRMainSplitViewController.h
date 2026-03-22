@@ -1,15 +1,15 @@
-#import "SRPlatformUI.h"
+#import <Cocoa/Cocoa.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// Main window controller: sidebar navigation + content, modern macOS UI.
 @interface SRMainSplitViewController : NSSplitViewController <NSToolbarDelegate>
 
-- (void)showChannelBrowser;
-- (void)showPreferences;
+/// Call to update the sidebar selection and show the given destination.
+- (void)selectDestination:(NSString *)identifier;
 
-- (void)showGitActivity;
-- (void)showGitMyRepos;
-- (void)showGitFollowing;
+/// Replaces the content area with the specified view controller for the selected destination.
+- (void)showContentViewController:(NSViewController *)vc animated:(BOOL)animated;
 
 @end
 
