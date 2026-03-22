@@ -1,6 +1,7 @@
 #import "SRFeedViewController.h"
 #import "SRFeedItem.h"
 #import "SRStyle.h"
+#import "SRKeyboardShortcuts.h"
 #import "../../Sources/SSBLogger.h"
 #import "../../Sources/SSBNetwork.h"
 #import <SSBNetwork/SSBBlobStore.h>
@@ -64,6 +65,8 @@
     self.scrollView.postsBoundsChangedNotifications = YES;
 
     self.scrollView.documentView = self.collectionView;
+    [self.collectionView setAccessibilityLabel:@"Feed"];
+    [self.collectionView setAccessibilityRole:NSAccessibilityListRole];
 
     // Configure diffable data source — owns cell provision, no dataSource delegate needed.
     self.dataSource = [[NSCollectionViewDiffableDataSource alloc]
@@ -411,6 +414,56 @@
     }
 
     return NSMakeSize(collectionView.bounds.size.width - 40, height);
+}
+
+#pragma mark - Keyboard navigation (J/K/L/R)
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (void)keyDown:(NSEvent *)event {
+    NSString *chars = event.charactersIgnoringModifiers.lowercaseString;
+    if (chars.length == 0) { [super keyDown:event]; return; }
+
+    unichar ch = [chars characterAtIndex:0];
+    NSInteger itemCount = (NSInteger)[self.dataSource snapshot].numberOfItems;
+    if (itemCount == 0) { [super keyDown:event]; return; }
+
+    NSIndexPath *current = self.collectionView.selectionIndexPaths.anyObject;
+    NSInteger idx = current ? (NSInteger)current.item : -1;
+
+    if (ch == SRFeedShortcutNextItem) {
+        [self moveFocusToIndex:MIN(idx + 1, itemCount - 1)];
+    } else if (ch == SRFeedShortcutPrevItem) {
+        [self moveFocusToIndex:MAX(idx - 1, 0)];
+    } else if ((ch == SRFeedShortcutLike || ch == SRFeedShortcutReply || ch == SRFeedShortcutOpen) && idx >= 0) {
+        NSIndexPath *ip = [NSIndexPath indexPathForItem:idx inSection:0];
+        NSString *key = [self.dataSource itemIdentifierForIndexPath:ip];
+        SSBMessage *msg = self.messagesByKey[key];
+        if (!msg) { [super keyDown:event]; return; }
+
+        if (ch == SRFeedShortcutLike) {
+            if ([self.delegate respondsToSelector:@selector(feedViewController:didLikeMessage:)]) {
+                [self.delegate feedViewController:self didLikeMessage:msg];
+            }
+        } else {
+            if ([self.delegate respondsToSelector:@selector(feedViewController:didSelectMessageThread:)]) {
+                [self.delegate feedViewController:self didSelectMessageThread:msg];
+            }
+        }
+    } else {
+        [super keyDown:event];
+    }
+}
+
+- (void)moveFocusToIndex:(NSInteger)idx {
+    if (idx < 0) return;
+    NSIndexPath *ip = [NSIndexPath indexPathForItem:idx inSection:0];
+    [self.collectionView selectItemsAtIndexPaths:[NSSet setWithObject:ip]
+                                 scrollPosition:NSCollectionViewScrollPositionNearestHorizontalEdge];
+    [self.collectionView scrollToItemsAtIndexPaths:[NSSet setWithObject:ip]
+                                    scrollPosition:NSCollectionViewScrollPositionNearestHorizontalEdge];
 }
 
 @end

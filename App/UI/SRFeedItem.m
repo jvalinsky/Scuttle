@@ -269,6 +269,13 @@
         if (blobID) {
             [self loadBlobImage:blobID];
         }
+
+        // Accessibility: describe the post as "Author: text snippet"
+        NSString *authorName = self.authorLabel.stringValue;
+        NSString *bodyText = msg.content[@"text"] ?: msg.contentType ?: @"message";
+        NSString *snippet = bodyText.length > 80 ? [bodyText substringToIndex:80] : bodyText;
+        [self.view setAccessibilityLabel:[NSString stringWithFormat:@"%@: %@", authorName, snippet]];
+        [self.view setAccessibilityRole:NSAccessibilityGroupRole];
     }
 }
 
