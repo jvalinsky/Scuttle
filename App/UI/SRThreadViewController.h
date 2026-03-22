@@ -14,7 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)threadViewController:(SRThreadViewController *)vc didReplyToMessage:(SSBMessage *)message;
 @end
 
-@interface SRThreadViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDataSource, NSCollectionViewDelegateFlowLayout, SRFeedItemOwner>
+@interface SRThreadViewController : NSViewController <NSCollectionViewDelegate, NSCollectionViewDelegateFlowLayout, SRFeedItemOwner>
 
 @property (nonatomic, weak, nullable) id<SRThreadViewControllerDelegate> delegate;
 @property (nonatomic, strong) SSBMessage *rootMessage;
