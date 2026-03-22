@@ -1,6 +1,7 @@
 #import "SRSettingsGeneralViewController.h"
 #import "SRStyle.h"
 #import "../Logic/SRRoomManager.h"
+#import "../Logic/SRNotificationNames.h"
 #import "../../Sources/SSBFeedStore.h"
 #import "../../Sources/SSBMessageCodec.h"
 #import <SSBNetwork/SSBSecretStore.h>
@@ -86,7 +87,7 @@
                 alert.informativeText = error.localizedDescription;
                 [alert runModal];
             } else {
-                [[NSNotificationCenter defaultCenter] postNotificationName:@"SRProfileUpdatedNotification"
+                [[NSNotificationCenter defaultCenter] postNotificationName:SRProfileUpdatedNotification
                                                                     object:feedId];
             }
         });

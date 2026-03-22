@@ -347,7 +347,7 @@ static os_log_t peer_list_log;
 }
 
 - (void)updatePeers:(NSArray<NSString *> *)peers {
-    os_log_info(peer_list_log, "Updating with %lu peers: %{public}@", (unsigned long)peers.count, peers);
+    os_log_info(peer_list_log, "Updating with %lu peers", (unsigned long)peers.count);
     self.peers = [peers copy];
     self.emptyLabel.hidden = (peers.count > 0);
     [self.progressIndicator stopAnimation:nil];
@@ -360,7 +360,6 @@ static os_log_t peer_list_log;
 #pragma mark - NSTableViewDataSource
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    os_log_debug(peer_list_log, "numberOfRowsInTableView called - returning %lu", (unsigned long)self.peers.count);
     return self.peers.count;
 }
 

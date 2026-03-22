@@ -32,15 +32,20 @@ static os_log_t prefs_log;
     [self addTrackingArea:self.trackingArea];
 }
 
-- (void)mouseMoved:(NSEvent *)event {
-    NSPoint pt = [self convertPoint:event.locationInWindow fromView:nil];
-    if (self.stats.count == 0) return;
-
-    NSArray *sortedAuthors = [self.stats.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+- (NSArray<NSString *> *)_sortedAuthors {
+    if (self.stats.count == 0) return @[];
+    return [self.stats.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
         long long countA = 0; for (NSNumber *n in self.stats[a].allValues) countA += n.longLongValue;
         long long countB = 0; for (NSNumber *n in self.stats[b].allValues) countB += n.longLongValue;
         return [@(countB) compare:@(countA)];
     }];
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+    NSPoint pt = [self convertPoint:event.locationInWindow fromView:nil];
+    if (self.stats.count == 0) return;
+
+    NSArray *sortedAuthors = [self _sortedAuthors];
 
     long long total = 0;
     for (NSDictionary *d in self.stats.allValues) {
@@ -81,11 +86,7 @@ static os_log_t prefs_log;
         return;
     }
     
-    NSArray *sortedAuthors = [self.stats.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-        long long countA = 0; for (NSNumber *n in self.stats[a].allValues) countA += n.longLongValue;
-        long long countB = 0; for (NSNumber *n in self.stats[b].allValues) countB += n.longLongValue;
-        return [@(countB) compare:@(countA)];
-    }];
+    NSArray *sortedAuthors = [self _sortedAuthors];
     
     long long total = 0;
     for (NSDictionary *d in self.stats.allValues) {
@@ -132,6 +133,7 @@ static os_log_t prefs_log;
 @property (nonatomic, strong) NSButton *devButton;
 @property (nonatomic, strong) SRStorageUsageView *usageView;
 @property (nonatomic, strong) NSTextField *usageLegend;
+@property (nonatomic, strong) NSWindowController *devPanelWindowController;
 @end
 
 @implementation SRPreferencesViewController
@@ -400,9 +402,12 @@ static os_log_t prefs_log;
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
 
     self.rotateFeedKeyButton.enabled = NO;
+    __weak typeof(self) weakSelf = self;
     [[SRRoomManager sharedManager] replaceSubfeed:classicFeedID
                                        completion:^(NSString *newFeedID, NSError *error) {
-        self.rotateFeedKeyButton.enabled = YES;
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.rotateFeedKeyButton.enabled = YES;
         if (error) {
             NSAlert *errAlert = [[NSAlert alloc] init];
             errAlert.messageText = @"Key Rotation Failed";
@@ -420,20 +425,21 @@ static os_log_t prefs_log;
 }
 
 - (void)showDevPanelAction:(id)sender {
-    // We need to import the class header or use reflection/dynamic creation if not imported
-    // Since I'm adding it, I should ensure it's imported in SRPreferencesViewController.m
-    Class devPanelClass = NSClassFromString(@"SRDevPanelViewController");
-    if (devPanelClass) {
-        NSViewController *vc = [[devPanelClass alloc] init];
-        NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 400)
-                                                       styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
-                                                         backing:NSBackingStoreBuffered
-                                                           defer:NO];
-        window.title = @"Developer Panel";
-        window.releasedWhenClosed = NO;
-        window.contentViewController = vc;
-        [window makeKeyAndOrderFront:nil];
+    if (!self.devPanelWindowController) {
+        Class devPanelClass = NSClassFromString(@"SRDevPanelViewController");
+        if (devPanelClass) {
+            NSViewController *vc = [[devPanelClass alloc] init];
+            NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 400)
+                                                           styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                                             backing:NSBackingStoreBuffered
+                                                               defer:NO];
+            window.title = @"Developer Panel";
+            window.releasedWhenClosed = NO;
+            window.contentViewController = vc;
+            self.devPanelWindowController = [[NSWindowController alloc] initWithWindow:window];
+        }
     }
+    [self.devPanelWindowController showWindow:nil];
 }
 
 @end

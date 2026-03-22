@@ -67,7 +67,7 @@ static os_log_t profile_header_log;
                                                    object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleProfileUpdated:)
-                                                     name:@"SRProfileUpdatedNotification"
+                                                     name:SRProfileUpdatedNotification
                                                    object:nil];
     }
     return self;

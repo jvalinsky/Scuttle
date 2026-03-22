@@ -17,6 +17,7 @@ NSString * const SRRoomSyncStatusProgressKey           = @"SRRoomSyncStatusProgr
 NSString * const SRRoomSyncStatusAuthorKey             = @"SRRoomSyncStatusAuthorKey";
 
 NSString * const SRFeedIntegrityDidUpdateNotification  = @"SRFeedIntegrityDidUpdateNotification";
+NSString * const SRProfileUpdatedNotification          = @"SRProfileUpdatedNotification";
 
 NSString * const SRGitRepoSelectedNotification         = @"SRGitRepoSelectedNotification";
 NSString * const SRGitRepoSelectedKey                  = @"SRGitRepoSelectedKey";

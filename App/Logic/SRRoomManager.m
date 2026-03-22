@@ -18,6 +18,7 @@ NSString * const SRRoomManagerDidUpdateEndpointsNotification = @"SRRoomManagerDi
 NSString * const SRRoomManagerConnectionStatusChangedNotification = @"SRRoomManagerConnectionStatusChangedNotification";
 NSString * const SRRoomManagerEndpointsHostKey = @"SRRoomManagerEndpointsHostKey";
 NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey";
+NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
 
 @interface SRRoomManager () <SSBRoomClientDelegate>
 @property (nonatomic, strong) NSMutableArray<RoomConfig *> *internalRooms;
@@ -104,7 +105,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         NSData *savedIdentity = SSBLoadIdentitySecret();
         NSString *myId = SSBPublicIDFromSecret(savedIdentity);
         if (!myId) {
-            if (completion) completion(NO, [NSError errorWithDomain:@"SRRoomManager" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"No identity found. Please reset and create a new identity."}]);
+            if (completion) completion(NO, [NSError errorWithDomain:SRRoomManagerErrorDomain code:-2 userInfo:@{NSLocalizedDescriptionKey: @"No identity found. Please reset and create a new identity."}]);
             return;
         }
         
@@ -122,7 +123,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
             [self handleJoinWithConfig:config];
             if (completion) completion(YES, nil);
         } else {
-            if (completion) completion(NO, [NSError errorWithDomain:@"SRRoomManager" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid invite code"}]);
+            if (completion) completion(NO, [NSError errorWithDomain:SRRoomManagerErrorDomain code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid invite code"}]);
         }
     }
 }
@@ -362,14 +363,15 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 }
 
 - (void)disconnectFromRoom:(NSString *)host {
+    __block SSBRoomClient *client = nil;
     dispatch_sync(self.managerQueue, ^{
         [self.internalRoomEndpoints removeObjectForKey:host];
         [self.internalPeerSyncProgressByHost removeObjectForKey:host];
         [self.internalPeerSyncStatesByHost removeObjectForKey:host];
         [self.internalSyncStatusByHost removeObjectForKey:host];
         [self.internalSyncProgressByHost removeObjectForKey:host];
+        client = self.internalClients[host];
     });
-    SSBRoomClient *client = self.internalClients[host];
     [client disconnect];
 }
 
@@ -494,7 +496,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
         NSData *seed = SSBLoadMetafeedSeed();
         NSString *metafeedRootID = SSBLoadMetafeedRootID();
         if (!seed || !metafeedRootID) {
-            NSError *err = [NSError errorWithDomain:@"SRRoomManager" code:1
+            NSError *err = [NSError errorWithDomain:SRRoomManagerErrorDomain code:1
                 userInfo:@{NSLocalizedDescriptionKey: @"No metafeed seed in keychain"}];
             dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(nil, err); });
             return;
@@ -502,7 +504,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
         SSBMetafeed *rootMetafeed = [SSBMetafeed createRootMetafeedFromSeed:seed];
         if (!rootMetafeed) {
-            NSError *err = [NSError errorWithDomain:@"SRRoomManager" code:2
+            NSError *err = [NSError errorWithDomain:SRRoomManagerErrorDomain code:2
                 userInfo:@{NSLocalizedDescriptionKey: @"Failed to derive root metafeed"}];
             dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(nil, err); });
             return;
@@ -516,7 +518,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
                                                                purpose:SSBMetafeedPurposeV1
                                                                  nonce:nonce];
         if (!addContent) {
-            NSError *err = [NSError errorWithDomain:@"SRRoomManager" code:3
+            NSError *err = [NSError errorWithDomain:SRRoomManagerErrorDomain code:3
                 userInfo:@{NSLocalizedDescriptionKey: @"Failed to create add/derived message"}];
             dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(nil, err); });
             return;
@@ -524,7 +526,7 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
         SSBRoomClient *client = self.clients.allValues.firstObject;
         if (!client) {
-            NSError *err = [NSError errorWithDomain:@"SRRoomManager" code:4
+            NSError *err = [NSError errorWithDomain:SRRoomManagerErrorDomain code:4
                 userInfo:@{NSLocalizedDescriptionKey: @"Not connected to a room"}];
             dispatch_async(dispatch_get_main_queue(), ^{ if (completion) completion(nil, err); });
             return;

@@ -53,14 +53,7 @@ static os_log_t ssb_app_log;
     self.window.tabbingMode = NSWindowTabbingModeAutomatic;
     self.window.contentViewController = [[NSViewController alloc] init];
     
-    @try {
-        [self.window center];
-        [self.window makeKeyAndOrderFront:nil];
-        [self.window orderFrontRegardless];
-        [self bringToFront:nil];
-    } @catch (NSException *exception) {
-        @throw exception;
-    }
+    [self.window center];
 
     dispatch_async(dispatch_get_main_queue(), ^{
         self.mainVC = [[SRMainSplitViewController alloc] init];

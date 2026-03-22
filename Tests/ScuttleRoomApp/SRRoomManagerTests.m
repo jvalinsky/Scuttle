@@ -585,14 +585,18 @@
     __block NSString *publishedText = nil;
     __block NSString *publishedCw = nil;
     
-    self.vc.onPublish = ^(NSString *text, NSString *cw, NSString *replyTo) {
+    self.vc.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo, void (^completion)(BOOL, NSError * _Nullable)) {
         blockCalled = YES;
         publishedText = text;
         publishedCw = cw;
+        if (completion) completion(YES, nil);
     };
     
     // Explicitly trigger action
     [self.vc publishAction:nil];
+    
+    // Run main thread runloop to process async delivery or clearing
+    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
     
     XCTAssertTrue(blockCalled, @"onPublish block should be called");
     XCTAssertEqualObjects(publishedText, @"Hello World");

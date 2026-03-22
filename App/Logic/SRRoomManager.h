@@ -8,6 +8,7 @@ extern NSString * const SRRoomManagerDidUpdateEndpointsNotification;
 extern NSString * const SRRoomManagerConnectionStatusChangedNotification;
 extern NSString * const SRRoomManagerEndpointsHostKey;
 extern NSString * const SRRoomManagerEndpointsListKey;
+extern NSString * const SRRoomManagerErrorDomain;
 
 @interface SRRoomManager : NSObject
 

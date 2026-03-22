@@ -73,8 +73,8 @@ static os_log_t split_log;
 
     // Setup compose handler for publishing messages.
     __weak typeof(self) weakSelf = self;
-    self.homeVC.composeVC.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo) {
-        [weakSelf handlePublishWithText:text contentWarning:cw replyTo:replyTo];
+    self.homeVC.composeVC.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo, void (^completion)(BOOL, NSError * _Nullable)) {
+        [weakSelf handlePublishWithText:text contentWarning:cw replyTo:replyTo completion:completion];
     };
 
     // Populate identity header with local identity's public key and name.
@@ -215,9 +215,12 @@ static os_log_t split_log;
 /// @param text Text to publish.
 /// @param cw Optional content warning.
 /// @param replyTo Optional message key to reply to.
-- (void)handlePublishWithText:(NSString *)text contentWarning:(NSString *)cw replyTo:(nullable NSString *)replyTo {
+- (void)handlePublishWithText:(NSString *)text contentWarning:(NSString *)cw replyTo:(nullable NSString *)replyTo completion:(void (^)(BOOL success, NSError * _Nullable error))completion {
     SSBRoomClient *client = [self currentClient];
-    if (!client) return;
+    if (!client) {
+        if (completion) completion(NO, [NSError errorWithDomain:@"SRMainSplitViewController" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"No connected client"}]);
+        return;
+    }
 
     NSDictionary *content;
     if (replyTo) {
@@ -230,6 +233,9 @@ static os_log_t split_log;
     SSBMessage *msg = [client publishLocalMessageWithContent:content error:&error];
     if (msg) {
         [[NSNotificationCenter defaultCenter] postNotificationName:SRNewMessageNotification object:nil];
+        if (completion) completion(YES, nil);
+    } else {
+        if (completion) completion(NO, error);
     }
 }
 

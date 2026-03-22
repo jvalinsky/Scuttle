@@ -192,6 +192,7 @@
 
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (!strongSelf) return;
             // Update the integrity badge for the displayed author.
             if (strongSelf.filterAuthor) {
                 BOOL verified = [strongSelf.verifiedAuthors containsObject:strongSelf.filterAuthor];
@@ -201,7 +202,6 @@
             } else {
                 strongSelf.integrityBadge.hidden = YES;
             }
-            if (!strongSelf) return;
             [strongSelf applySnapshotWithMessages:newMessages];
             strongSelf.emptyLabel.hidden = (newMessages.count > 0);
             strongSelf.backButton.hidden = !showBackButton;
@@ -245,20 +245,20 @@
 }
 
 - (void)loadFeedForAuthor:(NSString *)author client:(SSBRoomClient *)client {
-    SSBLogInfo(SSBLogCategoryUI, @"📥 loadFeedForAuthor: %@ client=%@ connected=%d",
+    SSBLogInfo(SSBLogCategoryUI, @"loadFeedForAuthor: %@ client=%@ connected=%d",
                [author substringToIndex:MIN(8, author.length)],
                client ? @"yes" : @"no",
                client.isConnected);
 
     if (!client) {
-        SSBLogError(SSBLogCategoryUI, @"   ❌ No client provided!");
+        SSBLogError(SSBLogCategoryUI, @"   No client provided!");
         self.emptyLabel.stringValue = @"Not connected to server";
         self.emptyLabel.hidden = NO;
         return;
     }
 
     if (!client.isConnected) {
-        SSBLogError(SSBLogCategoryUI, @"   ❌ Client not connected! Checking host: %@", client.host);
+        SSBLogError(SSBLogCategoryUI, @"   Client not connected! Checking host: %@", client.host);
         self.emptyLabel.stringValue = @"Not connected to server";
         self.emptyLabel.hidden = NO;
         return;
@@ -279,22 +279,22 @@
     __weak typeof(self) weakSelf = self;
     [client fetchProfileForPeer:author completion:^(id _Nullable response, NSError * _Nullable error) {
         if (error) {
-            SSBLogError(SSBLogCategoryUI, @"   ❌ Profile fetch error: %@", error.localizedDescription);
+            SSBLogError(SSBLogCategoryUI, @"   Profile fetch error: %@", error.localizedDescription);
         } else if (response) {
-            SSBLogInfo(SSBLogCategoryUI, @"   ✅ Profile fetched: %@", response);
+            SSBLogInfo(SSBLogCategoryUI, @"   Profile fetched: %@", response);
             if ([response isKindOfClass:[NSDictionary class]]) {
                 NSString *name = response[@"name"];
                 NSString *image = response[@"image"];
                 if ([name isKindOfClass:[NSString class]] || [image isKindOfClass:[NSString class]]) {
                     [[SSBFeedStore sharedStore] setDisplayName:name image:image forAuthor:author];
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        [[NSNotificationCenter defaultCenter] postNotificationName:@"SRProfileUpdatedNotification" object:author];
+                        [[NSNotificationCenter defaultCenter] postNotificationName:SRProfileUpdatedNotification object:author];
                         [weakSelf refreshFeed];
                     });
                 }
             }
         } else {
-            SSBLogWarning(SSBLogCategoryUI, @"   ⚠️ No profile response");
+            SSBLogWarning(SSBLogCategoryUI, @"   No profile response");
         }
     }];
 
@@ -305,7 +305,7 @@
         });
 
         if (error) {
-            SSBLogError(SSBLogCategoryUI, @"   ❌ Feed fetch error: %@", error.localizedDescription);
+            SSBLogError(SSBLogCategoryUI, @"   Feed fetch error: %@", error.localizedDescription);
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSString *errStr = error.localizedDescription.lowercaseString;
                 if ([errStr containsString:@"could not find"] ||
@@ -320,7 +320,7 @@
                 weakSelf.emptyLabel.hidden = NO;
             });
         } else if (response && [response isKindOfClass:[NSDictionary class]]) {
-            SSBLogInfo(SSBLogCategoryUI, @"   ✅ Feed fetched successfully");
+            SSBLogInfo(SSBLogCategoryUI, @"   Feed fetched successfully");
             NSDictionary *val = response[@"value"];
             if ([SSBMessageCodec verifyMessage:val]) {
                 SSBMessage *msg = [[SSBMessage alloc] init];
@@ -337,7 +337,7 @@
                 });
             }
         } else {
-            SSBLogWarning(SSBLogCategoryUI, @"   ⚠️ No response (peer may have no messages)");
+            SSBLogWarning(SSBLogCategoryUI, @"   No response (peer may have no messages)");
             dispatch_async(dispatch_get_main_queue(), ^{
                 weakSelf.emptyLabel.stringValue = @"No messages found";
                 weakSelf.emptyLabel.hidden = NO;

@@ -35,6 +35,10 @@ static os_log_t sidebar_log;
     }
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
 - (void)loadView {
     self.effectView = [[NSVisualEffectView alloc] init];
     self.effectView.material = NSVisualEffectMaterialSidebar;
@@ -94,9 +98,12 @@ static os_log_t sidebar_log;
 }
 
 - (void)loadGitRepos {
-    self.gitRepos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self _rebuildSections];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *repos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.gitRepos = repos;
+            [self _rebuildSections];
+        });
     });
 }
 
@@ -665,10 +672,14 @@ static os_log_t sidebar_log;
         self.syncStatusContainer.hidden = NO;
         [self.syncProgress startAnimation:nil];
 
+        __weak typeof(self) weakSelf = self;
         [[SRRoomManager sharedManager] joinRoomWithInvite:invite completion:^(BOOL success, NSError * _Nullable error) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self.syncProgress stopAnimation:nil];
-                self.syncStatusContainer.hidden = YES;
+                __strong typeof(weakSelf) strongSelf = weakSelf;
+                if (!strongSelf) return;
+
+                [strongSelf.syncProgress stopAnimation:nil];
+                strongSelf.syncStatusContainer.hidden = YES;
 
                 if (!success) {
                     NSAlert *err = [[NSAlert alloc] init];
@@ -677,12 +688,12 @@ static os_log_t sidebar_log;
                     [err runModal];
                 } else {
                     // Show success briefly
-                    self.syncLabel.stringValue = @"Joined room!";
-                    self.syncStatusContainer.hidden = NO;
+                    strongSelf.syncLabel.stringValue = @"Joined room!";
+                    strongSelf.syncStatusContainer.hidden = NO;
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                        self.syncStatusContainer.hidden = YES;
+                        strongSelf.syncStatusContainer.hidden = YES;
                     });
-                    [self _rebuildSections];
+                    [strongSelf _rebuildSections];
                 }
             });
         }];

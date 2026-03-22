@@ -173,8 +173,6 @@
     self.publishButton.keyEquivalent = @"\r";
     self.publishButton.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     self.publishButton.translatesAutoresizingMaskIntoConstraints = NO;
-    self.publishButton.keyEquivalent = @"\r"; // Enter triggers publish
-    self.publishButton.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [self.view addSubview:self.publishButton];
     
     [NSLayoutConstraint activateConstraints:@[
@@ -233,15 +231,30 @@
     NSString *cw = self.cwField.stringValue;
     if (text.length == 0) return;
     
-    if (self.onPublish) {
-        self.onPublish(text, cw.length > 0 ? cw : nil, self.replyToKey);
-    }
-
-    if (self.view.window.contentView) {
-        [SRNotificationBannerView showInView:self.view.window.contentView message:NSLocalizedString(@"Message published successfully!", nil) type:SRNotificationTypeSuccess];
-    }
+    self.publishButton.enabled = NO;
     
-    [self clear];
+    if (self.onPublish) {
+        __weak typeof(self) weakSelf = self;
+        self.onPublish(text, cw.length > 0 ? cw : nil, self.replyToKey, ^(BOOL success, NSError * _Nullable error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                __strong typeof(weakSelf) strongSelf = weakSelf;
+                if (!strongSelf) return;
+                strongSelf.publishButton.enabled = YES;
+                
+                if (success) {
+                    if (strongSelf.view.window.contentView) {
+                        [SRNotificationBannerView showInView:strongSelf.view.window.contentView message:NSLocalizedString(@"Message published successfully!", nil) type:SRNotificationTypeSuccess];
+                    }
+                    [strongSelf clear];
+                } else {
+                    NSAlert *err = [[NSAlert alloc] init];
+                    err.messageText = @"Publish Failed";
+                    err.informativeText = error.localizedDescription ?: @"Unknown error";
+                    [err runModal];
+                }
+            });
+        });
+    }
 }
 
 - (void)clear {

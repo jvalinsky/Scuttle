@@ -27,6 +27,10 @@ extern NSString * const SRRoomSyncStatusAuthorKey;
 /// userInfo: @"author" (NSString feed ID), @"verified" (NSNumber BOOL)
 extern NSString * const SRFeedIntegrityDidUpdateNotification;
 
+/// Posted when a profile (about message) is updated for a given author.
+/// object: NSString * feed ID of the updated author.
+extern NSString * const SRProfileUpdatedNotification;
+
 /// Git-specific notifications
 extern NSString * const SRGitRepoSelectedNotification;
 extern NSString * const SRGitRepoSelectedKey;
