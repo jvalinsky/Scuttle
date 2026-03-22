@@ -54,10 +54,7 @@ static os_log_t sidebar_log;
     self.sections = [NSMutableArray array];
     [self setupUI];
 
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(roomsDidUpdate:)
-                                                 name:SRRoomManagerDidUpdateRoomsNotification
-                                               object:nil];
+
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(statusDidUpdate:)
@@ -104,32 +101,7 @@ static os_log_t sidebar_log;
     [self applySyncStatus:userInfo[SRRoomSyncStatusKey] progress:[userInfo[SRRoomSyncStatusProgressKey] floatValue]];
 }
 
-- (void)roomsDidUpdate:(NSNotification *)notification {
-    os_log_info(sidebar_log, "Rooms updated notification received");
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self _rebuildSections];
-        // Auto-select first room if nothing is selected and rooms exist
-        if ([SRRoomManager sharedManager].rooms.count > 0) {
-            SRSidebarItem *roomsSection = self.sections.count > 0 ? self.sections[0] : nil;
-            if (roomsSection && roomsSection.children.count > 0) {
-                SRSidebarItem *firstRoom = roomsSection.children[0];
-                NSInteger row = [self.outlineView rowForItem:firstRoom];
-                if (row >= 0 && self.outlineView.selectedRow < 0) {
-                    os_log_info(sidebar_log, "Auto-selecting first room");
-                    [self.outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
-                    
-                    // DIAGNOSTIC AUTO-JOIN FOR HEADLESS CAPTURE
-                    if ([firstRoom.representedObject isKindOfClass:[RoomConfig class]]) {
-                        RoomConfig *room = (RoomConfig *)firstRoom.representedObject;
-                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                            [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification object:nil userInfo:@{SRRoomManagerRoomSelectedKey: room}];
-                        });
-                    }
-                }
-            }
-        }
-    });
-}
+
 
 - (void)roomSelected:(NSNotification *)notification {
     RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
@@ -173,7 +145,7 @@ static os_log_t sidebar_log;
         [self.sections addObject:topSection];
 
         SRSidebarItem *roomsSection = [SRSidebarItem sectionItemWithTitle:@"ROOMS"];
-        for (RoomConfig *room in [SRRoomManager sharedManager].rooms) {
+        for (RoomConfig *room in self.rooms) {
             [roomsSection.children addObject:[SRSidebarItem roomItemWithTitle:room.host representedObject:room]];
         }
         [self.sections addObject:roomsSection];

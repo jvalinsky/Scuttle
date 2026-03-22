@@ -12,16 +12,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) SRDestination activeDestination;
 @property (nonatomic, readonly, nullable) RoomConfig *selectedRoom;
 @property (nonatomic, readonly) NSArray<SSBMessage *> *gitRepos;
+@property (nonatomic, readonly) NSArray<RoomConfig *> *rooms;
 
 - (instancetype)initWithWorkspaceContext:(SRWorkspaceContext)context
                        activeDestination:(SRDestination)destination
                             selectedRoom:(nullable RoomConfig *)room
-                                gitRepos:(NSArray<SSBMessage *> *)gitRepos;
+                                gitRepos:(NSArray<SSBMessage *> *)gitRepos
+                                   rooms:(NSArray<RoomConfig *> *)rooms;
  
 - (instancetype)copyWithWorkspaceContext:(SRWorkspaceContext)context;
 - (instancetype)copyWithActiveDestination:(SRDestination)destination;
 - (instancetype)copyWithSelectedRoom:(nullable RoomConfig *)room;
 - (instancetype)copyWithGitRepos:(NSArray<SSBMessage *> *)gitRepos;
+- (instancetype)copyWithRooms:(NSArray<RoomConfig *> *)rooms;
 
 + (instancetype)initialModel;
 

@@ -12,6 +12,8 @@ typedef NS_ENUM(NSInteger, SRMsgType) {
     SRMsgTypeSelectRoom,
     SRMsgTypeLoadGitRepos,
     SRMsgTypeGitReposLoaded,
+    SRMsgTypeLoadRooms,
+    SRMsgTypeRoomsLoaded,
 };
 
 @interface SRMsg : NSObject
@@ -23,12 +25,15 @@ typedef NS_ENUM(NSInteger, SRMsgType) {
 @property (nonatomic, readonly) SRDestination destination;
 @property (nonatomic, readonly, nullable) RoomConfig *selectedRoom;
 @property (nonatomic, readonly) NSArray<SSBMessage *> *gitRepos;
+@property (nonatomic, readonly) NSArray<RoomConfig *> *rooms;
 
 + (instancetype)setWorkspaceContext:(SRWorkspaceContext)context;
 + (instancetype)selectDestination:(SRDestination)destination;
 + (instancetype)selectRoom:(nullable RoomConfig *)room;
 + (instancetype)loadGitRepos;
 + (instancetype)gitReposLoaded:(NSArray<SSBMessage *> *)gitRepos;
++ (instancetype)loadRooms;
++ (instancetype)roomsLoaded:(NSArray<RoomConfig *> *)rooms;
 
 @end
 

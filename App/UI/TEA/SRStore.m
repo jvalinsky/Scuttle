@@ -1,5 +1,6 @@
 #import "SRStore.h"
 #import "../../../Sources/SSBFeedStore.h"
+#import "../../Logic/SRRoomManager.h"
 
 @interface SRStore ()
 @property (nonatomic, strong) SRModel *state;
@@ -53,6 +54,11 @@
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray *repos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
             [self dispatch:[SRMsg gitReposLoaded:repos]];
+        });
+    } else if ([cmd.type isEqualToString:@"FetchRooms"]) {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray *rooms = [[SRRoomManager sharedManager] rooms];
+            [self dispatch:[SRMsg roomsLoaded:rooms]];
         });
     }
 }

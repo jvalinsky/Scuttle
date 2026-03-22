@@ -6,13 +6,15 @@
             workspaceContext:(SRWorkspaceContext)context
                  destination:(SRDestination)destination
                 selectedRoom:(nullable RoomConfig *)room
-                    gitRepos:(NSArray<SSBMessage *> *)gitRepos {
+                    gitRepos:(NSArray<SSBMessage *> *)gitRepos
+                       rooms:(NSArray<RoomConfig *> *)rooms {
     if (self = [super init]) {
         _msgType = type;
         _workspaceContext = context;
         _destination = destination;
         _selectedRoom = room;
         _gitRepos = [gitRepos copy] ?: @[];
+        _rooms = [rooms copy] ?: @[];
     }
     return self;
 }
@@ -22,7 +24,8 @@
                     workspaceContext:context
                          destination:0
                         selectedRoom:nil
-                            gitRepos:@[]];
+                            gitRepos:@[]
+                               rooms:@[]];
 }
 
 + (instancetype)selectDestination:(SRDestination)destination {
@@ -30,7 +33,8 @@
                     workspaceContext:0
                          destination:destination
                         selectedRoom:nil
-                            gitRepos:@[]];
+                            gitRepos:@[]
+                               rooms:@[]];
 }
 
 + (instancetype)selectRoom:(nullable RoomConfig *)room {
@@ -38,7 +42,8 @@
                     workspaceContext:0 
                          destination:0
                         selectedRoom:room
-                            gitRepos:@[]];
+                            gitRepos:@[]
+                               rooms:@[]];
 }
 
 + (instancetype)loadGitRepos {
@@ -46,7 +51,8 @@
                     workspaceContext:0 
                          destination:0
                         selectedRoom:nil
-                            gitRepos:@[]];
+                            gitRepos:@[]
+                               rooms:@[]];
 }
 
 + (instancetype)gitReposLoaded:(NSArray<SSBMessage *> *)gitRepos {
@@ -54,7 +60,26 @@
                     workspaceContext:0 
                          destination:0
                         selectedRoom:nil
-                            gitRepos:gitRepos];
+                            gitRepos:gitRepos
+                               rooms:@[]];
+}
+
++ (instancetype)loadRooms {
+    return [[self alloc] initWithType:SRMsgTypeLoadRooms
+                    workspaceContext:0 
+                         destination:0
+                        selectedRoom:nil
+                            gitRepos:@[]
+                               rooms:@[]];
+}
+
++ (instancetype)roomsLoaded:(NSArray<RoomConfig *> *)rooms {
+    return [[self alloc] initWithType:SRMsgTypeRoomsLoaded
+                    workspaceContext:0 
+                         destination:0
+                        selectedRoom:nil
+                            gitRepos:@[]
+                               rooms:rooms];
 }
 
 @end

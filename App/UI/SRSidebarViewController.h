@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) BOOL hideProfileHeader;
 
 @property (nonatomic, strong) NSArray *gitRepos;
+@property (nonatomic, strong) NSArray *rooms;
 
 /// Programmatically select a sidebar destination.
 - (void)selectDestination:(NSString *)identifier;

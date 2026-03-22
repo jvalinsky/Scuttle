@@ -49,9 +49,11 @@
     }];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomsDidUpdate:) name:SRRoomManagerDidUpdateRoomsNotification object:nil];
 
     // Initial Data Load
     [self.store dispatch:[SRMsg loadGitRepos]];
+    [self.store dispatch:[SRMsg loadRooms]];
 }
 
 - (void)render:(SRModel *)model {
@@ -61,6 +63,7 @@
     
     // Pass state to sidebar
     self.sidebarVC.gitRepos = model.gitRepos;
+    self.sidebarVC.rooms = model.rooms;
     self.sidebarVC.activeContext = model.workspaceContext;
     [self.sidebarVC reloadContents];
 
@@ -229,6 +232,10 @@
 - (void)roomSelected:(NSNotification *)notification {
     RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
     [self.store dispatch:[SRMsg selectRoom:room]];
+}
+
+- (void)roomsDidUpdate:(NSNotification *)notification {
+    [self.store dispatch:[SRMsg loadRooms]];
 }
 
 @end
