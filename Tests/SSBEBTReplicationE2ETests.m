@@ -249,6 +249,7 @@ static NSString *EBTTestPeerIDFromPublicKey(NSData *publicKey) {
 
     // Register an EBT request ID so the client knows which stream to send on
     [clientA.ebtRequestIDsBySession setObject:@(7) forKey:mockSession];
+    clientA.rpcSession = mockSession;
 
     // Simulate receiving a clock from peer B saying they have seq 5 for author A
     NSDictionary *peerBClock = @{
@@ -413,22 +414,34 @@ static NSString *EBTTestPeerIDFromPublicKey(NSData *publicKey) {
     };
 
     // Register these sessions with respective clients' EBT tracking
-    // Client A initiates EBT on sessionA
     clientA.rpcSession = sessionA;
     clientB.rpcSession = sessionB;
 
-    // Set up session B to forward requests to client B's EBT handler
-    sessionB.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
-        [clientB handleEBTMessage:payload requestID:requestID flags:flags session:sessionB];
-    };
+    // Create mock tunnels so client can resolve peerID from session
+    SSBTunnelConnection *tunnelA = [[SSBTunnelConnection alloc] initWithPeerId:authorB
+                                                                 peerPublicKey:pubB
+                                                                 localIdentity:secA
+                                                                   roomSession:sessionA
+                                                                   tunnelReqID:99
+                                                                      isServer:NO];
+    [clientA.activeTunnels setObject:tunnelA forKey:authorB];
 
-    // Client A starts EBT replication
+    SSBTunnelConnection *tunnelB = [[SSBTunnelConnection alloc] initWithPeerId:authorA
+                                                                 peerPublicKey:pubA
+                                                                 localIdentity:secB
+                                                                   roomSession:sessionB
+                                                                   tunnelReqID:99
+                                                                      isServer:YES];
+    [clientB.activeTunnels setObject:tunnelB forKey:authorA];
+
+    // Start EBT replication on both sides (mirroring real-world behavior over tunnels)
     [clientA startEBTReplicationWithSession:sessionA];
+    [clientB startEBTReplicationWithSession:sessionB];
     [self flushClientQueue:clientA];
     [self flushClientQueue:clientB];
 
     // Allow time for bidirectional message exchange
-    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
+    [[NSRunLoop mainRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.0]];
     [self flushClientQueue:clientA];
     [self flushClientQueue:clientB];
 

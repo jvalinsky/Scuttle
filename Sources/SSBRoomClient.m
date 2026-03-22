@@ -1184,7 +1184,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         return;
     }
     
-    NSDictionary *args = @{@"id": myId, @"limit": @100, @"reverse": @NO, @"live": @NO};
+    NSDictionary *args = @{@"id": myId, @"limit": @100, @"reverse": @NO, @"live": @NO, @"seq": @(localSeq + 1)};
     
     __block NSInteger replicatedCount = 0;
     int32_t reqID = [self sendRPCRequest:@[@"createHistoryStream"] args:@[args] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
@@ -1769,6 +1769,9 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         NSInteger seq = [rawClock[author] integerValue];
         clock[author] = @((seq << 1) | 0); // 0 = want to receive
     }
+    if (peerID && !clock[peerID]) {
+        clock[peerID] = @((0 << 1) | 0); // seq=0, want to receive
+    }
     [session sendData:clock forRequest:responseReqID isEnd:NO];
     os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (reqID=%d->%d, %lu feeds)", peerID, reqID, responseReqID, (unsigned long)clock.count);
 }
@@ -1841,20 +1844,22 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 }
 
 - (int32_t)outboundEBTRequestIDForPeer:(nullable NSString *)peerID session:(SSBMuxRPCSession *)session {
-    // Check if we initiated the EBT stream (our positive request ID)
-    NSNumber *ourReqID = [self.ebtRequestIDsBySession objectForKey:session];
-    if (ourReqID) {
-        return [ourReqID intValue];
-    }
     // Check if peer initiated bilateral (stored negated request ID)
     if (peerID.length > 0) {
         __block NSNumber *bilateralReqID = nil;
         [self performClientQueueSync:^{
-            bilateralReqID = self.peerEBTState[peerID][@"requestID"];
+            if (self.peerEBTState[peerID]) {
+                bilateralReqID = self.peerEBTState[peerID][@"requestID"];
+            }
         }];
         if (bilateralReqID) {
             return [bilateralReqID intValue];
         }
+    }
+    // Check if we initiated the EBT stream (our positive request ID)
+    NSNumber *ourReqID = [self.ebtRequestIDsBySession objectForKey:session];
+    if (ourReqID) {
+        return [ourReqID intValue];
     }
     return 0;
 }
@@ -1935,17 +1940,12 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     
     if (!dict) return;
 
-    // EBT messages arrive as raw signed value dicts (with author, sequence, etc.
-    // at top level). Some implementations may also send {key, value} wrappers.
-    // Handle both formats gracefully.
     NSDictionary *val;
     NSString *key;
     if (dict[@"author"] && dict[@"sequence"]) {
-        // Raw value dict (standard EBT format from go-ssb, tildefriends)
         val = dict;
         key = [SSBMessageCodec computeMessageKey:val];
     } else if (dict[@"value"]) {
-        // Legacy {key, value} wrapper format
         val = dict[@"value"];
         key = dict[@"key"];
     } else {

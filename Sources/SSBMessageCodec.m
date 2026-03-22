@@ -201,7 +201,7 @@ static os_log_t codecLog(void) {
 
 #pragma mark - Legacy Encoding
 
-+ (nullable NSData *)encodeLegacyValue:(NSDictionary *)value includeSignature:(BOOL)includeSig {
++ (nullable NSString *)encodeLegacyValueToString:(NSDictionary *)value includeSignature:(BOOL)includeSig {
     NSMutableString *json = [NSMutableString string];
     [json appendString:@"{\n"];
 
@@ -237,7 +237,12 @@ static os_log_t codecLog(void) {
 
     [json appendString:@"}"];
 
-    return [json dataUsingEncoding:NSUTF8StringEncoding];
+    return json;
+}
+
++ (nullable NSData *)encodeLegacyValue:(NSDictionary *)value includeSignature:(BOOL)includeSig {
+    NSString *str = [self encodeLegacyValueToString:value includeSignature:includeSig];
+    return [str dataUsingEncoding:NSUTF8StringEncoding];
 }
 
 #pragma mark - Signing
@@ -321,10 +326,21 @@ static os_log_t codecLog(void) {
 
 #pragma mark - Key Computation
 
-+ (nullable NSString *)computeMessageKey:(NSDictionary *)signedValue {
-    NSData *bytes = [self encodeLegacyValue:signedValue includeSignature:YES];
-    if (!bytes) return nil;
++ (NSData *)v8BinaryTransformForString:(NSString *)string {
+    NSUInteger len = string.length;
+    uint8_t *bytes = malloc(len);
+    for (NSUInteger i = 0; i < len; i++) {
+        unichar c = [string characterAtIndex:i];
+        bytes[i] = (uint8_t)(c & 0xFF);
+    }
+    return [NSData dataWithBytesNoCopy:bytes length:len freeWhenDone:YES];
+}
 
++ (nullable NSString *)computeMessageKey:(NSDictionary *)signedValue {
+    NSString *jsonStr = [self encodeLegacyValueToString:signedValue includeSignature:YES];
+    if (!jsonStr) return nil;
+
+    NSData *bytes = [self v8BinaryTransformForString:jsonStr];
     unsigned char digest[CC_SHA256_DIGEST_LENGTH];
     CC_SHA256(bytes.bytes, (CC_LONG)bytes.length, digest);
 
