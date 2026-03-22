@@ -1,4 +1,5 @@
 #import "SRErrorBannerView.h"
+#import "SRStyle.h"
 
 @interface SRErrorBannerView ()
 @property (nonatomic, strong) NSLayoutConstraint *heightConstraint;
@@ -48,6 +49,22 @@
 }
 
 - (void)showMessage:(NSString *)message {
+    [self showMessage:message type:SRNotificationTypeError];
+}
+
+- (void)showMessage:(NSString *)message type:(SRNotificationType)type {
+    static NSDictionary *typeColors;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        typeColors = @{
+            @(SRNotificationTypeError):   NSColor.systemRedColor,
+            @(SRNotificationTypeWarning): NSColor.systemOrangeColor,
+            @(SRNotificationTypeSuccess): NSColor.systemGreenColor,
+            @(SRNotificationTypeInfo):    NSColor.systemBlueColor,
+        };
+    });
+    NSColor *color = typeColors[@(type)] ?: NSColor.systemRedColor;
+    self.layer.backgroundColor = color.CGColor;
     self.messageLabel.stringValue = message;
     self.heightConstraint.constant = 40;
     self.hidden = NO;
