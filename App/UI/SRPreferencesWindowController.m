@@ -13,6 +13,7 @@
                                                            defer:NO];
         window.title = @"Settings";
         window.releasedWhenClosed = NO;
+        window.acceptsMouseMovedEvents = YES;
         shared = [[SRPreferencesWindowController alloc] initWithWindow:window];
         window.contentViewController = [[SRPreferencesViewController alloc] init];
         window.delegate = shared;

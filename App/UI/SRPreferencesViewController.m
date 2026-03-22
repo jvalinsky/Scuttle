@@ -14,10 +14,63 @@
 static os_log_t prefs_log;
 
 @interface SRStorageUsageView : NSView
-@property (nonatomic, strong) NSDictionary<NSString *, NSNumber *> *stats;
+@property (nonatomic, strong) NSDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *stats;
+@property (nonatomic, strong) NSTrackingArea *trackingArea;
 @end
 
 @implementation SRStorageUsageView
+
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    if (self.trackingArea) {
+        [self removeTrackingArea:self.trackingArea];
+    }
+    self.trackingArea = [[NSTrackingArea alloc] initWithRect:self.bounds
+                                                     options:NSTrackingMouseMoved | NSTrackingActiveAlways
+                                                       owner:self
+                                                    userInfo:nil];
+    [self addTrackingArea:self.trackingArea];
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+    NSPoint pt = [self convertPoint:event.locationInWindow fromView:nil];
+    if (self.stats.count == 0) return;
+
+    NSArray *sortedAuthors = [self.stats.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        long long countA = 0; for (NSNumber *n in self.stats[a].allValues) countA += n.longLongValue;
+        long long countB = 0; for (NSNumber *n in self.stats[b].allValues) countB += n.longLongValue;
+        return [@(countB) compare:@(countA)];
+    }];
+
+    long long total = 0;
+    for (NSDictionary *d in self.stats.allValues) {
+        for (NSNumber *n in d.allValues) total += n.longLongValue;
+    }
+    if (total == 0) return;
+
+    CGFloat x = 0;
+    int i = 0;
+    for (NSString *author in sortedAuthors) {
+        long long count = 0;
+        for (NSNumber *n in self.stats[author].allValues) count += n.longLongValue;
+        CGFloat width = (CGFloat)count / total * self.bounds.size.width;
+
+        if (pt.x >= x && pt.x <= x + width) {
+            NSMutableString *tip = [NSMutableString stringWithFormat:@"Author: %@\nTotal Messages: %lld", [author substringToIndex:MIN(12, author.length)], count];
+            [tip appendString:@"\nBreakdown:"];
+            for (NSString *type in self.stats[author]) {
+                [tip appendFormat:@"\n  - %@: %@", type, self.stats[author][type]];
+            }
+            self.toolTip = tip;
+            return;
+        }
+
+        x += width;
+        i++;
+        if (i > 10) break;
+    }
+    self.toolTip = nil;
+}
 
 - (void)drawRect:(NSRect)dirtyRect {
     [super drawRect:dirtyRect];
@@ -29,18 +82,23 @@ static os_log_t prefs_log;
     }
     
     NSArray *sortedAuthors = [self.stats.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-        return [self.stats[b] compare:self.stats[a]];
+        long long countA = 0; for (NSNumber *n in self.stats[a].allValues) countA += n.longLongValue;
+        long long countB = 0; for (NSNumber *n in self.stats[b].allValues) countB += n.longLongValue;
+        return [@(countB) compare:@(countA)];
     }];
     
     long long total = 0;
-    for (NSNumber *n in self.stats.allValues) total += n.longLongValue;
+    for (NSDictionary *d in self.stats.allValues) {
+        for (NSNumber *n in d.allValues) total += n.longLongValue;
+    }
     
     CGFloat x = 0;
     int i = 0;
     NSArray *colors = @[[NSColor systemBlueColor], [NSColor systemOrangeColor], [NSColor systemPurpleColor], [NSColor systemGreenColor], [NSColor systemRedColor]];
     
     for (NSString *author in sortedAuthors) {
-        long long count = self.stats[author].longLongValue;
+        long long count = 0;
+        for (NSNumber *n in self.stats[author].allValues) count += n.longLongValue;
         CGFloat width = (CGFloat)count / total * self.bounds.size.width;
         
         NSRect rect = NSMakeRect(x, 0, width, self.bounds.size.height);
@@ -225,7 +283,7 @@ static os_log_t prefs_log;
 }
 
 - (void)updateStorageStats {
-    NSDictionary<NSString *, NSNumber *> *stats = [[SSBFeedStore sharedStore] storageStatistics];
+    NSDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *stats = [[SSBFeedStore sharedStore] storageStatistics];
     self.usageView.stats = stats;
     [self.usageView setNeedsDisplay:YES];
     

@@ -3,6 +3,7 @@
 #import "Logic/SRNotificationNames.h"
 #import "Logic/SRGitRemoteHelperServer.h"
 #import "UI/SRMainSplitViewController.h"
+#import "UI/SRSettingsWindowController.h"
 #import "SRPlatformNotifications.h"
 #import "../Sources/SSBLogCompat.h"
 
@@ -68,6 +69,10 @@ static void SRAppendStartupLog(NSString *message) {
     SRAppendStartupLog(@"window allocated");
     self.window.title = @"ScuttleRoom";
     self.window.releasedWhenClosed = NO;
+    self.window.toolbarStyle = NSWindowToolbarStyleUnified;
+    self.window.titlebarAppearsTransparent = YES;
+    self.window.contentMinSize = NSMakeSize(900, 600);
+    self.window.tabbingMode = NSWindowTabbingModeAutomatic;
     self.window.contentViewController = [[NSViewController alloc] init];
     SRAppendStartupLog(@"placeholder content controller installed");
     
@@ -127,15 +132,26 @@ static void SRAppendStartupLog(NSString *message) {
 
 - (void)setupMenu {
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:@"MainMenu"];
+
+    // App menu
     NSMenuItem *appMenuItem = [mainMenu addItemWithTitle:@"App" action:NULL keyEquivalent:@""];
     NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"App"];
-    [appMenu addItemWithTitle:@"Preferences..." action:@selector(showPreferences:) keyEquivalent:@","];
+    [appMenu addItemWithTitle:@"Settings..." action:@selector(showPreferences:) keyEquivalent:@","];
     [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"Reset Identity..." action:@selector(resetIdentity:) keyEquivalent:@""];
     [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"Quit" action:@selector(terminate:) keyEquivalent:@"q"];
     [mainMenu setSubmenu:appMenu forItem:appMenuItem];
-    
+
+    // File menu
+    NSMenuItem *fileMenuItem = [mainMenu addItemWithTitle:@"File" action:NULL keyEquivalent:@""];
+    NSMenu *fileMenu = [[NSMenu alloc] initWithTitle:@"File"];
+    [fileMenu addItemWithTitle:@"New Post" action:@selector(newPost:) keyEquivalent:@"n"];
+    NSMenuItem *closeItem = [fileMenu addItemWithTitle:@"Close Window" action:@selector(performClose:) keyEquivalent:@"w"];
+    closeItem.target = NSApp;
+    [mainMenu setSubmenu:fileMenu forItem:fileMenuItem];
+
+    // Edit menu
     NSMenuItem *editMenuItem = [mainMenu addItemWithTitle:@"Edit" action:NULL keyEquivalent:@""];
     NSMenu *editMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
     [editMenu addItemWithTitle:@"Cut" action:@selector(cut:) keyEquivalent:@"x"];
@@ -143,12 +159,51 @@ static void SRAppendStartupLog(NSString *message) {
     [editMenu addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@"v"];
     [editMenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
     [mainMenu setSubmenu:editMenu forItem:editMenuItem];
-    
+
+    // View menu
+    NSMenuItem *viewMenuItem = [mainMenu addItemWithTitle:@"View" action:NULL keyEquivalent:@""];
+    NSMenu *viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
+    NSMenuItem *toggleSidebarItem = [viewMenu addItemWithTitle:@"Toggle Sidebar" action:@selector(toggleSidebar:) keyEquivalent:@"s"];
+    toggleSidebarItem.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    NSMenuItem *togglePeerItem = [viewMenu addItemWithTitle:@"Toggle Peer List" action:@selector(togglePeerList:) keyEquivalent:@"p"];
+    togglePeerItem.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    [viewMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *fullScreenItem = [viewMenu addItemWithTitle:@"Enter Full Screen" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
+    fullScreenItem.keyEquivalentModifierMask = NSEventModifierFlagControl | NSEventModifierFlagCommand;
+    [mainMenu setSubmenu:viewMenu forItem:viewMenuItem];
+
+    // Navigate menu
+    NSMenuItem *navigateMenuItem = [mainMenu addItemWithTitle:@"Navigate" action:NULL keyEquivalent:@""];
+    NSMenu *navigateMenu = [[NSMenu alloc] initWithTitle:@"Navigate"];
+    [navigateMenu addItemWithTitle:@"Back" action:@selector(navigateBack:) keyEquivalent:@"["];
+    [navigateMenu addItem:[NSMenuItem separatorItem]];
+    [navigateMenu addItemWithTitle:@"Home" action:@selector(navigateHome:) keyEquivalent:@"1"];
+    [navigateMenu addItemWithTitle:@"Channels" action:@selector(navigateChannels:) keyEquivalent:@"2"];
+    [navigateMenu addItemWithTitle:@"Repositories" action:@selector(navigateRepos:) keyEquivalent:@"3"];
+    [mainMenu setSubmenu:navigateMenu forItem:navigateMenuItem];
+
+    // Window menu
+    NSMenuItem *windowMenuItem = [mainMenu addItemWithTitle:@"Window" action:NULL keyEquivalent:@""];
+    NSMenu *windowMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+    [mainMenu setSubmenu:windowMenu forItem:windowMenuItem];
+    [NSApp setWindowsMenu:windowMenu];
+
+    // Help menu
+    NSMenuItem *helpMenuItem = [mainMenu addItemWithTitle:@"Help" action:NULL keyEquivalent:@""];
+    NSMenu *helpMenu = [[NSMenu alloc] initWithTitle:@"Help"];
+    NSMenuItem *shortcutsItem = [helpMenu addItemWithTitle:@"Keyboard Shortcuts" action:@selector(showKeyboardShortcuts:) keyEquivalent:@"?"];
+    shortcutsItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
+    [mainMenu setSubmenu:helpMenu forItem:helpMenuItem];
+
     [NSApp setMainMenu:mainMenu];
 }
 
 - (void)showPreferences:(id)sender {
-    [self.mainVC showPreferences];
+    [[SRSettingsWindowController sharedSettingsWindowController] showSettings];
+}
+
+- (void)newPost:(id)sender {
+    // Routed through the responder chain to the active view controller
 }
 
 - (void)resetIdentity:(id)sender {
