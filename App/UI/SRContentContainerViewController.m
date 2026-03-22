@@ -65,12 +65,18 @@
     toVC.view.frame = fromVC ? fromVC.view.frame : [self contentFrameForCurrentBounds];
 
     if (fromVC) {
-        [fromVC.view removeFromSuperview];
+        [self transitionFromViewController:fromVC
+                          toViewController:toVC
+                                   options:NSViewControllerTransitionSlideLeft
+                         completionHandler:^{
+                             // Cleanup if needed
+                         }];
+    } else {
+        if (!toVC.view.superview) {
+            [self.view addSubview:toVC.view];
+        }
+        [self layoutStackViews];
     }
-    if (!toVC.view.superview) {
-        [self.view addSubview:toVC.view];
-    }
-    [self layoutStackViews];
 }
 
 - (void)popViewController {
@@ -79,12 +85,17 @@
     NSViewController *fromVC = self.stack.lastObject;
     NSViewController *toVC = self.stack[self.stack.count - 2];
     [self.stack removeLastObject];
-    [fromVC removeFromParentViewController];
-    [fromVC.view removeFromSuperview];
-    if (!toVC.view.superview) {
-        [self.view addSubview:toVC.view];
-    }
-    [self layoutStackViews];
+
+    [self transitionFromViewController:fromVC
+                      toViewController:toVC
+                               options:NSViewControllerTransitionSlideRight
+                     completionHandler:^{
+                         [fromVC removeFromParentViewController];
+                     }];
+}
+
+- (void)transitionToViewController:(NSViewController *)vc {
+    [self pushViewController:vc];
 }
 
 @end

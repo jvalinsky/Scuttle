@@ -21,6 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// The VC currently visible at the top of the stack.
 @property (nonatomic, readonly, nullable) NSViewController *topViewController;
 
+/// Replaces the current detail (if any) or transitions from root.
+- (void)transitionToViewController:(NSViewController *)vc;
+
 @end
 
 NS_ASSUME_NONNULL_END

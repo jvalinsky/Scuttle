@@ -1,9 +1,18 @@
+/*
+ SRMainSplitViewController.m
+
+ Modern sidebar-driven rewrite for macOS Scuttlebutt app.
+ This version uses a single sidebar for navigation and a content area,
+ removing legacy peer list and direct navigation methods.
+ It follows modern macOS conventions, with clear separation of navigation
+ and content, and toolbar integration.
+*/
+
 #import "SRMainSplitViewController.h"
 #import "SRContentContainerViewController.h"
 #import "SRHomeViewController.h"
 #import "SRChannelBrowserViewController.h"
 #import "SRPreferencesWindowController.h"
-#import "SRPeerListViewController.h"
 #import "SRFeedViewController.h"
 #import "SRThreadViewController.h"
 #import "SRProfileViewController.h"
@@ -19,42 +28,21 @@
 #import "SRPlatformLog.h"
 
 static os_log_t split_log;
-static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
 
-static void SRPeerDiscoveryAppend(NSString *line) {
-    if (line.length == 0) return;
-    static dispatch_queue_t q;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        q = dispatch_queue_create("com.scuttlebutt.room.peerdiag.mainsplit", DISPATCH_QUEUE_SERIAL);
-    });
-    NSString *full = [NSString stringWithFormat:@"[%@] mainsplit %@\n", [NSDate date], line];
-    NSData *data = [full dataUsingEncoding:NSUTF8StringEncoding];
-    dispatch_async(q, ^{
-        @autoreleasepool {
-            NSFileManager *fm = [NSFileManager defaultManager];
-            if (![fm fileExistsAtPath:kSRPeerDiscoveryLogPath]) {
-                [fm createFileAtPath:kSRPeerDiscoveryLogPath contents:nil attributes:nil];
-            }
-            NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:kSRPeerDiscoveryLogPath];
-            if (!h) return;
-            @try {
-                [h seekToEndOfFile];
-                [h writeData:data];
-            } @catch (__unused NSException *exception) {
-            } @finally {
-                [h closeFile];
-            }
-        }
-    });
-}
+@interface SRMainSplitViewController () <SRSidebarDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate>
 
-@interface SRMainSplitViewController () <SRPeerListDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate>
+/// Sidebar view controller managing the app's navigation.
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
-@property (nonatomic, strong) SRHomeViewController *homeVC;
+
+/// Content container managing the currently displayed content view controller.
 @property (nonatomic, strong) SRContentContainerViewController *contentContainer;
-@property (nonatomic, strong) SRPeerListViewController *peerListVC;
+
+/// Home view controller representing the main timeline or feed.
+@property (nonatomic, strong) SRHomeViewController *homeVC;
+
+/// Currently selected room configuration for context.
 @property (nonatomic, strong, nullable) RoomConfig *selectedRoom;
+
 @end
 
 @implementation SRMainSplitViewController
@@ -68,25 +56,24 @@ static void SRPeerDiscoveryAppend(NSString *line) {
 - (void)viewDidLoad {
     [super viewDidLoad];
 
+    // Initialize and configure sidebar.
     self.sidebarVC = [[SRSidebarViewController alloc] init];
+    self.sidebarVC.delegate = self;
 
-    // Content area: a container that manages push/pop navigation between the
-    // home view and any detail view (profile, thread, channel browser).
+    // Initialize the content container that will display child view controllers.
     self.contentContainer = [[SRContentContainerViewController alloc] init];
 
+    // Initialize home view controller (main timeline/feed).
     self.homeVC = [[SRHomeViewController alloc] init];
-    // Accessing .view triggers viewDidLoad on homeVC, instantiating its children.
-    [self.contentContainer setRootViewController:self.homeVC];
-
-    // Wire delegates now that homeVC's children exist.
     self.homeVC.feedVC.delegate = self;
 
+    // Setup compose handler for publishing messages.
     __weak typeof(self) weakSelf = self;
     self.homeVC.composeVC.onPublish = ^(NSString *text, NSString * _Nullable cw, NSString * _Nullable replyTo) {
         [weakSelf handlePublishWithText:text contentWarning:cw replyTo:replyTo];
     };
 
-    // Populate identity header.
+    // Populate identity header with local identity's public key and name.
     NSData *localSecret = SSBLoadIdentitySecret();
     NSString *pubkey = SSBPublicIDFromSecret(localSecret);
     if (pubkey) {
@@ -96,37 +83,30 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         }];
     }
 
-    self.peerListVC = [[SRPeerListViewController alloc] init];
-    self.peerListVC.delegate = self;
-
+    // Setup the split view with just sidebar and content container.
     NSSplitViewItem *sidebarItem = [NSSplitViewItem sidebarWithViewController:self.sidebarVC];
     sidebarItem.minimumThickness = 200;
     sidebarItem.maximumThickness = 300;
 
     NSSplitViewItem *contentItem = [NSSplitViewItem splitViewItemWithViewController:self.contentContainer];
-    contentItem.minimumThickness = 400;
-
-    NSSplitViewItem *peerListItem = [NSSplitViewItem splitViewItemWithViewController:self.peerListVC];
-    peerListItem.minimumThickness = 250;
-    peerListItem.maximumThickness = 400;
+    contentItem.minimumThickness = 600;
 
     [self addSplitViewItem:sidebarItem];
     [self addSplitViewItem:contentItem];
-    [self addSplitViewItem:peerListItem];
 
+    // Set divider style to thin for modern appearance.
     self.splitView.dividerStyle = NSSplitViewDividerStyleThin;
 
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusDidUpdate:) name:SRRoomManagerConnectionStatusChangedNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(endpointsDidUpdate:) name:SRRoomManagerDidUpdateEndpointsNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(identityDidGenerate:) name:SRLocalIdentityGeneratedNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(repoSelected:) name:SRGitRepoSelectedNotification object:nil];
+    // Start with home view controller as root content.
+    [self.contentContainer setRootViewController:self.homeVC];
 
-    // Replay any room that was selected before we registered observers.
+    // Listen to room selection changes to update context.
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
+    
+    // If a room was already selected before view loaded, update state now.
     NSArray<RoomConfig *> *existingRooms = [SRRoomManager sharedManager].rooms;
     if (existingRooms.count > 0) {
         RoomConfig *first = existingRooms.firstObject;
-        [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateRoomsNotification object:nil];
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
                                                             object:nil
                                                           userInfo:@{SRRoomManagerRoomSelectedKey: first}];
@@ -139,177 +119,81 @@ static void SRPeerDiscoveryAppend(NSString *line) {
 
 #pragma mark - Notification handlers
 
-- (void)identityDidGenerate:(NSNotification *)notification {
-    NSData *localSecret = SSBLoadIdentitySecret();
-    NSString *pubkey = SSBPublicIDFromSecret(localSecret);
-    if (pubkey) {
-        [self.homeVC.headerView updateWithIdentity:pubkey name:nil];
-    }
-}
-
-- (void)repoSelected:(NSNotification *)notification {
-    NSString *repoID = notification.userInfo[SRGitRepoSelectedKey];
-    if (!repoID) return;
-    
-    SSBGitObjectStore *objectStore = [[SSBGitObjectStore alloc] initWithBlobStore:[SSBBlobStore sharedStore]];
-    SSBGitRepo *repo = [[SSBGitRepo alloc] initWithRepoID:repoID feedStore:[SSBFeedStore sharedStore] objectStore:objectStore];
-    
-    SRGitRepoViewController *repoVC = [[SRGitRepoViewController alloc] initWithRepo:repo];
-    repoVC.currentClient = [self currentClient];
-    [self.contentContainer pushViewController:repoVC];
-}
-
-- (void)statusDidUpdate:(NSNotification *)notification {
-    NSDictionary *userInfo = notification.userInfo;
-    NSString *host = userInfo[@"host"];
-    BOOL connected = [userInfo[@"connected"] boolValue];
-
-    if (!self.selectedRoom) return;
-
-    if (!connected && [host isEqualToString:self.selectedRoom.host]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.homeVC.errorBanner showMessage:[NSString stringWithFormat:@"Disconnected from %@", host]];
-        });
-    } else if (connected && [host isEqualToString:self.selectedRoom.host]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.homeVC.errorBanner hide];
-        });
-    }
-}
-
+/// Update current selected room and update UI accordingly.
 - (void)roomSelected:(NSNotification *)notification {
     RoomConfig *room = notification.userInfo[SRRoomManagerRoomSelectedKey];
     self.selectedRoom = room;
     os_log_info(split_log, "Selected room: %{public}@ (name: %{public}@)", room.host, room.name);
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"room selected host=%@ name=%@",
-                           room.host ?: @"<unknown>",
-                           room.name ?: @"<none>"]);
 
     [self.homeVC.headerView updateWithIdentity:room.host name:room.name];
-    self.peerListVC.roomHost = room.host;
     self.homeVC.composeVC.roomHost = room.host;
-
-    [self.homeVC.feedVC.progressIndicator startAnimation:nil];
-    [self.peerListVC.progressIndicator startAnimation:nil];
-
     self.homeVC.feedVC.currentClient = [self currentClient];
-
-    [self updatePeerList];
     [self.homeVC.feedVC refreshFeed];
 }
 
-- (void)endpointsDidUpdate:(NSNotification *)notification {
-    SSBRoomClient *client = notification.object;
-    NSString *host = notification.userInfo[SRRoomManagerEndpointsHostKey];
-    if (host.length == 0) {
-        host = client.host;
-    }
+#pragma mark - Navigation
 
-    NSArray<NSString *> *peers = notification.userInfo[SRRoomManagerEndpointsListKey];
-    if (![peers isKindOfClass:[NSArray class]]) {
-        peers = [SRRoomManager sharedManager].roomEndpoints[host];
-    }
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"endpointsDidUpdate host=%@ selected=%@ peers=%lu",
-                           host ?: @"<unknown>",
-                           self.selectedRoom.host ?: @"<none>",
-                           (unsigned long)peers.count]);
-
-    os_log_debug(split_log,
-                 "Endpoints notification host=%{public}@ selected=%{public}@ peers=%lu",
-                 host, self.selectedRoom.host, (unsigned long)peers.count);
-
-    if (!self.selectedRoom || [host isEqualToString:self.selectedRoom.host]) {
-        if (!self.selectedRoom) {
-            for (RoomConfig *candidate in [SRRoomManager sharedManager].rooms) {
-                if ([candidate.host isEqualToString:host]) {
-                    self.selectedRoom = candidate;
-                    break;
-                }
-            }
-            if (!self.selectedRoom) {
-                self.selectedRoom = [[SRRoomManager sharedManager].rooms firstObject];
-            }
-            os_log_debug(split_log, "No room selected, auto-selected %{public}@", self.selectedRoom.host);
-        }
-        if (peers) {
-            SRPeerDiscoveryAppend([NSString stringWithFormat:@"peerListVC updatePeers host=%@ peers=%lu",
-                                   host ?: @"<unknown>",
-                                   (unsigned long)peers.count]);
-            [self.peerListVC updatePeers:peers];
-        } else {
-            os_log_debug(split_log, "No endpoints payload for %{public}@; falling back to cached lookup", host);
-            SRPeerDiscoveryAppend([NSString stringWithFormat:@"no payload for host=%@, fallback to cached lookup", host ?: @"<unknown>"]);
-            [self updatePeerList];
-        }
+/// Handles sidebar destination selection to update the main content area.
+/// @param destination Identifier of the selected sidebar destination.
+- (void)selectDestination:(NSString *)destination {
+    if ([destination isEqualToString:@"home"]) {
+        [self showContentViewController:self.homeVC animated:YES];
+    } else if ([destination isEqualToString:@"channels"]) {
+        SRChannelBrowserViewController *channelsVC = [[SRChannelBrowserViewController alloc] init];
+        channelsVC.delegate = self;
+        [self showContentViewController:channelsVC animated:YES];
+    } else if ([destination isEqualToString:@"repos"]) {
+        SRGitRepoListViewController *reposVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeMyRepos];
+        reposVC.currentClient = [self currentClient];
+        [self showContentViewController:reposVC animated:YES];
+    } else if ([destination isEqualToString:@"settings"]) {
+        [self showPreferences];
     } else {
-        os_log_debug(split_log, "Endpoint notification ignored (host mismatch for %{public}@)", host);
-        SRPeerDiscoveryAppend([NSString stringWithFormat:@"endpoint notification ignored host=%@ selected=%@",
-                               host ?: @"<unknown>",
-                               self.selectedRoom.host ?: @"<none>"]);
+        // Default fallback to home.
+        [self showContentViewController:self.homeVC animated:YES];
     }
 }
 
-#pragma mark - Public
+/// Replaces the content area with the specified view controller.
+/// @param vc View controller to display.
+/// @param animated Whether to animate the transition.
+- (void)showContentViewController:(NSViewController *)vc animated:(BOOL)animated {
+    if ([self.contentContainer.topViewController isEqual:vc]) {
+        return;
+    }
+    if (animated) {
+        [self.contentContainer transitionToViewController:vc];
+    } else {
+        [self.contentContainer setRootViewController:vc];
+    }
+}
 
+#pragma mark - Public methods
+
+/// Shows the Preferences window.
 - (void)showPreferences {
     [[SRPreferencesWindowController sharedPreferencesWindowController] showWindow:nil];
 }
 
-- (void)showChannelBrowser {
-    if ([self.contentContainer.topViewController isKindOfClass:[SRChannelBrowserViewController class]]) return;
-    SRChannelBrowserViewController *channelVC = [[SRChannelBrowserViewController alloc] init];
-    channelVC.delegate = self;
-    [self.contentContainer pushViewController:channelVC];
-}
-
-- (void)showGitActivity {
-    if ([self.contentContainer.topViewController isKindOfClass:[SRGitActivityViewController class]]) return;
-    SRGitActivityViewController *gitVC = [[SRGitActivityViewController alloc] init];
-    gitVC.currentClient = [self currentClient];
-    [self.contentContainer pushViewController:gitVC];
-}
-
-- (void)showGitMyRepos {
-    if ([self.contentContainer.topViewController isKindOfClass:[SRGitRepoListViewController class]]) {
-        SRGitRepoListViewController *vc = (SRGitRepoListViewController *)self.contentContainer.topViewController;
-        if (vc.listType == SRGitRepoListTypeMyRepos) return;
-    }
-    SRGitRepoListViewController *gitVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeMyRepos];
-    gitVC.currentClient = [self currentClient];
-    [self.contentContainer pushViewController:gitVC];
-}
-
-- (void)showGitFollowing {
-    if ([self.contentContainer.topViewController isKindOfClass:[SRGitRepoListViewController class]]) {
-        SRGitRepoListViewController *vc = (SRGitRepoListViewController *)self.contentContainer.topViewController;
-        if (vc.listType == SRGitRepoListTypeFollowing) return;
-    }
-    SRGitRepoListViewController *gitVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeFollowing];
-    gitVC.currentClient = [self currentClient];
-    [self.contentContainer pushViewController:gitVC];
-}
-
 #pragma mark - Helpers
 
-- (void)updatePeerList {
-    if (!self.selectedRoom) {
-        os_log_debug(split_log, "updatePeerList called but no room selected");
-        SRPeerDiscoveryAppend(@"updatePeerList no selected room");
-        self.peerListVC.roomHost = nil;
-        self.homeVC.composeVC.roomHost = nil;
-        [self.peerListVC updatePeers:@[]];
-        return;
+/// Returns the current active room client, falling back to first available.
+/// @return The current SSBRoomClient or nil if none available.
+- (nullable SSBRoomClient *)currentClient {
+    SSBRoomClient *client = nil;
+    if (self.selectedRoom) {
+        client = [[SRRoomManager sharedManager] clientForHost:self.selectedRoom.host];
     }
-    self.peerListVC.roomHost = self.selectedRoom.host;
-    self.homeVC.composeVC.roomHost = self.selectedRoom.host;
-    NSArray *peers = [SRRoomManager sharedManager].roomEndpoints[self.selectedRoom.host];
-    os_log_debug(split_log, "updatePeerList for %{public}@ - found %lu peers", self.selectedRoom.host, (unsigned long)peers.count);
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"updatePeerList host=%@ peers=%lu",
-                           self.selectedRoom.host ?: @"<unknown>",
-                           (unsigned long)peers.count]);
-    [self.peerListVC updatePeers:peers ?: @[]];
+    if (!client) {
+        client = [SRRoomManager sharedManager].clients.allValues.firstObject;
+    }
+    return client;
 }
 
+/// Handles publishing text content, either as a new post or a reply.
+/// @param text Text to publish.
+/// @param cw Optional content warning.
+/// @param replyTo Optional message key to reply to.
 - (void)handlePublishWithText:(NSString *)text contentWarning:(NSString *)cw replyTo:(nullable NSString *)replyTo {
     SSBRoomClient *client = [self currentClient];
     if (!client) return;
@@ -328,77 +212,10 @@ static void SRPeerDiscoveryAppend(NSString *line) {
     }
 }
 
-- (nullable SSBRoomClient *)currentClient {
-    SSBRoomClient *client = nil;
-    if (self.selectedRoom) {
-        client = [[SRRoomManager sharedManager] clientForHost:self.selectedRoom.host];
-    }
-    if (!client) {
-        client = [SRRoomManager sharedManager].clients.allValues.firstObject;
-    }
-    return client;
-}
+#pragma mark - SRSidebarDelegate
 
-#pragma mark - SRPeerListDelegate
-
-- (void)peerListViewController:(SRPeerListViewController *)vc didSelectPeer:(NSString *)peerID {
-    SSBLogInfo(SSBLogCategoryUI, @"👤 Peer selected: %@", [peerID substringToIndex:MIN(8, peerID.length)]);
-    SSBRoomClient *client = [self currentClient];
-    SSBLogInfo(SSBLogCategoryUI, @"   Client: %@ connected=%d", client ? @"available" : @"nil", client.isConnected);
-
-    SRProfileViewController *profileVC = [[SRProfileViewController alloc] initWithPeerID:peerID client:client];
-    profileVC.delegate = self;
-    [self.contentContainer pushViewController:profileVC];
-}
-
-- (void)peerListViewController:(SRPeerListViewController *)vc didRequestFollow:(NSString *)peerID {
-    SSBRoomClient *client = [self currentClient];
-    if (client) {
-        [client publishContact:peerID following:YES completion:^(NSError *error, id result) {
-            if (!error) {
-                [self.peerListVC updatePeers:self.peerListVC.peers];
-            }
-        }];
-    }
-}
-
-- (void)peerListViewController:(SRPeerListViewController *)vc didRequestUnfollow:(NSString *)peerID {
-    SSBRoomClient *client = [self currentClient];
-    if (client) {
-        [client publishContact:peerID following:NO completion:^(NSError *error, id result) {
-            if (!error) {
-                [self.peerListVC updatePeers:self.peerListVC.peers];
-            }
-        }];
-    }
-}
-
-- (void)peerListViewController:(SRPeerListViewController *)vc didRequestBlock:(NSString *)peerID blocking:(BOOL)blocking {
-    SSBRoomClient *client = [self currentClient];
-    if (client) {
-        [client publishBlock:peerID blocking:blocking completion:^(NSError *error, id result) {
-            if (!error) {
-                [self.peerListVC updatePeers:self.peerListVC.peers];
-            }
-        }];
-    }
-}
-
-#pragma mark - SRProfileViewControllerDelegate
-
-- (void)profileViewControllerDidRequestBack:(SRProfileViewController *)vc {
-    [self.contentContainer popViewController];
-}
-
-#pragma mark - SRChannelBrowserDelegate
-
-- (void)channelBrowser:(SRChannelBrowserViewController *)vc didSelectChannel:(NSString *)channel {
-    [self.contentContainer popViewController];
-    [self.homeVC.feedVC loadFeedForChannel:channel];
-}
-
-- (void)channelBrowserDidRequestBack:(SRChannelBrowserViewController *)vc {
-    [self.contentContainer popViewController];
+- (void)sidebarViewController:(SRSidebarViewController *)sidebar didSelectDestination:(NSString *)identifier {
+    [self selectDestination:identifier];
 }
 
 #pragma mark - SRFeedViewControllerDelegate
@@ -419,13 +236,13 @@ static void SRPeerDiscoveryAppend(NSString *line) {
     SSBRoomClient *client = [self currentClient];
     SRThreadViewController *threadVC = [[SRThreadViewController alloc] initWithRootMessage:message client:client];
     threadVC.delegate = self;
-    [self.contentContainer pushViewController:threadVC];
+    [self showContentViewController:threadVC animated:YES];
 }
 
 #pragma mark - SRThreadViewControllerDelegate
 
 - (void)threadViewControllerDidRequestBack:(SRThreadViewController *)vc {
-    [self.contentContainer popViewController];
+    [self showContentViewController:self.homeVC animated:YES];
 }
 
 - (void)threadViewController:(SRThreadViewController *)vc didLikeMessage:(SSBMessage *)message {
@@ -433,9 +250,26 @@ static void SRPeerDiscoveryAppend(NSString *line) {
 }
 
 - (void)threadViewController:(SRThreadViewController *)vc didReplyToMessage:(SSBMessage *)message {
-    [self.contentContainer popViewController];
+    [self showContentViewController:self.homeVC animated:YES];
     self.homeVC.composeVC.replyToKey = message.key;
     [self.homeVC.composeVC.view.window makeFirstResponder:self.homeVC.composeVC.view];
+}
+
+#pragma mark - SRProfileViewControllerDelegate
+
+- (void)profileViewControllerDidRequestBack:(SRProfileViewController *)vc {
+    [self showContentViewController:self.homeVC animated:YES];
+}
+
+#pragma mark - SRChannelBrowserDelegate
+
+- (void)channelBrowser:(SRChannelBrowserViewController *)vc didSelectChannel:(NSString *)channel {
+    [self showContentViewController:self.homeVC animated:YES];
+    [self.homeVC.feedVC loadFeedForChannel:channel];
+}
+
+- (void)channelBrowserDidRequestBack:(SRChannelBrowserViewController *)vc {
+    [self showContentViewController:self.homeVC animated:YES];
 }
 
 #pragma mark - NSToolbarDelegate
@@ -448,6 +282,7 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         item.image = [NSImage imageWithSystemSymbolName:@"square.and.pencil" accessibilityDescription:@"Compose"];
         item.target = self;
         item.action = @selector(toolbarCompose:);
+        item.bordered = YES;
         return item;
     } else if ([itemIdentifier isEqualToString:@"Refresh"]) {
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
@@ -456,6 +291,7 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         item.image = [NSImage imageWithSystemSymbolName:@"arrow.clockwise" accessibilityDescription:@"Refresh"];
         item.target = self;
         item.action = @selector(toolbarRefresh:);
+        item.bordered = YES;
         return item;
     } else if ([itemIdentifier isEqualToString:@"ToggleFeed"]) {
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
@@ -467,6 +303,7 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         item.view = control;
         item.label = @"Feed Type";
         item.paletteLabel = @"Toggle Feed Type";
+        item.bordered = YES;
         return item;
     } else if ([itemIdentifier isEqualToString:@"Search"]) {
         NSSearchToolbarItem *searchItem = [[NSSearchToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
@@ -475,6 +312,7 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         searchItem.searchField.delegate = (id<NSSearchFieldDelegate>)self;
         searchItem.action = @selector(toolbarSearch:);
         searchItem.target = self;
+        searchItem.bordered = YES;
         return searchItem;
     } else if ([itemIdentifier isEqualToString:@"Settings"]) {
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
@@ -483,22 +321,28 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         item.image = [NSImage imageWithSystemSymbolName:@"gearshape" accessibilityDescription:@"Settings"];
         item.target = self;
         item.action = @selector(toolbarSettings:);
+        item.bordered = YES;
         return item;
     }
     return nil;
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
-    return @[@"Compose", @"Refresh", @"ToggleFeed", @"Search", @"Settings", NSToolbarFlexibleSpaceItemIdentifier];
+    return @[NSToolbarToggleSidebarItemIdentifier,
+             NSToolbarSidebarTrackingSeparatorItemIdentifier,
+             @"Compose", @"Refresh", @"ToggleFeed", @"Search", @"Settings",
+             NSToolbarFlexibleSpaceItemIdentifier];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    return @[@"Compose", @"Refresh", NSToolbarFlexibleSpaceItemIdentifier, @"Search", @"Settings", @"ToggleFeed"];
+    return @[NSToolbarToggleSidebarItemIdentifier,
+             NSToolbarSidebarTrackingSeparatorItemIdentifier,
+             @"Compose", @"Refresh", NSToolbarFlexibleSpaceItemIdentifier, @"Search", @"ToggleFeed", @"Settings"];
 }
 
 - (void)toolbarCompose:(id)sender {
     if (self.contentContainer.topViewController != self.homeVC) {
-        [self.contentContainer popViewController];
+        [self showContentViewController:self.homeVC animated:YES];
     }
     [self.homeVC.composeVC.view.window makeFirstResponder:self.homeVC.composeVC.view];
 }
@@ -513,7 +357,7 @@ static void SRPeerDiscoveryAppend(NSString *line) {
         query = ((NSSearchToolbarItem *)sender).searchField.stringValue;
     }
     if (self.contentContainer.topViewController != self.homeVC) {
-        [self.contentContainer popViewController];
+        [self showContentViewController:self.homeVC animated:YES];
     }
     [self.homeVC.feedVC loadFeedWithSearch:query];
 }
@@ -526,6 +370,25 @@ static void SRPeerDiscoveryAppend(NSString *line) {
 
 - (void)toolbarSettings:(id)sender {
     [self showPreferences];
+}
+
+#pragma mark - Menu Actions
+
+- (void)navigateHome:(id)sender {
+    [self.sidebarVC selectDestination:@"home"];
+}
+
+- (void)navigateChannels:(id)sender {
+    [self.sidebarVC selectDestination:@"channels"];
+}
+
+- (void)navigateRepos:(id)sender {
+    [self.sidebarVC selectDestination:@"repos"];
+}
+
+- (void)togglePeerList:(id)sender {
+    // Legacy action, no-op in modern UI or toggle sidebar
+    [self toggleSidebar:sender];
 }
 
 @end
