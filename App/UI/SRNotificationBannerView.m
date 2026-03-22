@@ -40,11 +40,20 @@
         self.layer.cornerRadius = 12;
         self.layer.masksToBounds = YES;
         self.layer.borderWidth = 1.0;
-        self.layer.borderColor = [[NSColor separatorColor] colorWithAlphaComponent:0.4].CGColor;
-        
+        [self _applyBorderColor];
+
         [self setupUI];
     }
     return self;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    [self _applyBorderColor];
+}
+
+- (void)_applyBorderColor {
+    self.layer.borderColor = [[NSColor separatorColor] colorWithAlphaComponent:0.4].CGColor;
 }
 
 - (void)setupUI {

@@ -145,8 +145,16 @@ static os_log_t prefs_log;
 - (void)loadView {
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 600, 750)];
     view.wantsLayer = YES;
-    view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
     self.view = view;
+    [self _applyLayerColors];
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [self _applyLayerColors];
+}
+
+- (void)_applyLayerColors {
+    self.view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
 }
 
 - (void)viewDidLoad {

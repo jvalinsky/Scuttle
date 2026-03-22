@@ -49,7 +49,6 @@
     self.backButton.bezelStyle = NSBezelStyleRegularSquare;
     self.backButton.bordered = NO;
     self.backButton.wantsLayer = YES;
-    self.backButton.layer.backgroundColor = [[NSColor controlColor] colorWithAlphaComponent:0.5].CGColor;
     self.backButton.layer.cornerRadius = 14;
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.backButton setAccessibilityLabel:@"Back to feed"];
@@ -65,9 +64,7 @@
     // Inline compose bar
     self.composeBar = [[NSView alloc] init];
     self.composeBar.wantsLayer = YES;
-    self.composeBar.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
     self.composeBar.layer.borderWidth = 1;
-    self.composeBar.layer.borderColor = [NSColor separatorColor].CGColor;
     self.composeBar.layer.cornerRadius = [SRStyle cornerRadiusMedium];
     self.composeBar.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:self.composeBar];
@@ -124,8 +121,19 @@
     self.view = container;
 }
 
+- (void)viewDidChangeEffectiveAppearance {
+    [self _applyLayerColors];
+}
+
+- (void)_applyLayerColors {
+    self.backButton.layer.backgroundColor = [[NSColor controlColor] colorWithAlphaComponent:0.5].CGColor;
+    self.composeBar.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
+    self.composeBar.layer.borderColor = [NSColor separatorColor].CGColor;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
+    [self _applyLayerColors];
 
     NSCollectionViewFlowLayout *layout = [[NSCollectionViewFlowLayout alloc] init];
     layout.minimumLineSpacing = 8;

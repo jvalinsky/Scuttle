@@ -53,6 +53,10 @@
     [self refreshChannels];
 }
 
+- (void)viewDidChangeEffectiveAppearance {
+    self.view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
+}
+
 - (void)refreshChannels {
     self.channels = [[SSBFeedStore sharedStore] allChannels];
     [self.tableView reloadData];

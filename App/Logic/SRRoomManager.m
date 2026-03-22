@@ -12,36 +12,6 @@
 #import "../../Sources/SSBLogCompat.h"
 
 static os_log_t ssb_room_log;
-static NSString * const kSRPeerDiscoveryLogPath = @"/tmp/scuttle_peer_discovery.log";
-
-static void SRPeerDiscoveryAppend(NSString *line) {
-    if (line.length == 0) return;
-    static dispatch_queue_t q;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        q = dispatch_queue_create("com.scuttlebutt.room.peerdiag.manager", DISPATCH_QUEUE_SERIAL);
-    });
-
-    NSString *full = [NSString stringWithFormat:@"[%@] manager %@\n", [NSDate date], line];
-    NSData *data = [full dataUsingEncoding:NSUTF8StringEncoding];
-    dispatch_async(q, ^{
-        @autoreleasepool {
-            NSFileManager *fm = [NSFileManager defaultManager];
-            if (![fm fileExistsAtPath:kSRPeerDiscoveryLogPath]) {
-                [fm createFileAtPath:kSRPeerDiscoveryLogPath contents:nil attributes:nil];
-            }
-            NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:kSRPeerDiscoveryLogPath];
-            if (!h) return;
-            @try {
-                [h seekToEndOfFile];
-                [h writeData:data];
-            } @catch (__unused NSException *exception) {
-            } @finally {
-                [h closeFile];
-            }
-        }
-    });
-}
 
 NSString * const SRRoomManagerDidUpdateRoomsNotification = @"SRRoomManagerDidUpdateRoomsNotification";
 NSString * const SRRoomManagerDidUpdateEndpointsNotification = @"SRRoomManagerDidUpdateEndpointsNotification";
@@ -192,7 +162,6 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
 - (void)roomClientDidConnect:(SSBRoomClient *)client {
     os_log_info(ssb_room_log, "Client connected to %{public}@", client.host);
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"client connected host=%@", client.host ?: @"<unknown>"]);
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification
                                                             object:client
@@ -206,16 +175,9 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 - (void)roomClient:(SSBRoomClient *)client didUpdateEndpoints:(NSArray<NSString *> *)endpoints {
     NSArray<NSString *> *snapshot = [endpoints copy] ?: @[];
     os_log_info(ssb_room_log, "Client %{public}@ updated endpoints: %lu peers", client.host, (unsigned long)snapshot.count);
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"didUpdateEndpoints host=%@ peers=%lu list=%@",
-                           client.host ?: @"<unknown>",
-                           (unsigned long)snapshot.count,
-                           snapshot]);
     dispatch_async(self.managerQueue, ^{
         self.internalRoomEndpoints[client.host] = snapshot;
         os_log_debug(ssb_room_log, "Cached %lu endpoints for %{public}@; posting notification", (unsigned long)snapshot.count, client.host);
-        SRPeerDiscoveryAppend([NSString stringWithFormat:@"cached endpoints host=%@ peers=%lu posting notification",
-                               client.host ?: @"<unknown>",
-                               (unsigned long)snapshot.count]);
         dispatch_async(dispatch_get_main_queue(), ^{
             [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerDidUpdateEndpointsNotification
                                                                 object:client
@@ -234,9 +196,6 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
 
 - (void)roomClient:(SSBRoomClient *)client didEncounterError:(NSError *)error {
     os_log_error(ssb_room_log, "Client %{public}@ encountered error: %{public}@", client.host, error.localizedDescription);
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"client error host=%@ error=%@",
-                           client.host ?: @"<unknown>",
-                           error.localizedDescription ?: @"<unknown>"]);
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerConnectionStatusChangedNotification
                                                             object:client

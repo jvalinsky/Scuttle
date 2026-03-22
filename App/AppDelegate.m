@@ -9,21 +9,6 @@
 
 static os_log_t ssb_app_log;
 
-static void SRAppendStartupLog(NSString *message) {
-    NSString *line = [NSString stringWithFormat:@"%@ %@\n", [NSDate date], message];
-    NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
-    NSString *path = @"/tmp/scuttleroomapp-startup.log";
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
-        [data writeToFile:path atomically:YES];
-        return;
-    }
-
-    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
-    [handle seekToEndOfFile];
-    [handle writeData:data];
-    [handle closeFile];
-}
-
 @interface AppDelegate ()
 @property (nonatomic, strong) SRMainSplitViewController *mainVC;
 #ifdef __APPLE__
@@ -38,35 +23,28 @@ static void SRAppendStartupLog(NSString *message) {
 + (void)initialize {
     if (self == [AppDelegate class]) {
         ssb_app_log = os_log_create("com.scuttlebutt.app", "AppDelegate");
-        SRAppendStartupLog(@"AppDelegate class initialize");
     }
 }
 
 - (instancetype)init {
     self = [super init];
     if (self) {
-        SRAppendStartupLog(@"AppDelegate init");
     }
     return self;
 }
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    SRAppendStartupLog(@"applicationWillFinishLaunching");
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    SRAppendStartupLog(@"applicationDidFinishLaunching");
     os_log_info(ssb_app_log, "Application did finish launching");
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-    SRAppendStartupLog(@"activation policy set");
     [self setupMenu];
-    SRAppendStartupLog(@"main menu installed");
     
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1200, 800)
                                             styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable | NSWindowStyleMaskFullSizeContentView
                                               backing:NSBackingStoreBuffered
                                                 defer:NO];
-    SRAppendStartupLog(@"window allocated");
     self.window.title = @"ScuttleRoom";
     self.window.releasedWhenClosed = NO;
     self.window.toolbarStyle = NSWindowToolbarStyleUnified;
@@ -74,21 +52,13 @@ static void SRAppendStartupLog(NSString *message) {
     self.window.contentMinSize = NSMakeSize(900, 600);
     self.window.tabbingMode = NSWindowTabbingModeAutomatic;
     self.window.contentViewController = [[NSViewController alloc] init];
-    SRAppendStartupLog(@"placeholder content controller installed");
     
     @try {
         [self.window center];
-        SRAppendStartupLog(@"window centered");
         [self.window makeKeyAndOrderFront:nil];
-        SRAppendStartupLog(@"window made key and ordered front");
         [self.window orderFrontRegardless];
-        SRAppendStartupLog(@"window orderFrontRegardless complete");
         [self bringToFront:nil];
-        SRAppendStartupLog([NSString stringWithFormat:@"window ordered front visible=%d windows=%lu",
-                            self.window.isVisible,
-                            (unsigned long)NSApp.windows.count]);
     } @catch (NSException *exception) {
-        SRAppendStartupLog([NSString stringWithFormat:@"window bootstrap exception: %@ %@", exception.name, exception.reason]);
         @throw exception;
     }
 
@@ -104,29 +74,21 @@ static void SRAppendStartupLog(NSString *message) {
         [self.window makeKeyAndOrderFront:nil];
         [self.window orderFrontRegardless];
         [self bringToFront:nil];
-        SRAppendStartupLog([NSString stringWithFormat:@"main UI installed visible=%d windows=%lu",
-                            self.window.isVisible,
-                            (unsigned long)NSApp.windows.count]);
     });
 
     [self setupStatusItem];
-    SRAppendStartupLog(@"status item installed");
     
     [[SRPlatformNotifications sharedNotifications] configure];
-    SRAppendStartupLog(@"notification authorization requested");
     
     // Initialize Room Manager
     os_log_info(ssb_app_log, "Initializing RoomManager");
     [SRRoomManager sharedManager];
-    SRAppendStartupLog(@"room manager initialized");
     
     // Start Git Helper Server
     [[SRGitRemoteHelperServer sharedServer] start];
-    SRAppendStartupLog(@"git helper server started");
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
-    SRAppendStartupLog(@"applicationWillTerminate");
     [[SRGitRemoteHelperServer sharedServer] stop];
 }
 

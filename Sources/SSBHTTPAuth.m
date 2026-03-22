@@ -474,16 +474,15 @@ static const NSUInteger kNonceBytesLength = 32;
                                                              createdAt:now
                                                              expiresAt:expiresAt];
     
-    dispatch_sync(self.authQueue, ^{
-        self.tokensByString[tokenString] = token;
-        
-        NSMutableSet *clientTokens = self.tokensByClientId[clientId];
-        if (!clientTokens) {
-            clientTokens = [NSMutableSet set];
-            self.tokensByClientId[clientId] = clientTokens;
-        }
-        [clientTokens addObject:token];
-    });
+    // Callers already hold self.authQueue — direct mutation avoids deadlock.
+    self.tokensByString[tokenString] = token;
+
+    NSMutableSet *clientTokens = self.tokensByClientId[clientId];
+    if (!clientTokens) {
+        clientTokens = [NSMutableSet set];
+        self.tokensByClientId[clientId] = clientTokens;
+    }
+    [clientTokens addObject:token];
     
     os_log_info(httpAuth_log, "Generated token for client %{public}@", clientId);
     

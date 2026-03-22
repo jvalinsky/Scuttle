@@ -43,6 +43,10 @@ static os_log_t sidebar_log;
     self.view = self.effectView;
 }
 
+- (void)viewDidChangeEffectiveAppearance {
+    [self.outlineView reloadData];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.sections = [NSMutableArray array];

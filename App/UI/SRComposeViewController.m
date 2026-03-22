@@ -15,6 +15,7 @@
 @property (nonatomic, strong) NSView *replyBanner;
 @property (nonatomic, strong) NSTextField *replyLabel;
 @property (nonatomic, strong) NSMutableArray *observerTokens;
+@property (nonatomic, strong) NSView *formattingToolbar;
 @end
 
 @implementation SRComposeViewController
@@ -22,18 +23,27 @@
 - (void)loadView {
     NSView *view = [[NSView alloc] init];
     view.wantsLayer = YES;
-    view.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
     view.layer.cornerRadius = 8;
     view.layer.borderWidth = 1;
-    view.layer.borderColor = [NSColor separatorColor].CGColor;
     self.view = view;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [self _applyLayerColors];
+}
+
+- (void)_applyLayerColors {
+    self.view.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
+    self.view.layer.borderColor = [NSColor separatorColor].CGColor;
+    self.formattingToolbar.layer.backgroundColor = [NSColor controlColor].CGColor;
 }
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.observerTokens = [NSMutableArray array];
     [self setupUI];
-    
+    [self _applyLayerColors];
+
     __weak typeof(self) weakSelf = self;
     id token = [[NSNotificationCenter defaultCenter] addObserverForName:SRRoomSyncStatusChangedNotification
                                                                  object:nil
@@ -98,10 +108,10 @@
     [self.view addSubview:self.cwField];
     
     // 3. Formatting Toolbar (Bold, Italic, Code, Link)
-    NSView *toolbar = [[NSView alloc] init];
-    toolbar.translatesAutoresizingMaskIntoConstraints = NO;
-    toolbar.wantsLayer = YES;
-    toolbar.layer.backgroundColor = [NSColor controlColor].CGColor;
+    self.formattingToolbar = [[NSView alloc] init];
+    self.formattingToolbar.translatesAutoresizingMaskIntoConstraints = NO;
+    self.formattingToolbar.wantsLayer = YES;
+    NSView *toolbar = self.formattingToolbar;
     [self.view addSubview:toolbar];
 
     NSButton *boldButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"bold" accessibilityDescription:@"Bold"] target:self action:@selector(formatBold:)];

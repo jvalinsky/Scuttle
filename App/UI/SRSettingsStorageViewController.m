@@ -2,7 +2,15 @@
 #import "SRStyle.h"
 #import "../Logic/SRRoomManager.h"
 
+@interface SRSettingsStorageViewController ()
+@property (nonatomic, strong) NSView *vizView;
+@end
+
 @implementation SRSettingsStorageViewController
+
+- (void)viewDidChangeEffectiveAppearance {
+    self.vizView.layer.backgroundColor = NSColor.controlBackgroundColor.CGColor;
+}
 
 - (void)loadView {
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 580, 460)];
@@ -13,11 +21,12 @@
     [view addSubview:titleLabel];
 
     // Placeholder visualization — will be filled with SRStorageUsageView in a future pass
-    NSView *vizView = [[NSView alloc] init];
-    vizView.translatesAutoresizingMaskIntoConstraints = NO;
-    vizView.wantsLayer = YES;
-    vizView.layer.backgroundColor = NSColor.controlBackgroundColor.CGColor;
-    vizView.layer.cornerRadius = [SRStyle cornerRadiusMedium];
+    self.vizView = [[NSView alloc] init];
+    self.vizView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.vizView.wantsLayer = YES;
+    self.vizView.layer.backgroundColor = NSColor.controlBackgroundColor.CGColor;
+    self.vizView.layer.cornerRadius = [SRStyle cornerRadiusMedium];
+    NSView *vizView = self.vizView;
     [view addSubview:vizView];
 
     NSButton *wipeButton = [NSButton buttonWithTitle:NSLocalizedString(@"Wipe Database", nil) target:self action:@selector(wipeDatabase:)];

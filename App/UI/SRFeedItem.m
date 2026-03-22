@@ -10,6 +10,7 @@
 @property (nonatomic, copy) NSString *currentBlobID;
 @property (nonatomic, strong) NSTextField *replyCountLabel;
 @property (nonatomic, strong) NSTextField *likeCountLabel;
+@property (nonatomic, assign) BOOL isHovered;
 
 // Thread view support
 @property (nonatomic, strong) NSView *branchLineView;
@@ -108,7 +109,6 @@
 
     _branchLineView = [[NSView alloc] init];
     _branchLineView.wantsLayer = YES;
-    _branchLineView.layer.backgroundColor = [NSColor separatorColor].CGColor;
     _branchLineView.translatesAutoresizingMaskIntoConstraints = NO;
     _branchLineView.hidden = YES;
     [self.view addSubview:_branchLineView];
@@ -171,6 +171,17 @@
         options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect
         owner:self userInfo:nil];
     [self.view addTrackingArea:area];
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    if (!self.branchLineView.hidden) {
+        self.branchLineView.layer.backgroundColor = [[NSColor separatorColor] colorWithAlphaComponent:0.6].CGColor;
+    }
+    if (self.isHovered) {
+        self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.85].CGColor;
+    } else {
+        self.view.layer.backgroundColor = [NSColor clearColor].CGColor;
+    }
 }
 
 - (void)showQRAction:(id)sender {
@@ -255,7 +266,7 @@
         }
         
         NSUInteger hash = [msg.author hash];
-        self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;
+        self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.65 alpha:1.0].CGColor;
         
         if (msg.claimedTimestamp > 0) {
             NSDate *date = [NSDate dateWithTimeIntervalSince1970:msg.claimedTimestamp / 1000.0];
@@ -347,13 +358,11 @@
 
 - (void)setIsReply:(BOOL)isReply {
     _isReply = isReply;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.avatarLeadingConstraint.constant = isReply ? 48 : 12;
-        self.branchLineView.hidden = !isReply;
-        if (isReply) {
-            self.branchLineView.layer.backgroundColor = [[NSColor separatorColor] colorWithAlphaComponent:0.6].CGColor;
-        }
-    });
+    self.avatarLeadingConstraint.constant = isReply ? 48 : 12;
+    self.branchLineView.hidden = !isReply;
+    if (isReply) {
+        self.branchLineView.layer.backgroundColor = [[NSColor separatorColor] colorWithAlphaComponent:0.6].CGColor;
+    }
 }
 
 - (NSString *)_relativeTimestampForDate:(NSDate *)date {
@@ -365,11 +374,13 @@
 
 
 - (void)mouseEntered:(NSEvent *)event {
+    self.isHovered = YES;
     self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.85].CGColor;
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    self.view.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
+    self.isHovered = NO;
+    self.view.layer.backgroundColor = [NSColor clearColor].CGColor;
 }
 
 - (void)toggleCW:(id)sender {

@@ -51,7 +51,6 @@ static os_log_t profile_header_log;
         self.layer.cornerRadius = 16;
         self.layer.masksToBounds = YES;
         self.layer.borderWidth = 1.0;
-        self.layer.borderColor = [[NSColor separatorColor] colorWithAlphaComponent:0.3].CGColor;
         
         _gradientLayer = [CAGradientLayer layer];
         _gradientLayer.startPoint = CGPointMake(0.0, 0.0);
@@ -59,6 +58,7 @@ static os_log_t profile_header_log;
         [self.layer insertSublayer:_gradientLayer atIndex:0];
 
         [self setupUI];
+        [self viewDidChangeEffectiveAppearance];
         [self loadLocalIdentity];
         
         [[NSNotificationCenter defaultCenter] addObserver:self 
@@ -77,6 +77,18 @@ static os_log_t profile_header_log;
     [super layout];
     self.gradientLayer.frame = NSRectToCGRect(self.bounds);
     self.avatarView.layer.cornerRadius = self.avatarView.bounds.size.height / 2.0;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    self.layer.borderColor = [[NSColor separatorColor] colorWithAlphaComponent:0.3].CGColor;
+    if (self.feedId.length <= 10) {
+        self.layer.backgroundColor = [SRStyle surfaceColor].CGColor;
+    }
+    if (self.feedId.length > 0) {
+        NSUInteger hash = [self.feedId hash];
+        self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.65 alpha:1.0].CGColor;
+    }
 }
 
 - (void)handleProfileUpdated:(NSNotification *)notification {
@@ -300,7 +312,7 @@ static os_log_t profile_header_log;
     self.idLabel.stringValue = feedId;
 
     NSUInteger hash = [feedId hash];
-    self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;
+    self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.65 alpha:1.0].CGColor;
 
     [self loadStatsForFeedId:feedId];
 }

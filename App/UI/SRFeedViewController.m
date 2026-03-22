@@ -172,12 +172,6 @@
         NSMutableArray<SSBMessage *> *newMessages = [NSMutableArray array];
         BOOL showBackButton = NO;
 
-        // Log to static log file for inspection
-        char logLine[1024];
-        snprintf(logLine, sizeof(logLine), "[refreshFeed] filterAuthor=%s filterChannel=%s feedType=%d\n", filterAuthor ? filterAuthor.UTF8String : "nil", filterChannel ? filterChannel.UTF8String : "nil", (int)feedType);
-        FILE *f = fopen("/tmp/scuttle_peer_discovery.log", "a");
-        if (f) { fputs(logLine, f); fclose(f); }
-
         if (filterAuthor) {
             [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] feedForAuthor:filterAuthor limit:50]];
             showBackButton = !hidesBackButton;

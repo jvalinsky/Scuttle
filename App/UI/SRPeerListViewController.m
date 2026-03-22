@@ -4,36 +4,6 @@
 #import "../Logic/SRNotificationNames.h"
 #import "SRPlatformLog.h"
 
-static void SRPeerDiscoveryAppend(NSString *line) {
-    if (line.length == 0) return;
-    static dispatch_queue_t q;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        q = dispatch_queue_create("com.scuttlebutt.room.peerdiag.peerlist", DISPATCH_QUEUE_SERIAL);
-    });
-
-    NSString *full = [NSString stringWithFormat:@"[%@] peerlist %@\n", [NSDate date], line];
-    NSData *data = [full dataUsingEncoding:NSUTF8StringEncoding];
-    dispatch_async(q, ^{
-        @autoreleasepool {
-            NSFileManager *fm = [NSFileManager defaultManager];
-            NSString *logPath = @"/tmp/scuttle_peer_discovery.log";
-            if (![fm fileExistsAtPath:logPath]) {
-                [fm createFileAtPath:logPath contents:nil attributes:nil];
-            }
-            NSFileHandle *h = [NSFileHandle fileHandleForWritingAtPath:logPath];
-            if (!h) return;
-            @try {
-                [h seekToEndOfFile];
-                [h writeData:data];
-            } @catch (__unused NSException *exception) {
-            } @finally {
-                [h closeFile];
-            }
-        }
-    });
-}
-
 static os_log_t peer_list_log;
 
 @interface SRPeerCell : NSTableCellView
@@ -46,6 +16,11 @@ static os_log_t peer_list_log;
 @end
 
 @implementation SRPeerCell
+
+- (void)viewDidChangeEffectiveAppearance {
+    self.connectionStatusDot.layer.borderColor = [NSColor windowBackgroundColor].CGColor;
+}
+
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
@@ -59,7 +34,7 @@ static os_log_t peer_list_log;
         _connectionStatusDot.wantsLayer = YES;
         _connectionStatusDot.layer.cornerRadius = 5;
         _connectionStatusDot.layer.borderWidth = 1.5;
-        _connectionStatusDot.layer.borderColor = [NSColor windowBackgroundColor].CGColor;
+        _connectionStatusDot.layer.borderColor = [NSColor windowBackgroundColor].CGColor; // updated in viewDidChangeEffectiveAppearance
         _connectionStatusDot.translatesAutoresizingMaskIntoConstraints = NO;
         [self addSubview:_connectionStatusDot];
         
@@ -145,10 +120,13 @@ static os_log_t peer_list_log;
     }
 }
 
+- (void)viewDidChangeEffectiveAppearance {
+    self.view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
+}
+
 - (void)loadView {
     NSView *view = [[NSView alloc] init];
     view.wantsLayer = YES;
-    view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
     NSLayoutGuide *safeArea = view.safeAreaLayoutGuide;
     
     self.headerLabel = [NSTextField labelWithString:@"PEERS"];
@@ -179,7 +157,8 @@ static os_log_t peer_list_log;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    
+    self.view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
+
     self.tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
     self.tableView.headerView = nil;
     self.tableView.backgroundColor = [NSColor clearColor];
@@ -252,7 +231,6 @@ static os_log_t peer_list_log;
 }
 
 - (void)loadPeers {
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"loadPeers host=%@", self.roomHost ?: @"none"]);
     NSMutableSet *allPeers = [NSMutableSet setWithArray:[[SSBFeedStore sharedStore] allKnownAuthors]];
     
     if (self.roomHost.length > 0) {
@@ -269,7 +247,6 @@ static os_log_t peer_list_log;
     NSDictionary *userInfo = notification.userInfo;
     NSString *host = userInfo[SRRoomManagerEndpointsHostKey];
     NSArray *list = userInfo[SRRoomManagerEndpointsListKey];
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"endpointsDidUpdate host=%@ list=%lu", host, (unsigned long)list.count]);
     if (self.roomHost.length > 0 && [host isEqualToString:self.roomHost]) {
         [self loadPeers];
     }
@@ -282,7 +259,6 @@ static os_log_t peer_list_log;
 }
 
 - (void)setRoomHost:(NSString *)roomHost {
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"setRoomHost old=%@ new=%@", _roomHost, roomHost]);
     if ((_roomHost == roomHost) || [_roomHost isEqualToString:roomHost]) {
         return;
     }
@@ -371,7 +347,6 @@ static os_log_t peer_list_log;
 }
 
 - (void)updatePeers:(NSArray<NSString *> *)peers {
-    SRPeerDiscoveryAppend([NSString stringWithFormat:@"updatePeers host=%@ peers=%lu", self.roomHost ?: @"none", (unsigned long)peers.count]);
     os_log_info(peer_list_log, "Updating with %lu peers: %{public}@", (unsigned long)peers.count, peers);
     self.peers = [peers copy];
     self.emptyLabel.hidden = (peers.count > 0);
@@ -404,7 +379,7 @@ static os_log_t peer_list_log;
         cell.idLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:peerID];
         
         NSUInteger hash = [peerID hash];
-        cell.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;
+        cell.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.65 alpha:1.0].CGColor;
         
         if ([[SSBFeedStore sharedStore] isFollowing:peerID]) {
             cell.followStatusDot.hidden = NO;

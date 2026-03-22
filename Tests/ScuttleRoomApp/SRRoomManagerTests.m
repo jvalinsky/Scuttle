@@ -28,6 +28,7 @@
 - (NSString *)host { return self.mockHost; }
 - (void)connect { self.connectCalled = YES; }
 - (void)disconnect { self.disconnectCalled = YES; }
+- (void)replicateFromPeer:(NSString *)peerID viaRoom:(NSString *)host {}
 @end
 
 @interface SRRoomManagerTests : XCTestCase

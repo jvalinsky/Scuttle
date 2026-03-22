@@ -40,8 +40,16 @@ static os_log_t profile_log;
 - (void)loadView {
     NSView *container = [[NSView alloc] init];
     container.wantsLayer = YES;
-    container.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
     self.view = container;
+}
+
+- (void)viewDidChangeEffectiveAppearance {
+    [self _applyLayerColors];
+}
+
+- (void)_applyLayerColors {
+    self.view.layer.backgroundColor = [NSColor windowBackgroundColor].CGColor;
+    self.backButton.layer.backgroundColor = [[NSColor controlColor] colorWithAlphaComponent:0.5].CGColor;
 }
 
 - (void)viewDidLoad {
@@ -58,8 +66,7 @@ static os_log_t profile_log;
     self.backButton.bezelStyle = NSBezelStyleRegularSquare;
     self.backButton.bordered = NO;
     self.backButton.wantsLayer = YES;
-    self.backButton.layer.backgroundColor = [[NSColor controlColor] colorWithAlphaComponent:0.5].CGColor;
-    self.backButton.layer.cornerRadius = 14; // Circle-ish if size is 28x28
+    self.backButton.layer.cornerRadius = 14;
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.backButton];
     
@@ -124,6 +131,7 @@ static os_log_t profile_log;
     [self refreshSyncStatusFromManager];
     
     [self updateFollowButton];
+    [self _applyLayerColors];
 }
 
 - (void)updateFollowButton {
@@ -214,8 +222,6 @@ static os_log_t profile_log;
 }
 
 - (void)backAction:(id)sender {
-    FILE *f = fopen("/tmp/scuttle_peer_discovery.log", "a");
-    if (f) { fprintf(f, "[SRProfileVC backAction] delegate=%p\n", self.delegate); fclose(f); }
     if ([self.delegate respondsToSelector:@selector(profileViewControllerDidRequestBack:)]) {
         [self.delegate profileViewControllerDidRequestBack:self];
     }
