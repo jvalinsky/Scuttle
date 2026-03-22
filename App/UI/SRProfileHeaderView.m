@@ -4,6 +4,7 @@
 #import "../Logic/SRNotificationNames.h"
 #import "SRStyle.h"
 #import <SSBNetwork/SSBSecretStore.h>
+#import <SSBNetwork/SSBFeedStore.h>
 #import "SRPlatformLog.h"
 
 static os_log_t profile_header_log;
@@ -300,6 +301,28 @@ static os_log_t profile_header_log;
 
     NSUInteger hash = [feedId hash];
     self.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.9 alpha:1.0].CGColor;
+
+    [self loadStatsForFeedId:feedId];
+}
+
+- (void)loadStatsForFeedId:(NSString *)feedId {
+    if (!feedId) return;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        SSBFeedStore *store = [SSBFeedStore sharedStore];
+        SSBFeedState *state = [store feedStateForAuthor:feedId];
+        NSInteger messageCount = state ? state.maxSequence : 0;
+
+        // "Following" is available for the local user (authors we follow).
+        // For remote peers it's not queryable without processing their contact messages.
+        NSData *localSecret = SSBLoadIdentitySecret();
+        NSString *localFeedId = localSecret ? SSBPublicIDFromSecret(localSecret) : nil;
+        NSInteger followingCount = [feedId isEqualToString:localFeedId] ? (NSInteger)[store followedAuthors].count : 0;
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (![self.feedId isEqualToString:feedId]) return;
+            [self updateStatsWithMessages:messageCount following:followingCount followers:0];
+        });
+    });
 }
 
 - (void)setProfileAction:(id)sender {
