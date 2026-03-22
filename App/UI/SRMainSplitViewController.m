@@ -391,4 +391,8 @@ static os_log_t split_log;
     [self toggleSidebar:sender];
 }
 
+- (void)showKeyboardShortcuts:(id)sender {
+    // Placeholder for modern shortcuts view
+}
+
 @end
