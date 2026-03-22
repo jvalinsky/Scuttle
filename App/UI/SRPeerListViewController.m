@@ -198,6 +198,15 @@ static os_log_t peer_list_log;
     self.peerSyncStatus = [NSMutableDictionary dictionary];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(syncStatusChanged:) name:SRRoomSyncStatusChangedNotification object:nil];
+
+    if (self.roomHost.length == 0) {
+        [self loadPeers];
+    }
+}
+
+- (void)loadPeers {
+    NSArray<NSString *> *allAuthors = [[SSBFeedStore sharedStore] allKnownAuthors];
+    [self updatePeers:allAuthors];
 }
 
 - (void)dealloc {

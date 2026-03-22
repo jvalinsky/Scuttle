@@ -4,7 +4,8 @@ typedef NS_ENUM(NSInteger, SRSidebarItemType) {
     SRSidebarItemTypeSection,
     SRSidebarItemTypeRoom,
     SRSidebarItemTypeChannel,
-    SRSidebarItemTypeRepo
+    SRSidebarItemTypeRepo,
+    SRSidebarItemTypePeer
 };
 
 NS_ASSUME_NONNULL_BEGIN
@@ -20,6 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)roomItemWithTitle:(NSString *)title representedObject:(nullable id)obj;
 + (instancetype)channelItemWithTitle:(NSString *)title;
 + (instancetype)repoItemWithTitle:(NSString *)title representedObject:(nullable id)obj;
++ (instancetype)peerItemWithTitle:(NSString *)title representedObject:(nullable id)obj;
 @end
 
 NS_ASSUME_NONNULL_END

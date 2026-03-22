@@ -994,6 +994,22 @@ static const NSInteger kCurrentSchemaVersion = 4;
     return authors;
 }
 
+- (NSArray<NSString *> *)allKnownAuthors {
+    __block NSMutableArray *authors = [NSMutableArray array];
+    dispatch_sync(self.dbQueue, ^{
+        const char *sql = "SELECT DISTINCT author FROM messages ORDER BY author";
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char *authorStr = (const char *)sqlite3_column_text(stmt, 0);
+                if (authorStr) [authors addObject:[NSString stringWithUTF8String:authorStr]];
+            }
+            sqlite3_finalize(stmt);
+        }
+    });
+    return authors;
+}
+
 - (NSArray<NSString *> *)allChannels {
     __block NSMutableArray<NSString *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{

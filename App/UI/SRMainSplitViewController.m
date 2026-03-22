@@ -17,6 +17,7 @@
 #import "SRThreadViewController.h"
 #import "SRProfileViewController.h"
 #import "SRSidebarViewController.h"
+#import "SRPeerListViewController.h"
 #import "SRGitActivityViewController.h"
 #import "SRGitRepoListViewController.h"
 #import "SRGitRepoViewController.h"
@@ -29,7 +30,7 @@
 
 static os_log_t split_log;
 
-@interface SRMainSplitViewController () <SRSidebarDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate>
+@interface SRMainSplitViewController () <SRSidebarDelegate, SRFeedViewControllerDelegate, SRThreadViewControllerDelegate, SRProfileViewControllerDelegate, SRChannelBrowserDelegate, SRPeerListDelegate>
 
 /// Sidebar view controller managing the app's navigation.
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
@@ -146,6 +147,11 @@ static os_log_t split_log;
         SRGitRepoListViewController *reposVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeMyRepos];
         reposVC.currentClient = [self currentClient];
         [self showContentViewController:reposVC animated:YES];
+    } else if ([destination isEqualToString:@"peers"]) {
+        SRPeerListViewController *peersVC = [[SRPeerListViewController alloc] init];
+        peersVC.roomHost = self.selectedRoom.host;
+        peersVC.delegate = self;
+        [self showContentViewController:peersVC animated:YES];
     } else if ([destination isEqualToString:@"settings"]) {
         [self showPreferences];
     } else {
@@ -270,6 +276,14 @@ static os_log_t split_log;
 
 - (void)channelBrowserDidRequestBack:(SRChannelBrowserViewController *)vc {
     [self showContentViewController:self.homeVC animated:YES];
+}
+
+#pragma mark - SRPeerListDelegate
+
+- (void)peerListViewController:(SRPeerListViewController *)vc didSelectPeer:(NSString *)peerID {
+    SRProfileViewController *profileVC = [[SRProfileViewController alloc] initWithPeerID:peerID client:[self currentClient]];
+    profileVC.delegate = self;
+    [self showContentViewController:profileVC animated:YES];
 }
 
 #pragma mark - NSToolbarDelegate

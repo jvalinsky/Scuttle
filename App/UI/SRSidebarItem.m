@@ -40,4 +40,14 @@
     return item;
 }
 
++ (instancetype)peerItemWithTitle:(NSString *)title representedObject:(nullable id)obj {
+    SRSidebarItem *item = [[SRSidebarItem alloc] init];
+    item.type = SRSidebarItemTypePeer;
+    item.title = title;
+    item.representedObject = obj;
+    item.expandable = NO;
+    item.children = [NSMutableArray array];
+    return item;
+}
+
 @end

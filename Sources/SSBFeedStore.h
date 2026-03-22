@@ -85,6 +85,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the set of all authors we follow.
 - (NSArray<NSString *> *)followedAuthors;
 
+/// Returns the set of all authors for whom we have messages.
+- (NSArray<NSString *> *)allKnownAuthors;
+
 /// Returns the set of all unique channel names found in 'post' messages.
 - (NSArray<NSString *> *)allChannels;
 

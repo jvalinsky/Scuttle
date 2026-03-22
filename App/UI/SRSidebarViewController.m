@@ -159,6 +159,9 @@ static os_log_t sidebar_log;
     SRSidebarItem *reposItem = [SRSidebarItem roomItemWithTitle:@"Repositories" representedObject:@"repos"];
     [topSection.children addObject:reposItem];
     
+    SRSidebarItem *peersItem = [SRSidebarItem peerItemWithTitle:@"Peers" representedObject:@"peers"];
+    [topSection.children addObject:peersItem];
+    
     [self.sections addObject:topSection];
 
     // ROOMS section
@@ -396,6 +399,7 @@ static os_log_t sidebar_log;
                 if ([sidebarItem.representedObject isEqual:@"home"]) symbolName = @"house";
                 else if ([sidebarItem.representedObject isEqual:@"channels"]) symbolName = @"number";
                 else if ([sidebarItem.representedObject isEqual:@"repos"]) symbolName = @"folder";
+                else if ([sidebarItem.representedObject isEqual:@"peers"]) symbolName = @"person.2";
                 
                 NSImage *icon = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:sidebarItem.title];
                 iv.image = [icon imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:14 weight:NSFontWeightRegular]];
@@ -528,6 +532,14 @@ static os_log_t sidebar_log;
         [[NSNotificationCenter defaultCenter] postNotificationName:SRGitRepoSelectedNotification
                                                             object:nil
                                                           userInfo:@{SRGitRepoSelectedKey: repoMsg.key}];
+        return;
+    }
+
+    if (item.type == SRSidebarItemTypePeer) {
+        if (self.delegate && [self.delegate respondsToSelector:@selector(sidebarViewController:didSelectDestination:)]) {
+            [self.delegate sidebarViewController:self didSelectDestination:(NSString *)item.representedObject];
+        }
+        return;
     }
 }
 
@@ -702,7 +714,7 @@ static os_log_t sidebar_log;
 - (void)selectDestination:(NSString *)identifier {
     for (NSInteger i = 0; i < self.outlineView.numberOfRows; i++) {
         SRSidebarItem *item = [self.outlineView itemAtRow:i];
-        if (item.type == SRSidebarItemTypeRoom && [item.representedObject isEqual:identifier]) {
+        if ([item.representedObject isEqual:identifier]) {
             [self.outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:i] byExtendingSelection:NO];
             return;
         }
