@@ -7,7 +7,7 @@
 - (void)loadView {
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 580, 460)];
 
-    NSTextField *titleLabel = [NSTextField labelWithString:@"Storage Usage"];
+    NSTextField *titleLabel = [NSTextField labelWithString:NSLocalizedString(@"Storage Usage", nil)];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     titleLabel.font = [SRStyle headlineLargeFont];
     [view addSubview:titleLabel];
@@ -20,7 +20,7 @@
     vizView.layer.cornerRadius = [SRStyle cornerRadiusMedium];
     [view addSubview:vizView];
 
-    NSButton *wipeButton = [NSButton buttonWithTitle:@"Wipe Database" target:self action:@selector(wipeDatabase:)];
+    NSButton *wipeButton = [NSButton buttonWithTitle:NSLocalizedString(@"Wipe Database", nil) target:self action:@selector(wipeDatabase:)];
     wipeButton.translatesAutoresizingMaskIntoConstraints = NO;
     wipeButton.bezelStyle = NSBezelStyleRounded;
     wipeButton.contentTintColor = NSColor.systemRedColor;
@@ -44,10 +44,10 @@
 
 - (void)wipeDatabase:(id)sender {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Wipe Database?";
-    alert.informativeText = @"This will delete all locally stored messages and reset sync state. Your identity is preserved. This cannot be undone.";
-    [alert addButtonWithTitle:@"Wipe"];
-    [alert addButtonWithTitle:@"Cancel"];
+    alert.messageText = NSLocalizedString(@"Wipe Database?", nil);
+    alert.informativeText = NSLocalizedString(@"This will delete all locally stored messages and reset sync state. Your identity is preserved. This cannot be undone.", nil);
+    [alert addButtonWithTitle:NSLocalizedString(@"Wipe", nil)];
+    [alert addButtonWithTitle:NSLocalizedString(@"Cancel", nil)];
     alert.alertStyle = NSAlertStyleCritical;
 
     [alert beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {

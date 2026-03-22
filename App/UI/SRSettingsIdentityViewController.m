@@ -17,10 +17,10 @@
     [view addSubview:titleLabel];
 
     struct { NSString *title; SEL action; } buttons[] = {
-        { @"Back Up Identity Seed",  @selector(backupSeed:) },
-        { @"Recover from Backup",    @selector(recoverFromBackup:) },
-        { @"Rotate Feed Key",        @selector(rotateFeedKey:) },
-        { @"Manage Devices",         @selector(manageDevices:) },
+        { NSLocalizedString(@"Back Up Identity Seed", nil),  @selector(backupSeed:) },
+        { NSLocalizedString(@"Recover from Backup", nil),    @selector(recoverFromBackup:) },
+        { NSLocalizedString(@"Rotate Feed Key", nil),        @selector(rotateFeedKey:) },
+        { NSLocalizedString(@"Manage Devices", nil),         @selector(manageDevices:) },
     };
     NSUInteger count = sizeof(buttons) / sizeof(buttons[0]);
 
@@ -62,10 +62,10 @@
 
 - (void)rotateFeedKey:(id)sender {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"Rotate Feed Key?";
-    alert.informativeText = @"This will derive a new sub-feed key and tombstone the old one. Your identity remains the same. Continue?";
-    [alert addButtonWithTitle:@"Rotate Key"];
-    [alert addButtonWithTitle:@"Cancel"];
+    alert.messageText = NSLocalizedString(@"Rotate Feed Key?", nil);
+    alert.informativeText = NSLocalizedString(@"This will derive a new sub-feed key and tombstone the old one. Your identity remains the same. Continue?", nil);
+    [alert addButtonWithTitle:NSLocalizedString(@"Rotate Key", nil)];
+    [alert addButtonWithTitle:NSLocalizedString(@"Cancel", nil)];
     alert.alertStyle = NSAlertStyleWarning;
 
     [alert beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
@@ -75,7 +75,7 @@
             [[SRRoomManager sharedManager] replaceSubfeed:currentFeedID completion:^(NSString *newFeedID, NSError *error) {
                 if (error) {
                     NSAlert *errAlert = [[NSAlert alloc] init];
-                    errAlert.messageText = @"Rotation Failed";
+                    errAlert.messageText = NSLocalizedString(@"Rotation Failed", nil);
                     errAlert.informativeText = error.localizedDescription;
                     [errAlert runModal];
                 }

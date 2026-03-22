@@ -25,9 +25,12 @@
 @implementation SRFeedViewController
 
 - (void)dealloc {
+    // Remove block-based observers (stored as opaque tokens)
     for (id token in self.observerTokens) {
         [[NSNotificationCenter defaultCenter] removeObserver:token];
     }
+    // Remove target-action observers registered directly on self
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)loadView {

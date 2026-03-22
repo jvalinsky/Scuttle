@@ -7,12 +7,12 @@
 - (void)loadView {
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 580, 460)];
 
-    NSTextField *titleLabel = [NSTextField labelWithString:@"Advanced"];
+    NSTextField *titleLabel = [NSTextField labelWithString:NSLocalizedString(@"Advanced", nil)];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
     titleLabel.font = [SRStyle headlineLargeFont];
     [view addSubview:titleLabel];
 
-    NSButton *devPanelButton = [NSButton buttonWithTitle:@"Show Developer Panel"
+    NSButton *devPanelButton = [NSButton buttonWithTitle:NSLocalizedString(@"Show Developer Panel", nil)
                                                   target:self
                                                   action:@selector(showDevPanel:)];
     devPanelButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -20,7 +20,7 @@
     [view addSubview:devPanelButton];
 
     // Reset Identity routes through the responder chain to AppDelegate.resetIdentity:
-    NSButton *resetButton = [NSButton buttonWithTitle:@"Reset Identity"
+    NSButton *resetButton = [NSButton buttonWithTitle:NSLocalizedString(@"Reset Identity", nil)
                                                target:nil
                                                action:@selector(resetIdentity:)];
     resetButton.translatesAutoresizingMaskIntoConstraints = NO;

@@ -73,7 +73,7 @@
     [container addSubview:self.composeBar];
 
     self.composeField = [[NSTextField alloc] init];
-    self.composeField.placeholderString = @"Reply…";
+    self.composeField.placeholderString = NSLocalizedString(@"Reply…", nil);
     self.composeField.translatesAutoresizingMaskIntoConstraints = NO;
     self.composeField.bordered = NO;
     self.composeField.backgroundColor = [NSColor clearColor];
@@ -82,7 +82,7 @@
     [self.composeField setAccessibilityLabel:@"Reply text"];
     [self.composeBar addSubview:self.composeField];
 
-    self.sendButton = [NSButton buttonWithTitle:@"Send"
+    self.sendButton = [NSButton buttonWithTitle:NSLocalizedString(@"Send", nil)
                                          target:self
                                          action:@selector(sendReply:)];
     self.sendButton.bezelStyle = NSBezelStyleRounded;
@@ -215,7 +215,7 @@
                       stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if (text.length == 0) return;
     if (!self.client) {
-        [SRNotificationBannerView showInView:self.view message:@"Not connected to a room" type:SRNotificationTypeWarning];
+        [SRNotificationBannerView showInView:self.view message:NSLocalizedString(@"Not connected to a room", nil) type:SRNotificationTypeWarning];
         return;
     }
 

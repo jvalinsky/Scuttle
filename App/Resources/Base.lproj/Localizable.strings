@@ -36,6 +36,45 @@
 "0 of 1000 characters used" = "0 of 1000 characters used";
 "%ld of 1000 characters used" = "%ld of 1000 characters used";
 
+/* SRSettingsWindowController */
+"Settings" = "Settings";
+"General" = "General";
+"Identity" = "Identity";
+"Storage" = "Storage";
+"Advanced" = "Advanced";
+
+/* SRSettingsGeneralViewController */
+"Your display name" = "Your display name";
+"Not Connected" = "Not Connected";
+"Connect to a room before updating your display name." = "Connect to a room before updating your display name.";
+"Failed to Save" = "Failed to Save";
+
+/* SRSettingsIdentityViewController */
+"Back Up Identity Seed" = "Back Up Identity Seed";
+"Recover from Backup" = "Recover from Backup";
+"Rotate Feed Key" = "Rotate Feed Key";
+"Manage Devices" = "Manage Devices";
+"Rotate Feed Key?" = "Rotate Feed Key?";
+"This will derive a new sub-feed key and tombstone the old one. Your identity remains the same. Continue?" = "This will derive a new sub-feed key and tombstone the old one. Your identity remains the same. Continue?";
+"Rotate Key" = "Rotate Key";
+"Rotation Failed" = "Rotation Failed";
+
+/* SRSettingsStorageViewController */
+"Storage Usage" = "Storage Usage";
+"Wipe Database" = "Wipe Database";
+"Wipe Database?" = "Wipe Database?";
+"This will delete all locally stored messages and reset sync state. Your identity is preserved. This cannot be undone." = "This will delete all locally stored messages and reset sync state. Your identity is preserved. This cannot be undone.";
+"Wipe" = "Wipe";
+
+/* SRSettingsAdvancedViewController */
+"Show Developer Panel" = "Show Developer Panel";
+"Reset Identity" = "Reset Identity";
+
+/* SRThreadViewController */
+"Reply…" = "Reply…";
+"Send" = "Send";
+"Not connected to a room" = "Not connected to a room";
+
 /* SRSidebarViewController */
 "SSB" = "SSB";
 "Home" = "Home";

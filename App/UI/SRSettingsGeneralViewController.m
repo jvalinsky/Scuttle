@@ -14,14 +14,14 @@
 - (void)loadView {
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 580, 460)];
 
-    NSTextField *label = [NSTextField labelWithString:@"Display Name"];
+    NSTextField *label = [NSTextField labelWithString:NSLocalizedString(@"Display Name", nil)];
     label.translatesAutoresizingMaskIntoConstraints = NO;
     label.font = [SRStyle headlineFont];
     [view addSubview:label];
 
     self.nameField = [[NSTextField alloc] init];
     self.nameField.translatesAutoresizingMaskIntoConstraints = NO;
-    self.nameField.placeholderString = @"Your display name";
+    self.nameField.placeholderString = NSLocalizedString(@"Your display name", nil);
     [view addSubview:self.nameField];
 
     NSButton *saveButton = [NSButton buttonWithTitle:@"Save" target:self action:@selector(saveName:)];
@@ -71,8 +71,8 @@
     SSBRoomClient *client = [[SRRoomManager sharedManager] anyConnectedClient];
     if (!client) {
         NSAlert *alert = [[NSAlert alloc] init];
-        alert.messageText = @"Not Connected";
-        alert.informativeText = @"Connect to a room before updating your display name.";
+        alert.messageText = NSLocalizedString(@"Not Connected", nil);
+        alert.informativeText = NSLocalizedString(@"Connect to a room before updating your display name.", nil);
         [alert runModal];
         return;
     }
@@ -82,7 +82,7 @@
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error) {
                 NSAlert *alert = [[NSAlert alloc] init];
-                alert.messageText = @"Failed to Save";
+                alert.messageText = NSLocalizedString(@"Failed to Save", nil);
                 alert.informativeText = error.localizedDescription;
                 [alert runModal];
             } else {
