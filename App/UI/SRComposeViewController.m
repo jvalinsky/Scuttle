@@ -160,6 +160,8 @@
     self.publishButton = [NSButton buttonWithTitle:NSLocalizedString(@"Publish", nil) target:self action:@selector(publishAction:)];
     self.publishButton.accessibilityLabel = NSLocalizedString(@"Publish Message", nil);
     self.publishButton.bezelStyle = NSBezelStyleRounded;
+    self.publishButton.keyEquivalent = @"\r";
+    self.publishButton.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     self.publishButton.translatesAutoresizingMaskIntoConstraints = NO;
     self.publishButton.keyEquivalent = @"\r"; // Enter triggers publish
     self.publishButton.keyEquivalentModifierMask = NSEventModifierFlagCommand;

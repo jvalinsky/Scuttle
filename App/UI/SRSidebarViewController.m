@@ -343,7 +343,7 @@ static os_log_t sidebar_log;
         return label;
     }
 
-    if (sidebarItem.type == SRSidebarItemTypeRoom) {
+    if (sidebarItem.type == SRSidebarItemTypeRoom || sidebarItem.type == SRSidebarItemTypePeer) {
         NSTableCellView *cell = [outlineView makeViewWithIdentifier:@"RoomCell" owner:self];
         if (!cell) {
             cell = [[NSTableCellView alloc] initWithFrame:NSMakeRect(0, 0, 100, 36)];

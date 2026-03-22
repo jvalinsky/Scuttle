@@ -3585,6 +3585,28 @@
       "created_at": "2026-03-21T22:47:26.970796-04:00",
       "updated_at": "2026-03-21T22:47:26.970796-04:00",
       "metadata_json": "{\"branch\":\"main\"}"
+    },
+    {
+      "id": 327,
+      "change_id": "d8f8e104-eca9-4819-bdca-637c4406459d",
+      "node_type": "action",
+      "title": "Fix Peers sidebar item visibility",
+      "description": "Updated SRSidebarViewController to handle SRSidebarItemTypePeer in outlineView:viewForTableColumn:item:, allowing the Peers item to be displayed.",
+      "status": "pending",
+      "created_at": "2026-03-21T22:52:19.246072-04:00",
+      "updated_at": "2026-03-21T22:52:19.246072-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"files\":[\"App/UI/SRSidebarViewController.m\"]}"
+    },
+    {
+      "id": 328,
+      "change_id": "de1583b8-04bf-45af-b463-57f8097caa7f",
+      "node_type": "action",
+      "title": "Implement Cmd+Enter shortcut in SRComposeViewController",
+      "description": "Set Cmd+Enter as the key equivalent for the Publish button in SRComposeViewController.",
+      "status": "pending",
+      "created_at": "2026-03-21T22:53:34.910820-04:00",
+      "updated_at": "2026-03-21T22:53:34.910820-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"files\":[\"App/UI/SRComposeViewController.m\"]}"
     }
   ],
   "edges": [
@@ -6447,6 +6469,28 @@
       "weight": 1.0,
       "rationale": null,
       "created_at": "2026-03-21T22:47:27.003343-04:00"
+    },
+    {
+      "id": 261,
+      "from_node_id": 321,
+      "to_node_id": 327,
+      "from_change_id": "2487b835-6ed6-4bb5-ba5a-ee2fa1e6c15f",
+      "to_change_id": "d8f8e104-eca9-4819-bdca-637c4406459d",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": null,
+      "created_at": "2026-03-21T22:52:19.256825-04:00"
+    },
+    {
+      "id": 262,
+      "from_node_id": 321,
+      "to_node_id": 328,
+      "from_change_id": "2487b835-6ed6-4bb5-ba5a-ee2fa1e6c15f",
+      "to_change_id": "de1583b8-04bf-45af-b463-57f8097caa7f",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": null,
+      "created_at": "2026-03-21T22:53:34.923213-04:00"
     }
   ]
 }
