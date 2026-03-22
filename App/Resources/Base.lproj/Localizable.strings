@@ -1,0 +1,48 @@
+/* SRFeedViewController */
+"Show All Messages" = "Show All Messages";
+"No messages found" = "No messages found";
+"Verified" = "Verified";
+"Unverified" = "Unverified";
+"Not connected to server" = "Not connected to server";
+
+/* SRProfileViewController / SRProfileHeaderView */
+"Set Profile" = "Set Profile";
+"%ld Messages/Following/Followers" = "%ld Messages/Following/Followers";
+"No Identity" = "No Identity";
+"Identity Missing" = "Identity Missing";
+"Save" = "Save";
+"Cancel" = "Cancel";
+"Display Name" = "Display Name";
+"Description" = "Description";
+"Room Alias (e.g. alice)" = "Room Alias (e.g. alice)";
+"Follow" = "Follow";
+"Unfollow" = "Unfollow";
+"Block" = "Block";
+"Unblock" = "Unblock";
+
+/* SRComposeViewController */
+"Replying to..." = "Replying to...";
+"Replying to... %@" = "Replying to... %@";
+"Content Warning (optional)" = "Content Warning (optional)";
+"Content Warning" = "Content Warning";
+"Message Content" = "Message Content";
+"Publish" = "Publish";
+"Publish Message" = "Publish Message";
+"Message published successfully!" = "Message published successfully!";
+"Publish (%@)" = "Publish (%@)";
+"Syncing..." = "Syncing...";
+"0 / 1000" = "0 / 1000";
+"%ld / 1000" = "%ld / 1000";
+"0 of 1000 characters used" = "0 of 1000 characters used";
+"%ld of 1000 characters used" = "%ld of 1000 characters used";
+
+/* SRSidebarViewController */
+"SSB" = "SSB";
+"Home" = "Home";
+"Channels" = "Channels";
+"Repositories" = "Repositories";
+"Peers" = "Peers";
+"ROOMS" = "ROOMS";
+"CHANNELS" = "CHANNELS";
+"REPOSITORIES" = "REPOSITORIES";
+"Unnamed Repo" = "Unnamed Repo";

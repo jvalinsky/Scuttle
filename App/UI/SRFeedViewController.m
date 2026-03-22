@@ -18,9 +18,16 @@
 @property (nonatomic, strong) NSTextField *integrityBadge;
 /// Set of author IDs whose feeds have passed lipmaa integrity checks.
 @property (nonatomic, strong) NSMutableSet<NSString *> *verifiedAuthors;
+@property (nonatomic, strong) NSMutableArray *observerTokens;
 @end
 
 @implementation SRFeedViewController
+
+- (void)dealloc {
+    for (id token in self.observerTokens) {
+        [[NSNotificationCenter defaultCenter] removeObserver:token];
+    }
+}
 
 - (void)loadView {
     self.scrollView = [[NSScrollView alloc] init];
@@ -34,6 +41,7 @@
 
     self.messagesByKey = [NSMutableDictionary dictionary];
     self.verifiedAuthors = [NSMutableSet set];
+    self.observerTokens = [NSMutableArray array];
 
     NSCollectionViewFlowLayout *layout = [[NSCollectionViewFlowLayout alloc] init];
     layout.minimumLineSpacing = [SRStyle spacingMD];
@@ -45,16 +53,19 @@
     self.collectionView.selectable = YES;
     [self.collectionView registerClass:[SRFeedItem class] forItemWithIdentifier:@"FeedItem"];
 
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(viewDidResize:)
-                                                 name:NSViewFrameDidChangeNotification
-                                               object:self.scrollView];
+    __weak typeof(self) weakSelf = self;
+    id token = [[NSNotificationCenter defaultCenter] addObserverForName:NSViewFrameDidChangeNotification
+                                                                 object:self.scrollView
+                                                                  queue:[NSOperationQueue mainQueue]
+                                                             usingBlock:^(NSNotification * _Nonnull note) {
+        [weakSelf.collectionView.collectionViewLayout invalidateLayout];
+    }];
+    [self.observerTokens addObject:token];
     self.scrollView.postsBoundsChangedNotifications = YES;
 
     self.scrollView.documentView = self.collectionView;
 
     // Configure diffable data source — owns cell provision, no dataSource delegate needed.
-    __weak typeof(self) weakSelf = self;
     self.dataSource = [[NSCollectionViewDiffableDataSource alloc]
         initWithCollectionView:self.collectionView
                   itemProvider:^NSCollectionViewItem *(NSCollectionView *cv, NSIndexPath *ip, NSString *msgKey) {

@@ -1921,9 +1921,9 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     
     // Notify progress started
     dispatch_async(dispatch_get_main_queue(), ^{
-    if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
-        [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Syncing %@...", [feedAuthor substringToIndex:MIN(10, feedAuthor.length)]] progress:0.0 author:feedAuthor];
-    }
+        if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
+            [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Syncing %@...", [feedAuthor substringToIndex:MIN(10, feedAuthor.length)]] progress:0.0 author:feedAuthor];
+        }
     });
 
     SSBMuxRPCSession *session = self.rpcSession;
