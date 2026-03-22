@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import "SRWorkspaceTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -14,8 +15,15 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SRSidebarViewController : NSViewController <NSOutlineViewDelegate, NSOutlineViewDataSource>
 @property (nonatomic, weak, nullable) id<SRSidebarDelegate> delegate;
 
+@property (nonatomic, assign) SRWorkspaceContext activeContext;
+@property (nonatomic, assign) BOOL hideProfileHeader;
+
 /// Programmatically select a sidebar destination.
 - (void)selectDestination:(NSString *)identifier;
+
+/// Rebuild sections based on activeContext
+- (void)reloadContents;
+
 @end
 
 NS_ASSUME_NONNULL_END

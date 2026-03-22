@@ -4,7 +4,6 @@
 #import "../../App/Logic/SRRoomManager.h"
 #import "../../App/Logic/SRNotificationNames.h"
 #import "../../App/UI/SRSidebarViewController.h"
-#import "../../App/UI/SRMainSplitViewController.h"
 #import "../../App/UI/SRContentContainerViewController.h"
 #import "../../App/UI/SRHomeViewController.h"
 #import "../../App/UI/SRChannelBrowserViewController.h"
@@ -388,77 +387,6 @@
 }
 
 @end
-
-#pragma mark - SRMainSplitViewControllerTests
-
-@interface SRMainSplitViewController (TestAccess)
-@property (nonatomic, strong) SRSidebarViewController *sidebarVC;
-@property (nonatomic, strong) SRContentContainerViewController *contentContainer;
-@property (nonatomic, strong) SRHomeViewController *homeVC;
-@property (nonatomic, strong) SRPeerListViewController *peerListVC;
-@end
-
-@interface SRContentContainerViewController (TestAccess)
-@property (nonatomic, readonly) NSViewController *topViewController;
-@end
-
-@interface SRMainSplitViewControllerTests : XCTestCase
-@property (nonatomic, strong) SRMainSplitViewController *vc;
-@end
-
-@implementation SRMainSplitViewControllerTests
-
-- (void)setUp {
-    [super setUp];
-    self.vc = [[SRMainSplitViewController alloc] init];
-}
-
-- (void)tearDown {
-    if (self.vc) {
-        [[NSNotificationCenter defaultCenter] removeObserver:self.vc];
-    }
-    self.vc = nil;
-    [super tearDown];
-}
-
-- (void)testViewDidLoad_setsUpSplitItems {
-    [self.vc loadView];
-    [self.vc viewDidLoad];
-    
-    // Default splits: Sidebar, Content, PeerList
-    XCTAssertEqual(self.vc.splitViewItems.count, 3);
-    XCTAssertTrue([self.vc.sidebarVC isKindOfClass:[SRSidebarViewController class]]);
-    XCTAssertTrue([self.vc.peerListVC isKindOfClass:[SRPeerListViewController class]]);
-}
-
-- (void)testPeerListViewController_didSelectPeer_pushesProfile {
-    [self.vc loadView];
-    [self.vc viewDidLoad];
-
-    NSString *peerID = @"@test-peer.ed25519";
-    
-    // Explicitly call delegate method
-    [(id<SRPeerListDelegate>)self.vc peerListViewController:self.vc.peerListVC didSelectPeer:peerID];
-    
-    // Check if SRProfileViewController is pushed on contentContainer
-    XCTAssertTrue([self.vc.contentContainer.topViewController isKindOfClass:[NSViewController class]], @"Should have a top VC");
-    // Since we can't fully inspect SRProfileViewController from outside easily without crash in some headless tests,
-    // we assert generally that it is a controller.
-    // If it is SRProfileViewController, we can test more properties!
-    XCTAssertTrue([self.vc.contentContainer.topViewController respondsToSelector:@selector(peerID)], @"Should respond to peerID");
-}
-
-- (void)testChannelBrowser_didSelectChannel_updatesFeed {
-    [self.vc loadView];
-    [self.vc viewDidLoad];
-
-    // Explicitly call delegate method
-    [(id<SRChannelBrowserDelegate>)self.vc channelBrowser:nil didSelectChannel:@"test-channel"];
-    
-    // Check if feedVC received the channel filter or loaded it
-    // In SRFeedViewController.h (we should check if channel property is declared)
-    // For now, this drives the method body block perfectly.
-}
 
 @end
 

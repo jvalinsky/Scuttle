@@ -26,8 +26,6 @@
     effectView.state = NSVisualEffectStateActive;
     self.view = effectView;
     [SRStyle styleCardView:self.view];
-    // Clear background to let material show
-    self.view.layer.backgroundColor = [NSColor clearColor].CGColor;
 
     _avatarView = [[NSView alloc] init];
     _avatarView.wantsLayer = YES;
@@ -177,11 +175,8 @@
     if (!self.branchLineView.hidden) {
         self.branchLineView.layer.backgroundColor = [[NSColor separatorColor] colorWithAlphaComponent:0.6].CGColor;
     }
-    if (self.isHovered) {
-        self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.85].CGColor;
-    } else {
-        self.view.layer.backgroundColor = [NSColor clearColor].CGColor;
-    }
+    CGFloat alpha = self.isHovered ? 0.95 : 0.85;
+    self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:alpha].CGColor;
 }
 
 - (void)showQRAction:(id)sender {
@@ -375,12 +370,12 @@
 
 - (void)mouseEntered:(NSEvent *)event {
     self.isHovered = YES;
-    self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.85].CGColor;
+    self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.95].CGColor;
 }
 
 - (void)mouseExited:(NSEvent *)event {
     self.isHovered = NO;
-    self.view.layer.backgroundColor = [NSColor clearColor].CGColor;
+    self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.85].CGColor;
 }
 
 - (void)toggleCW:(id)sender {

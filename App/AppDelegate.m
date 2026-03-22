@@ -2,7 +2,8 @@
 #import "Logic/SRRoomManager.h"
 #import "Logic/SRNotificationNames.h"
 #import "Logic/SRGitRemoteHelperServer.h"
-#import "UI/SRMainSplitViewController.h"
+#import "UI/SRMainWindowController.h"
+#import "UI/SRRoomWindowController.h"
 #import "UI/SRSettingsWindowController.h"
 #import "SRPlatformNotifications.h"
 #import "../Sources/SSBLogCompat.h"
@@ -10,7 +11,8 @@
 static os_log_t ssb_app_log;
 
 @interface AppDelegate ()
-@property (nonatomic, strong) SRMainSplitViewController *mainVC;
+@property (nonatomic, strong) NSMutableArray<SRMainWindowController *> *windowControllers;
+@property (nonatomic, strong) NSMutableArray<SRRoomWindowController *> *roomControllers;
 #ifdef __APPLE__
 @property (nonatomic, strong, nullable) NSStatusItem *statusItem;
 #else
@@ -41,33 +43,9 @@ static os_log_t ssb_app_log;
     [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     [self setupMenu];
     
-    self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1200, 800)
-                                            styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable | NSWindowStyleMaskFullSizeContentView
-                                              backing:NSBackingStoreBuffered
-                                                defer:NO];
-    self.window.title = @"ScuttleRoom";
-    self.window.releasedWhenClosed = NO;
-    self.window.toolbarStyle = NSWindowToolbarStyleUnified;
-    self.window.titlebarAppearsTransparent = YES;
-    self.window.contentMinSize = NSMakeSize(900, 600);
-    self.window.tabbingMode = NSWindowTabbingModeAutomatic;
-    self.window.contentViewController = [[NSViewController alloc] init];
-    
-    [self.window center];
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.mainVC = [[SRMainSplitViewController alloc] init];
-        self.window.contentViewController = self.mainVC;
-
-        NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"MainToolbar"];
-        toolbar.delegate = self.mainVC;
-        toolbar.displayMode = NSToolbarDisplayModeIconOnly;
-        self.window.toolbar = toolbar;
-
-        [self.window makeKeyAndOrderFront:nil];
-        [self.window orderFrontRegardless];
-        [self bringToFront:nil];
-    });
+    self.windowControllers = [NSMutableArray array];
+    self.roomControllers = [NSMutableArray array];
+    [self newWindow:nil];
 
     [self setupStatusItem];
     
@@ -101,7 +79,9 @@ static os_log_t ssb_app_log;
     // File menu
     NSMenuItem *fileMenuItem = [mainMenu addItemWithTitle:@"File" action:NULL keyEquivalent:@""];
     NSMenu *fileMenu = [[NSMenu alloc] initWithTitle:@"File"];
-    [fileMenu addItemWithTitle:@"New Post" action:@selector(newPost:) keyEquivalent:@"n"];
+    [fileMenu addItemWithTitle:@"New Window" action:@selector(newWindow:) keyEquivalent:@"n"];
+    NSMenuItem *newPostItem = [fileMenu addItemWithTitle:@"New Post" action:@selector(newPost:) keyEquivalent:@"n"];
+    newPostItem.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
     NSMenuItem *closeItem = [fileMenu addItemWithTitle:@"Close Window" action:@selector(performClose:) keyEquivalent:@"w"];
     closeItem.target = NSApp;
     [mainMenu setSubmenu:fileMenu forItem:fileMenuItem];
@@ -140,6 +120,8 @@ static os_log_t ssb_app_log;
     // Window menu
     NSMenuItem *windowMenuItem = [mainMenu addItemWithTitle:@"Window" action:NULL keyEquivalent:@""];
     NSMenu *windowMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+    [windowMenu addItemWithTitle:@"Manage Rooms" action:@selector(manageRooms:) keyEquivalent:@"R"];
+    [windowMenu addItem:[NSMenuItem separatorItem]];
     [mainMenu setSubmenu:windowMenu forItem:windowMenuItem];
     [NSApp setWindowsMenu:windowMenu];
 
@@ -151,6 +133,56 @@ static os_log_t ssb_app_log;
     [mainMenu setSubmenu:helpMenu forItem:helpMenuItem];
 
     [NSApp setMainMenu:mainMenu];
+}
+
+- (void)newWindow:(id)sender {
+    SRMainWindowController *controller = [[SRMainWindowController alloc] init];
+    [self.windowControllers addObject:controller];
+    
+    // Set self as delegate or observe close notification
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(windowWillClose:) 
+                                                 name:NSWindowWillCloseNotification 
+                                               object:controller.window];
+    
+    [controller.window makeKeyAndOrderFront:nil];
+    [controller.window orderFrontRegardless];
+}
+
+- (void)manageRooms:(id)sender {
+    if (self.roomControllers.count > 0) {
+        [self.roomControllers.firstObject.window makeKeyAndOrderFront:nil];
+        return;
+    }
+    SRRoomWindowController *controller = [[SRRoomWindowController alloc] init];
+    [self.roomControllers addObject:controller];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self 
+                                             selector:@selector(roomWindowWillClose:) 
+                                                 name:NSWindowWillCloseNotification 
+                                               object:controller.window];
+    [controller.window makeKeyAndOrderFront:nil];
+}
+
+- (void)windowWillClose:(NSNotification *)notification {
+    NSWindow *window = notification.object;
+    SRMainWindowController *toRemove = nil;
+    for (SRMainWindowController *controller in self.windowControllers) {
+        if (controller.window == window) {
+            toRemove = controller;
+            break;
+        }
+    }
+    if (toRemove) {
+        [self.windowControllers removeObject:toRemove];
+    }
+}
+
+- (void)roomWindowWillClose:(NSNotification *)notification {
+    NSWindow *window = notification.object;
+    if (self.roomControllers.count > 0 && self.roomControllers.firstObject.window == window) {
+        [self.roomControllers removeAllObjects];
+    }
 }
 
 - (void)showPreferences:(id)sender {
@@ -232,7 +264,11 @@ static os_log_t ssb_app_log;
 
 - (void)statusItemRoomAction:(NSMenuItem *)sender {
     RoomConfig *room = sender.representedObject;
-    [self.window makeKeyAndOrderFront:nil];
+    if (self.windowControllers.count == 0) {
+        [self newWindow:nil];
+    }
+    NSWindow *window = self.windowControllers.firstObject.window;
+    [window makeKeyAndOrderFront:nil];
     [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification
                                                         object:nil
                                                       userInfo:@{SRRoomManagerRoomSelectedKey: room}];
@@ -242,12 +278,19 @@ static os_log_t ssb_app_log;
                               state:(NSCoder *)state
                   completionHandler:(void (^)(NSWindow *, NSError *))completionHandler {
     AppDelegate *delegate = (AppDelegate *)[NSApp delegate];
-    completionHandler(delegate.window, nil);
+    if (delegate.windowControllers.count == 0) {
+        [delegate newWindow:nil];
+    }
+    completionHandler(delegate.windowControllers.firstObject.window, nil);
 }
 
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
     if (!flag) {
-        [self.window makeKeyAndOrderFront:nil];
+        if (self.windowControllers.count == 0) {
+            [self newWindow:nil];
+        } else {
+            [self.windowControllers.firstObject.window makeKeyAndOrderFront:nil];
+        }
     }
     return NO;
 }
@@ -263,7 +306,11 @@ static os_log_t ssb_app_log;
 #pragma clang diagnostic pop
     }
 #endif
-    [self.window makeKeyAndOrderFront:nil];
+    if (self.windowControllers.count == 0) {
+        [self newWindow:nil];
+    } else {
+        [self.windowControllers.firstObject.window makeKeyAndOrderFront:nil];
+    }
 }
 
 @end

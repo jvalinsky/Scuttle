@@ -91,3 +91,45 @@
 }
 
 @end
+
+#import "TEA/SRModel.h"
+#import "TEA/SRMsg.h"
+#import "TEA/SRUpdate.h"
+#import "RoomInviteHandler.h"
+
+@interface SRStateTransitionTests : XCTestCase
+@end
+
+@implementation SRStateTransitionTests
+
+- (void)testInitialModel {
+    SRModel *model = [SRModel initialModel];
+    XCTAssertEqual(model.workspaceContext, SRWorkspaceContextFeeds);
+    XCTAssertNil(model.selectedRoom);
+}
+
+- (void)testSetWorkspaceContext {
+    SRModel *model = [SRModel initialModel];
+    SRMsg *msg = [SRMsg setWorkspaceContext:SRWorkspaceContextGit];
+    
+    SRUpdateResult *result = [SRUpdate updateWithModel:model msg:msg];
+    
+    XCTAssertEqual(result.model.workspaceContext, SRWorkspaceContextGit);
+    XCTAssertNil(result.model.selectedRoom);
+}
+
+- (void)testSelectRoom {
+    SRModel *model = [SRModel initialModel];
+    
+    unsigned char dummyBytes[] = {0x01, 0x02, 0x03};
+    NSData *pubKeyData = [NSData dataWithBytes:dummyBytes length:sizeof(dummyBytes)];
+    RoomConfig *room = [[RoomConfig alloc] initWithHost:@"test.room" port:8008 pubKey:pubKeyData];
+    
+    SRMsg *msg = [SRMsg selectRoom:room];
+    SRUpdateResult *result = [SRUpdate updateWithModel:model msg:msg];
+    
+    XCTAssertEqual(result.model.workspaceContext, SRWorkspaceContextFeeds); 
+    XCTAssertEqual(result.model.selectedRoom, room);
+}
+
+@end

@@ -65,7 +65,7 @@
 }
 
 + (CGFloat)cornerRadiusMedium {
-    return 8.0;
+    return 14.0;
 }
 
 + (CGFloat)cornerRadiusLarge {
@@ -124,9 +124,9 @@
 
 + (NSShadow *)cardShadow {
     NSShadow *shadow = [[NSShadow alloc] init];
-    shadow.shadowColor = [NSColor.shadowColor colorWithAlphaComponent:0.12];
-    shadow.shadowOffset = NSMakeSize(0, -1);
-    shadow.shadowBlurRadius = 4.0;
+    shadow.shadowColor = [NSColor.shadowColor colorWithAlphaComponent:0.25];
+    shadow.shadowOffset = NSMakeSize(0, -3);
+    shadow.shadowBlurRadius = 12.0;
     return shadow;
 }
 
@@ -143,8 +143,7 @@
 + (void)styleCardView:(NSView *)view {
     view.wantsLayer = YES;
     view.layer.cornerRadius = [self cornerRadiusMedium];
-    view.layer.borderWidth = 0.5;
-    view.layer.borderColor = [self cardBorderColor].CGColor;
+    view.layer.borderWidth = 0.0; // Smooth card
     view.layer.backgroundColor = [self cardBackgroundColor].CGColor;
     view.shadow = [self cardShadow];
 }

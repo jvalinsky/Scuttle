@@ -50,6 +50,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param data The encrypted SHS/BoxStream data payload
 - (void)receiveTunnelData:(NSData *)data;
 
+/// Replays any requests that arrived before the rpcSession's receiveRequestBlock was set.
+/// Call this after installing a real receiveRequestBlock on the rpcSession.
+- (void)replayPendingIncomingRequests;
+
 @end
 
 NS_ASSUME_NONNULL_END

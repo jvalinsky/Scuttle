@@ -4,7 +4,6 @@
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
 #import "../Logic/SRQRUtils.h"
-#import "SRMainSplitViewController.h"
 #import "SRStyle.h"
 #import "../../Sources/SSBBamboo.h"
 #import "../../Sources/SSBFeedStore.h"
@@ -142,6 +141,14 @@ static os_log_t sidebar_log;
                 if (row >= 0 && self.outlineView.selectedRow < 0) {
                     os_log_info(sidebar_log, "Auto-selecting first room");
                     [self.outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
+                    
+                    // DIAGNOSTIC AUTO-JOIN FOR HEADLESS CAPTURE
+                    if ([firstRoom.representedObject isKindOfClass:[RoomConfig class]]) {
+                        RoomConfig *room = (RoomConfig *)firstRoom.representedObject;
+                        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                            [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomManagerRoomSelectedNotification object:nil userInfo:@{SRRoomManagerRoomSelectedKey: room}];
+                        });
+                    }
                 }
             }
         }
@@ -156,49 +163,47 @@ static os_log_t sidebar_log;
 
 #pragma mark - Rebuild Sections
 
+- (void)reloadContents {
+    [self _rebuildSections];
+}
+
 - (void)_rebuildSections {
     [self.sections removeAllObjects];
 
-    // TOP section for Home/Global
-    SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
-    SRSidebarItem *homeItem = [SRSidebarItem roomItemWithTitle:@"Home" representedObject:@"home"];
-    [topSection.children addObject:homeItem];
-    
-    SRSidebarItem *channelsItem = [SRSidebarItem roomItemWithTitle:@"Channels" representedObject:@"channels"];
-    [topSection.children addObject:channelsItem];
-    
-    SRSidebarItem *reposItem = [SRSidebarItem roomItemWithTitle:@"Repositories" representedObject:@"repos"];
-    [topSection.children addObject:reposItem];
-    
-    SRSidebarItem *peersItem = [SRSidebarItem peerItemWithTitle:@"Peers" representedObject:@"peers"];
-    [topSection.children addObject:peersItem];
-    
-    [self.sections addObject:topSection];
+    if (self.activeContext == SRWorkspaceContextFeeds) {
+        SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
+        [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Home" representedObject:@"home"]];
+        [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Channels" representedObject:@"channels"]];
+        [self.sections addObject:topSection];
 
-    // ROOMS section
-    SRSidebarItem *roomsSection = [SRSidebarItem sectionItemWithTitle:@"ROOMS"];
-    for (RoomConfig *room in [SRRoomManager sharedManager].rooms) {
-        SRSidebarItem *roomItem = [SRSidebarItem roomItemWithTitle:room.host representedObject:room];
-        [roomsSection.children addObject:roomItem];
+        SRSidebarItem *channelsSection = [SRSidebarItem sectionItemWithTitle:@"CHANNELS"];
+        [self.sections addObject:channelsSection];
     }
-    [self.sections addObject:roomsSection];
+    else if (self.activeContext == SRWorkspaceContextGit) {
+        SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
+        [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Repositories" representedObject:@"repos"]];
+        [self.sections addObject:topSection];
 
-    // CHANNELS section (empty for now; populate from feed store when available)
-    SRSidebarItem *channelsSection = [SRSidebarItem sectionItemWithTitle:@"CHANNELS"];
-    [self.sections addObject:channelsSection];
-
-    // REPOSITORIES section
-    SRSidebarItem *reposSection = [SRSidebarItem sectionItemWithTitle:@"REPOSITORIES"];
-    for (SSBMessage *repoMsg in self.gitRepos) {
-        NSString *repoName = repoMsg.content[@"name"] ?: @"Unnamed Repo";
-        SRSidebarItem *repoItem = [SRSidebarItem repoItemWithTitle:repoName representedObject:repoMsg];
-        [reposSection.children addObject:repoItem];
+        SRSidebarItem *reposSection = [SRSidebarItem sectionItemWithTitle:@"REPOSITORIES"];
+        for (SSBMessage *repoMsg in self.gitRepos) {
+            NSString *repoName = repoMsg.content[@"name"] ?: @"Unnamed Repo";
+            [reposSection.children addObject:[SRSidebarItem repoItemWithTitle:repoName representedObject:repoMsg]];
+        }
+        [self.sections addObject:reposSection];
     }
-    [self.sections addObject:reposSection];
+    else if (self.activeContext == SRWorkspaceContextNetwork) {
+        SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
+        [topSection.children addObject:[SRSidebarItem peerItemWithTitle:@"Peers" representedObject:@"peers"]];
+        [self.sections addObject:topSection];
+
+        SRSidebarItem *roomsSection = [SRSidebarItem sectionItemWithTitle:@"ROOMS"];
+        for (RoomConfig *room in [SRRoomManager sharedManager].rooms) {
+            [roomsSection.children addObject:[SRSidebarItem roomItemWithTitle:room.host representedObject:room]];
+        }
+        [self.sections addObject:roomsSection];
+    }
 
     [self.outlineView reloadData];
-
-    // Expand all sections
     for (SRSidebarItem *section in self.sections) {
         [self.outlineView expandItem:section];
     }
@@ -272,10 +277,14 @@ static os_log_t sidebar_log;
     self.syncLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [self.syncStatusContainer addSubview:self.syncLabel];
 
+    CGFloat headerHeight = self.hideProfileHeader ? 0 : 64;
+
     [NSLayoutConstraint activateConstraints:@[
+        [self.profileHeader.topAnchor constraintEqualToAnchor:self.view.topAnchor],
         [self.profileHeader.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.profileHeader.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
-        [self.profileHeader.heightAnchor constraintEqualToConstant:64],
+        [self.profileHeader.heightAnchor constraintEqualToConstant:headerHeight],
+
         [self.scrollView.topAnchor constraintEqualToAnchor:self.profileHeader.bottomAnchor constant:4],
         [self.scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [self.scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],

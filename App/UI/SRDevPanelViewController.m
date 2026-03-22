@@ -40,6 +40,11 @@
     self.logView.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
     scrollView.documentView = self.logView;
     
+    NSButton *closeButton = [NSButton buttonWithTitle:@"Close" target:self action:@selector(closeAction:)];
+    closeButton.translatesAutoresizingMaskIntoConstraints = NO;
+    closeButton.bezelStyle = NSBezelStyleRounded;
+    [self.view addSubview:closeButton];
+    
     [NSLayoutConstraint activateConstraints:@[
         [self.pubkeyLabel.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:20],
         [self.pubkeyLabel.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
@@ -51,10 +56,18 @@
         [scrollView.topAnchor constraintEqualToAnchor:self.statsLabel.bottomAnchor constant:20],
         [scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
         [scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
-        [scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-20]
+        [scrollView.bottomAnchor constraintEqualToAnchor:closeButton.topAnchor constant:-12],
+        
+        [closeButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16],
+        [closeButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-16],
+        [closeButton.widthAnchor constraintEqualToConstant:80]
     ]];
     
     [self refreshData];
+}
+
+- (void)closeAction:(id)sender {
+    [self dismissViewController:self];
 }
 
 - (void)refreshData {

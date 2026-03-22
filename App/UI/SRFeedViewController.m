@@ -48,7 +48,7 @@
     self.observerTokens = [NSMutableArray array];
 
     NSCollectionViewFlowLayout *layout = [[NSCollectionViewFlowLayout alloc] init];
-    layout.minimumLineSpacing = [SRStyle spacingMD];
+    layout.minimumLineSpacing = [SRStyle spacingXL];
     layout.sectionInset = NSEdgeInsetsMake([SRStyle spacingXL], [SRStyle spacingXL], [SRStyle spacingXL], [SRStyle spacingXL]);
 
     self.collectionView = [[NSCollectionView alloc] initWithFrame:NSZeroRect];

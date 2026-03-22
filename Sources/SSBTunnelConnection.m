@@ -23,6 +23,7 @@
 @property (nonatomic, assign) BOOL isHandshakeComplete;
 @property (nonatomic, strong) NSMutableArray<SSBMuxRPCMessage *> *pendingMessages;
 @property (nonatomic, strong) NSMutableArray<NSData *> *incomingBuffer;
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *pendingIncomingRequests;
 @end
 
 @implementation SSBTunnelConnection
@@ -46,6 +47,7 @@
         _transportBackend = [SSBTransport defaultBackend];
         _pendingMessages = [NSMutableArray array];
         _incomingBuffer = [NSMutableArray array];
+        _pendingIncomingRequests = [NSMutableArray array];
         
         _rpcSession = [[SSBMuxRPCSession alloc] init];
         
@@ -76,17 +78,21 @@
         _rpcSession.receiveRequestBlock = ^(id payload, int32_t requestID, uint8_t flags) {
             __strong typeof(weakSelf) strongSelf = weakSelf;
             if (!strongSelf) return;
-            // The tunnel connection itself can receive EBT requests or subset requests from the peer.
-            // Currently, RoomClient handles server-initiated requests. It will need to proxy them if needed.
-            // Since this is for EBT initially, we just log it unless we add a delegate later.
-            os_log_debug(strongSelf.log, "Unhandled tunnel request: req=%d payload=%{public}@", requestID, payload);
+            // Buffer incoming requests until a real handler is installed (e.g. by startEBTReplicationWithSession:).
+            // This prevents dropping early peer requests that arrive before EBT setup completes.
+            [strongSelf.pendingIncomingRequests addObject:@{
+                @"payload": payload ?: [NSNull null],
+                @"requestID": @(requestID),
+                @"flags": @(flags)
+            }];
+            os_log_debug(strongSelf.log, "Buffered tunnel request: req=%d (will replay when handler installed)", requestID);
         };
     }
     return self;
 }
 
 - (void)start {
-    SSBTransportEndpoint *loopback = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:0];
+    SSBTransportEndpoint *loopback = [SSBTransportEndpoint endpointWithHost:@"::1" port:0];
     self.listener = [self.transportBackend listenerOnEndpoint:loopback queue:self.tunnelQueue];
     
     __weak typeof(self) weakSelf = self;
@@ -142,7 +148,7 @@
 }
 
 - (void)connectClient {
-    SSBTransportEndpoint *endpoint = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:self.listener.port];
+    SSBTransportEndpoint *endpoint = [SSBTransportEndpoint endpointWithHost:@"::1" port:self.listener.port];
     SSBTransportConnectionOptions *options = [[SSBTransportConnectionOptions alloc] init];
     options.enableSecurityFramer = YES;
     options.enableMuxRPCFramer = YES;
@@ -209,6 +215,10 @@
         }
         
         [strongSelf.serverConnection sendData:data isComplete:NO completion:^(NSError * _Nullable error) {
+            __strong typeof(weakSelf) innerSelf = weakSelf;
+            if (innerSelf) {
+                os_log_debug(innerSelf.log, "receiveTunnelData: sendData completed (len=%lu) with error=%@", (unsigned long)data.length, error);
+            }
             if (error) {
                 os_log_error(weakSelf.log, "Failed to write incoming tunnel data to server socket: %{public}@", error);
             }
@@ -277,6 +287,25 @@
             [strongSelf readFromClientConnection];
         }
     }];
+}
+
+- (void)replayPendingIncomingRequests {
+    dispatch_async(self.tunnelQueue, ^{
+        NSArray<NSDictionary *> *pending = [self.pendingIncomingRequests copy];
+        [self.pendingIncomingRequests removeAllObjects];
+        if (pending.count > 0) {
+            os_log_info(self.log, "Replaying %lu buffered tunnel requests", (unsigned long)pending.count);
+        }
+        for (NSDictionary *req in pending) {
+            id payload = req[@"payload"];
+            if ([payload isEqual:[NSNull null]]) payload = nil;
+            int32_t requestID = [req[@"requestID"] intValue];
+            uint8_t flags = [req[@"flags"] unsignedCharValue];
+            if (self.rpcSession.receiveRequestBlock) {
+                self.rpcSession.receiveRequestBlock(payload, requestID, flags);
+            }
+        }
+    });
 }
 
 - (void)stop {
