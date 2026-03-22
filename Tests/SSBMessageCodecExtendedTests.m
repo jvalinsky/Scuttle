@@ -554,4 +554,51 @@ static NSString *FeedIdFromPublicKey(NSData *pk) {
     XCTAssertEqualObjects(emptyDict, @"{}");
 }
 
+- (void)testJsonStringLiteralEscapesBackslash {
+    // Input @"a\b" (one backslash) should produce JSON "a\\b"
+    NSString *input = @"a\\b"; // ObjC: a\b (single backslash)
+    NSString *result = [SSBMessageCodec jsonStringLiteral:input];
+    XCTAssertTrue([result containsString:@"\\\\"]);
+}
+
+- (void)testJsonStringLiteralEscapesBackspace {
+    unichar bs = 0x08;
+    NSString *input = [NSString stringWithCharacters:&bs length:1];
+    NSString *result = [SSBMessageCodec jsonStringLiteral:input];
+    XCTAssertTrue([result containsString:@"\\b"]);
+}
+
+- (void)testJsonStringLiteralEscapesFormFeed {
+    unichar ff = 0x0C;
+    NSString *input = [NSString stringWithCharacters:&ff length:1];
+    NSString *result = [SSBMessageCodec jsonStringLiteral:input];
+    XCTAssertTrue([result containsString:@"\\f"]);
+}
+
+- (void)testJsonStringLiteralEscapesCarriageReturn {
+    unichar cr = 0x0D;
+    NSString *input = [NSString stringWithCharacters:&cr length:1];
+    NSString *result = [SSBMessageCodec jsonStringLiteral:input];
+    XCTAssertTrue([result containsString:@"\\r"]);
+}
+
+- (void)testJsonStringLiteralEscapesControlCharsBelowU0020 {
+    // Control char 0x01 (SOH) -> \u0001
+    unichar soh = 0x01;
+    NSString *sohStr = [NSString stringWithCharacters:&soh length:1];
+    NSString *sohResult = [SSBMessageCodec jsonStringLiteral:sohStr];
+    XCTAssertTrue([sohResult containsString:@"\\u0001"]);
+
+    // Control char 0x1F (US) -> \u001f
+    unichar us = 0x1F;
+    NSString *usStr = [NSString stringWithCharacters:&us length:1];
+    NSString *usResult = [SSBMessageCodec jsonStringLiteral:usStr];
+    XCTAssertTrue([usResult containsString:@"\\u001f"]);
+}
+
+- (void)testJsonEncodeObjectFalseBoolean {
+    NSString *falseJSON = [SSBMessageCodec jsonEncodeObject:@NO indent:0];
+    XCTAssertEqualObjects(falseJSON, @"false");
+}
+
 @end

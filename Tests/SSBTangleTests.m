@@ -515,4 +515,240 @@ static SSBTangleData *makeTangleData(NSString *root, NSArray *previous) {
     XCTAssertEqualObjects(result, @[]);
 }
 
+#pragma mark - findRootForTangle (comprehensive coverage)
+
+- (void)testFindRoot_noTangleData_fallsToContentCheck {
+    // No tangleData in map, but content has tangles.main.root = NSNull → returns key
+    SSBMessage *m = makeMsg(@"%m.sha256", @"@alice.ed25519", 1, 1000,
+                            @{@"tangles": @{@"main": @{@"root": [NSNull null], @"previous": [NSNull null]}}});
+    // No tangleDataMap entry for the message
+    NSString *root = [SSBTangle findRootForTangle:@"main" messages:@[m] tangleDataMap:@{}];
+    XCTAssertEqualObjects(root, @"%m.sha256");
+}
+
+- (void)testFindRoot_noTangleDataAndNoContent_fallsToGraphTraversal {
+    // Two messages: m1 has no prev, m2 points to m1. No tangleDataMap for m1.
+    // Content has no tangles, so content check is skipped.
+    // Graph traversal: checks who is NOT referenced as "previous" by anyone.
+    // m1 IS in m2.previous → m1 gets isRoot=NO; m2 is not in anyone's previous → m2 returned.
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{@"type": @"post"});
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000, @{@"type": @"post"});
+    SSBTangleData *d2 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    NSString *result = [SSBTangle findRootForTangle:@"main"
+                                            messages:@[m1, m2]
+                                       tangleDataMap:@{@"%m2.sha256": d2}];
+    XCTAssertNotNil(result);
+    // The graph traversal fallback returns the message NOT referenced as prev by anyone
+    XCTAssertEqualObjects(result, @"%m2.sha256");
+}
+
+- (void)testFindRoot_messagesWithTangleDataButNoNilRoot {
+    // m1 has root pointing to itself (unusual), m2 has root pointing to m1.
+    // Neither has a nil root, so traversal loop skips to content check.
+    // m1 content has tangles.main.root = NSNull → returns m1's key.
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000,
+                             @{@"tangles": @{@"main": @{@"root": [NSNull null], @"previous": [NSNull null]}}});
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000,
+                             @{@"tangles": @{@"main": @{@"root": @"%m1.sha256", @"previous": @[@"%m1.sha256"]}}});
+    SSBTangleData *d1 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]); // non-nil root
+    SSBTangleData *d2 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    NSString *root = [SSBTangle findRootForTangle:@"main"
+                                          messages:@[m1, m2]
+                                     tangleDataMap:@{@"%m1.sha256": d1, @"%m2.sha256": d2}];
+    XCTAssertEqualObjects(root, @"%m1.sha256");
+}
+
+- (void)testFindRoot_graphTraversalFindsUnreferencedMessage {
+    // Three messages: m2.previous=[m1], m3.previous=[m2]. All have tangleData with non-nil roots.
+    // Content has no null roots. Graph traversal: m1 is in m2.previous (isRoot=NO for m1),
+    // m2 is in m3.previous (isRoot=NO for m2), m3 is unreferenced → returned.
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{@"type": @"post"});
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000, @{@"type": @"post"});
+    SSBMessage *m3 = makeMsg(@"%m3.sha256", @"@alice.ed25519", 3, 3000, @{@"type": @"post"});
+    SSBTangleData *d1 = makeTangleData(@"%m1.sha256", nil);
+    SSBTangleData *d2 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    SSBTangleData *d3 = makeTangleData(@"%m1.sha256", @[@"%m2.sha256"]);
+    NSString *result = [SSBTangle findRootForTangle:@"main"
+                                            messages:@[m1, m2, m3]
+                                       tangleDataMap:@{@"%m1.sha256": d1, @"%m2.sha256": d2, @"%m3.sha256": d3}];
+    XCTAssertEqualObjects(result, @"%m3.sha256");
+}
+
+#pragma mark - topologicalSort with incomplete graph
+
+- (void)testTopologicalSort_withCycle_returnsSortedSubset {
+    // Messages that form a cycle: m1 → m2 → m1 (impossible in practice but tests the
+    // incomplete sort detection path)
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{});
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000, @{});
+    // m1 "previous" = m2, m2 "previous" = m1 → cycle → both have in-degree > 0
+    SSBTangleData *d1 = makeTangleData(@"%root.sha256", @[@"%m2.sha256"]);
+    SSBTangleData *d2 = makeTangleData(@"%root.sha256", @[@"%m1.sha256"]);
+    NSArray *sorted = [SSBTangle topologicalSort:@[m1, m2]
+                                       tangleName:@"main"
+                                     tangleDataMap:@{@"%m1.sha256": d1, @"%m2.sha256": d2}];
+    // With a cycle, sorted.count < messages.count — both nodes are stuck with in-degree > 0
+    XCTAssertLessThan(sorted.count, 2U);
+}
+
+#pragma mark - parseTangleData edge cases
+
+- (void)testParseTangleData_rootStringNotExtractable_usesRawValue {
+    // Root is a plain string not a message ID (no % or .sha256) → uses raw value
+    NSDictionary *content = @{
+        @"tangles": @{@"main": @{@"root": @"rawRootValue", @"previous": [NSNull null]}}
+    };
+    SSBTangleData *data = [SSBTangle parseTangleData:@"main" fromContent:content];
+    XCTAssertNotNil(data);
+    XCTAssertEqualObjects(data.root, @"rawRootValue");
+}
+
+- (void)testParseTangleData_previousItemNotExtractable_usesRawString {
+    // Previous item is a plain string not a message ID → uses raw string
+    NSDictionary *content = @{
+        @"tangles": @{@"main": @{
+            @"root": @"%root.sha256",
+            @"previous": @[@"rawPrevId"]
+        }}
+    };
+    SSBTangleData *data = [SSBTangle parseTangleData:@"main" fromContent:content];
+    XCTAssertNotNil(data);
+    XCTAssertEqual(data.previous.count, 1U);
+    XCTAssertEqualObjects(data.previous.firstObject, @"rawPrevId");
+}
+
+- (void)testParseTangleData_previousEmptyArray_returnsNilPrevious {
+    NSDictionary *content = @{
+        @"tangles": @{@"main": @{@"root": @"%root.sha256", @"previous": @[]}}
+    };
+    SSBTangleData *data = [SSBTangle parseTangleData:@"main" fromContent:content];
+    XCTAssertNotNil(data);
+    XCTAssertNil(data.previous); // empty array → nil
+}
+
+#pragma mark - tangleDataWithRoot:previous: filtering
+
+- (void)testTangleDataWithRoot_previousAllInvalid_returnsNilPrevious {
+    // All previous IDs are invalid → filtered to empty → nil previous
+    SSBTangleData *data = [SSBTangle tangleDataWithRoot:@"%root.sha256"
+                                               previous:@[@"invalid-id", @42]];
+    XCTAssertNotNil(data);
+    XCTAssertNil(data.previous);
+}
+
+#pragma mark - validateMessage edge cases
+
+- (void)testValidateMessage_nonRootNilPreviousValue_returnsFalse {
+    // previousValue is nil (not NSNull) for non-root message
+    NSDictionary *content = @{@"tangles": @{@"main": @{@"root": @"%r.sha256"}}};
+    SSBMessage *m = makeMsg(@"%m.sha256", @"@alice.ed25519", 2, 2000, content);
+    XCTAssertFalse([SSBTangle validateMessage:m inTangle:@"main" allMessages:@{}]);
+}
+
+#pragma mark - isMessage:connectedTo edge cases
+
+- (void)testIsMessageConnected_prevIdNotInMessages_returnsFalse {
+    // m2 points to m1, but m1 is not in the messages array
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000, @{});
+    SSBTangleData *d2 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    NSDictionary *dataMap = @{@"%m2.sha256": d2};
+    BOOL connected = [SSBTangle isMessage:@"%m2.sha256" connectedTo:@"%m1.sha256"
+                                 inTangle:@"main" messages:@[m2] tangleDataMap:dataMap];
+    // m2 -> m1 is in the previous list, but m1 IS the target → returns YES
+    XCTAssertTrue(connected);
+}
+
+- (void)testIsMessageConnected_viaTwoHops_returnsTrue {
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{});
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000, @{});
+    SSBMessage *m3 = makeMsg(@"%m3.sha256", @"@alice.ed25519", 3, 3000, @{});
+    SSBTangleData *d2 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    SSBTangleData *d3 = makeTangleData(@"%m1.sha256", @[@"%m2.sha256"]);
+    NSDictionary *dataMap = @{@"%m2.sha256": d2, @"%m3.sha256": d3};
+    BOOL connected = [SSBTangle isMessage:@"%m3.sha256" connectedTo:@"%m1.sha256"
+                                 inTangle:@"main" messages:@[m1, m2, m3] tangleDataMap:dataMap];
+    XCTAssertTrue(connected);
+}
+
+- (void)testIsMessageConnected_missingIntermediateMessage_returnsFalse {
+    // m3.previous = [m2], m2.previous = [m1] (target), but m2 is NOT in messages array.
+    // When traversing: m2 is added to queue but msgMap[m2] is nil → if(!currentMsg) continue
+    // The function cannot traverse through m2 to reach m1 → returns NO.
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{});
+    SSBMessage *m3 = makeMsg(@"%m3.sha256", @"@alice.ed25519", 3, 3000, @{});
+    // m3 points to m2 (intermediate), NOT directly to m1 (target)
+    SSBTangleData *d3 = makeTangleData(@"%m1.sha256", @[@"%m2.sha256"]);
+    NSDictionary *dataMap = @{@"%m3.sha256": d3};
+    BOOL connected = [SSBTangle isMessage:@"%m3.sha256" connectedTo:@"%m1.sha256"
+                                 inTangle:@"main" messages:@[m1, m3] tangleDataMap:dataMap];
+    XCTAssertFalse(connected);
+}
+
+#pragma mark - previousForNewMessageInTangle — tips.count == 0
+
+- (void)testPreviousForNew_selfReferentialMessage_returnsNil {
+    // A message that lists itself as its own previous.
+    // findTipsInTangle processes m1: allKeys={m1}, previous=[m1] → m1 in allKeys
+    // → hasParent={m1}. tips = allKeys - hasParent = {} → tips.count == 0 → nil.
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{});
+    SSBTangleData *d1 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    NSDictionary *dataMap = @{@"%m1.sha256": d1};
+    NSArray *prev = [SSBTangle previousForNewMessageInTangle:@"main"
+                                                     messages:@[m1]
+                                                tangleDataMap:dataMap];
+    XCTAssertNil(prev);
+}
+
+#pragma mark - tangleDataMapForMessages — non-dict tangle value
+
+- (void)testTangleDataMapForMessages_tangleValueNotDict_skipsEntry {
+    // tangles is a dict, but the value for "main" is a string (not a dict).
+    // Line 618: if (![tangleDataDict isKindOfClass:[NSDictionary class]]) continue;
+    SSBMessage *m = makeMsg(@"%m.sha256", @"@alice.ed25519", 1, 1000,
+                            @{@"tangles": @{@"main": @"notadict"}});
+    NSDictionary *map = [SSBTangle tangleDataMapForMessages:@[m]];
+    XCTAssertEqualObjects(map, @{});
+}
+
+#pragma mark - filterValidMessageIds — valid ID path
+
+- (void)testTangleDataWithRoot_validPreviousIDs_retainsThem {
+    // Passing valid message IDs through tangleDataWithRoot:previous: calls
+    // filterValidMessageIds:allMessages: where isValidMessageId returns YES.
+    SSBTangleData *data = [SSBTangle tangleDataWithRoot:@"%root.sha256"
+                                               previous:@[@"%prev.sha256"]];
+    XCTAssertNotNil(data.previous);
+    XCTAssertEqual(data.previous.count, 1U);
+    XCTAssertEqualObjects(data.previous.firstObject, @"%prev.sha256");
+}
+
+#pragma mark - topologicalSort — inner sort comparator
+
+- (void)testTopologicalSort_multipleNodesBecomeAvailableSimultaneously {
+    // m1 and m2 are roots. m3.previous = [m1], m4.previous = [m1, m2].
+    // After processing m2, m4's in-degree drops to 0 while m3 is already in queue.
+    // This forces the inner sort comparator (lines 297-304) to run on a 2-element queue.
+    SSBMessage *m1 = makeMsg(@"%m1.sha256", @"@alice.ed25519", 1, 1000, @{});
+    SSBMessage *m2 = makeMsg(@"%m2.sha256", @"@alice.ed25519", 2, 2000, @{});
+    SSBMessage *m3 = makeMsg(@"%m3.sha256", @"@alice.ed25519", 3, 3000, @{});
+    SSBMessage *m4 = makeMsg(@"%m4.sha256", @"@alice.ed25519", 4, 4000, @{});
+    // m3 → m1 (in-degree 1), m4 → m1 and m2 (in-degree 2)
+    SSBTangleData *d3 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256"]);
+    SSBTangleData *d4 = makeTangleData(@"%m1.sha256", @[@"%m1.sha256", @"%m2.sha256"]);
+    NSDictionary *dataMap = @{@"%m3.sha256": d3, @"%m4.sha256": d4};
+    NSArray *sorted = [SSBTangle topologicalSort:@[m1, m2, m3, m4]
+                                       tangleName:@"main"
+                                     tangleDataMap:dataMap];
+    XCTAssertEqual(sorted.count, 4U);
+    // m1 and m2 come first (roots), m3 after m1, m4 after both
+    NSArray *keys = [sorted valueForKey:@"key"];
+    NSUInteger m1Idx = [keys indexOfObject:@"%m1.sha256"];
+    NSUInteger m2Idx = [keys indexOfObject:@"%m2.sha256"];
+    NSUInteger m3Idx = [keys indexOfObject:@"%m3.sha256"];
+    NSUInteger m4Idx = [keys indexOfObject:@"%m4.sha256"];
+    XCTAssertLessThan(m1Idx, m3Idx);
+    XCTAssertLessThan(m1Idx, m4Idx);
+    XCTAssertLessThan(m2Idx, m4Idx);
+}
+
 @end

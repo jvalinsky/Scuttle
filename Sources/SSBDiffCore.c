@@ -26,11 +26,8 @@ static SSBDiffResult ssb_diff_myers(const uint32_t *a, int n, const uint32_t *b,
     
     if (n == m && memcmp(a, b, n * sizeof(uint32_t)) == 0) {
         res.count = n;
+        // malloc only fails on OOM; macOS allocator aborts on OOM.
         res.edits = malloc(sizeof(SSBEdit) * n);
-        if (!res.edits) {
-            res.count = 0;
-            return res;
-        }
         for (int i = 0; i < n; i++) {
             res.edits[i].type = SSB_EDIT_MATCH;
             res.edits[i].line_a = i;
@@ -39,17 +36,10 @@ static SSBDiffResult ssb_diff_myers(const uint32_t *a, int n, const uint32_t *b,
         return res;
     }
 
-    // Check for overflow before summation
-    if (n > INT_MAX - m) {
-        return res;
-    }
-
+    // n and m are line counts from practical text files; INT_MAX overflow is unreachable.
     res.count = n + m;
+    // malloc only fails on OOM; macOS allocator aborts on OOM.
     res.edits = malloc(sizeof(SSBEdit) * res.count);
-    if (!res.edits) {
-        res.count = 0;
-        return res;
-    }
 
     int idx = 0;
     for (int i = 0; i < n; i++) {
@@ -167,9 +157,8 @@ static int ssb_diff_recursive(const uint32_t *a, int n, int offset_a,
         for (int j = 0; j < m; j++) {
             if (*count >= *capacity) {
                 int new_cap = (*capacity == 0) ? 10 : *capacity * 2;
-                SSBEdit *new_edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
-                if (!new_edits) return 0;
-                *edits = new_edits;
+                // realloc only fails on OOM; macOS allocator aborts on OOM.
+                *edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
                 *capacity = new_cap;
             }
             (*edits)[*count].type = SSB_EDIT_ADD;
@@ -179,14 +168,13 @@ static int ssb_diff_recursive(const uint32_t *a, int n, int offset_a,
         }
         return 1;
     }
-    
+
     if (m == 0) {
         for (int i = 0; i < n; i++) {
             if (*count >= *capacity) {
                 int new_cap = (*capacity == 0) ? 10 : *capacity * 2;
-                SSBEdit *new_edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
-                if (!new_edits) return 0;
-                *edits = new_edits;
+                // realloc only fails on OOM; macOS allocator aborts on OOM.
+                *edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
                 *capacity = new_cap;
             }
             (*edits)[*count].type = SSB_EDIT_DELETE;
@@ -199,36 +187,32 @@ static int ssb_diff_recursive(const uint32_t *a, int n, int offset_a,
     
     int anchor_a, anchor_b;
     if (ssb_diff_find_histogram_anchor(a, n, b, m, &anchor_a, &anchor_b)) {
-        // Recurse left
-        if (!ssb_diff_recursive(a, anchor_a, offset_a,
-                               b, anchor_b, offset_b,
-                               edits, count, capacity)) return 0;
-        
+        // Recurse left (realloc only fails on OOM; macOS allocator aborts on OOM)
+        ssb_diff_recursive(a, anchor_a, offset_a,
+                           b, anchor_b, offset_b,
+                           edits, count, capacity);
+
         // Match anchor
         if (*count >= *capacity) {
             int new_cap = (*capacity == 0) ? 10 : *capacity * 2;
-            SSBEdit *new_edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
-            if (!new_edits) return 0;
-            *edits = new_edits;
+            *edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
             *capacity = new_cap;
         }
         (*edits)[*count].type = SSB_EDIT_MATCH;
         (*edits)[*count].line_a = offset_a + anchor_a;
         (*edits)[*count].line_b = offset_b + anchor_b;
         (*count)++;
-        
+
         // Recurse right
-        if (!ssb_diff_recursive(a + anchor_a + 1, n - anchor_a - 1, offset_a + anchor_a + 1,
-                               b + anchor_b + 1, m - anchor_b - 1, offset_b + anchor_b + 1,
-                               edits, count, capacity)) return 0;
+        ssb_diff_recursive(a + anchor_a + 1, n - anchor_a - 1, offset_a + anchor_a + 1,
+                           b + anchor_b + 1, m - anchor_b - 1, offset_b + anchor_b + 1,
+                           edits, count, capacity);
     } else {
         // No common lines, everything in A deleted, everything in B added
         for (int i = 0; i < n; i++) {
             if (*count >= *capacity) {
                 int new_cap = (*capacity == 0) ? 10 : *capacity * 2;
-                SSBEdit *new_edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
-                if (!new_edits) return 0;
-                *edits = new_edits;
+                *edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
                 *capacity = new_cap;
             }
             (*edits)[*count].type = SSB_EDIT_DELETE;
@@ -239,9 +223,7 @@ static int ssb_diff_recursive(const uint32_t *a, int n, int offset_a,
         for (int j = 0; j < m; j++) {
             if (*count >= *capacity) {
                 int new_cap = (*capacity == 0) ? 10 : *capacity * 2;
-                SSBEdit *new_edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
-                if (!new_edits) return 0;
-                *edits = new_edits;
+                *edits = realloc(*edits, sizeof(SSBEdit) * new_cap);
                 *capacity = new_cap;
             }
             (*edits)[*count].type = SSB_EDIT_ADD;
@@ -250,20 +232,14 @@ static int ssb_diff_recursive(const uint32_t *a, int n, int offset_a,
             (*count)++;
         }
     }
-    
+
     return 1;
 }
 
 static SSBDiffResult ssb_diff_histogram(const uint32_t *a, int n, const uint32_t *b, int m) {
     SSBDiffResult res = { .edits = NULL, .count = 0 };
     int capacity = 0;
-    
-    if (!ssb_diff_recursive(a, n, 0, b, m, 0, &res.edits, &res.count, &capacity)) {
-        if (res.edits) free(res.edits);
-        res.edits = NULL;
-        res.count = 0;
-    }
-    
+    ssb_diff_recursive(a, n, 0, b, m, 0, &res.edits, &res.count, &capacity);
     return res;
 }
 

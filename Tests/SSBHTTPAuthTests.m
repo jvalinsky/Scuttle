@@ -189,6 +189,29 @@ static void generateKeypair(NSData * __autoreleasing *outSecret,
     XCTAssertFalse(valid);
 }
 
+- (void)testSignMessage_nilMessage_returnsError {
+    NSData *sec, *pub;
+    generateKeypair(&sec, &pub);
+    NSError *err;
+    NSString *sig = [self.auth signMessage:nil withSecretKey:sec error:&err];
+    XCTAssertNil(sig);
+    XCTAssertNotNil(err);
+    XCTAssertEqualObjects(err.domain, SSBHTTPAuthErrorDomain);
+    XCTAssertEqual(err.code, SSBHTTPAuthErrorInvalidSignature);
+}
+
+- (void)testVerifySignature_nilMessage_returnsError {
+    NSData *sec, *pub;
+    generateKeypair(&sec, &pub);
+    NSMutableData *fakeSig = [NSMutableData dataWithLength:64];
+    NSString *fakeSigB64 = [fakeSig base64EncodedStringWithOptions:0];
+    NSError *err;
+    BOOL valid = [self.auth verifySignature:fakeSigB64 forMessage:nil withPublicKey:pub error:&err];
+    XCTAssertFalse(valid);
+    XCTAssertNotNil(err);
+    XCTAssertEqualObjects(err.domain, SSBHTTPAuthErrorDomain);
+}
+
 #pragma mark - Token management
 
 - (void)testGenerateToken_returnsToken {
@@ -879,6 +902,204 @@ static void generateKeypair(NSData * __autoreleasing *outSecret,
     NSRunLoop *rl = [NSRunLoop mainRunLoop];
     [rl runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     XCTAssertTrue(YES); // no crash = pass
+}
+
+- (void)testNotifySSEChannel_withRedirectURL_signalsWaiter {
+    // Signal BEFORE wait — the queue processes signal block first (FIFO), then the wait block
+    NSString *channelId = [self.auth generateSSEChannelIdForServerChallenge:@"sc"];
+    [self.auth notifySSEChannel:channelId withSuccess:YES redirectURL:@"https://example.com/dashboard"];
+    NSDictionary *result = [self.auth waitForSSEAuthWithChannelId:channelId timeout:5.0];
+    XCTAssertEqualObjects(result[@"success"], @YES);
+    XCTAssertEqualObjects(result[@"redirectURL"], @"https://example.com/dashboard");
+}
+
+- (void)testReceiveSolution_expiredSolution_returnsError {
+    NSDictionary *loginInfo = [self.auth handleServerInitiatedLoginWithQueryParams:@{}];
+    NSString *serverChallenge = loginInfo[@"serverChallenge"];
+
+    // Advance environment time past the 5-minute solution expiration
+    FakeAuthEnv *fake = [[FakeAuthEnv alloc] init];
+    fake.fixedDate = [NSDate dateWithTimeIntervalSinceNow:60 * 6]; // 6 minutes in future
+    [SSBEnvironment setShared:fake];
+
+    XCTestExpectation *exp = [self expectationWithDescription:@"expired solution"];
+    [self.auth receiveSolutionForServerChallenge:serverChallenge
+                                 clientChallenge:@""
+                                        solution:@"sig"
+                                        clientId:@""
+                                      completion:^(BOOL success, NSError *error) {
+        XCTAssertFalse(success);
+        XCTAssertNotNil(error);
+        XCTAssertEqualObjects(error.domain, SSBHTTPAuthErrorDomain);
+        XCTAssertEqual(error.code, SSBHTTPAuthErrorSolutionExpired);
+        [exp fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+- (void)testCompleteServerInitiatedAuth_expiredSolution_returnsError {
+    NSDictionary *loginInfo = [self.auth handleServerInitiatedLoginWithQueryParams:@{}];
+    NSString *serverChallenge = loginInfo[@"serverChallenge"];
+
+    // Advance environment time past the 5-minute solution expiration
+    FakeAuthEnv *fake = [[FakeAuthEnv alloc] init];
+    fake.fixedDate = [NSDate dateWithTimeIntervalSinceNow:60 * 6]; // 6 minutes in future
+    [SSBEnvironment setShared:fake];
+
+    NSDictionary *result = [self.auth completeServerInitiatedAuthWithServerChallenge:serverChallenge
+                                                                     clientChallenge:@"cc"
+                                                                            solution:@"sig"
+                                                                           clientId:@"cid"];
+    XCTAssertEqualObjects(result[@"status"], @"error");
+}
+
+- (void)testRequestSolution_delegateWrongKeyLength_returnsError {
+    // Delegate provides a 32-byte key; secretKeyForClientId requires exactly 64 bytes → error
+    MockHTTPAuthDelegate *delegate = [[MockHTTPAuthDelegate alloc] init];
+    delegate.secretKey = [NSMutableData dataWithLength:32]; // wrong length
+    delegate.grantConsent = YES;
+    self.auth.delegate = delegate;
+
+    XCTestExpectation *exp = [self expectationWithDescription:@"wrong key length error"];
+    [self.auth requestSolutionForServerChallenge:@"sc"
+                                 clientChallenge:@"cc"
+                                        clientId:@"@cid.ed25519"
+                                      completion:^(NSString *solution, NSError *error) {
+        XCTAssertNil(solution);
+        XCTAssertNotNil(error);
+        XCTAssertEqualObjects(error.domain, SSBHTTPAuthErrorDomain);
+        XCTAssertEqual(error.code, SSBHTTPAuthErrorMissingCredentials);
+        [exp fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+#pragma mark - signMessage nil-message path
+
+- (void)testSignMessage_nilMessage_validKey_returnsNilWithError {
+    // nil message → [nil dataUsingEncoding:] == nil → the "Failed to encode message" error path
+    NSData *sec, *pub;
+    generateKeypair(&sec, &pub);
+    NSError *err = nil;
+    NSString *sig = [self.auth signMessage:nil withSecretKey:sec error:&err];
+    XCTAssertNil(sig);
+    XCTAssertNotNil(err);
+    XCTAssertEqualObjects(err.domain, SSBHTTPAuthErrorDomain);
+}
+
+#pragma mark - generateToken with zero expiration interval
+
+- (void)testGenerateToken_zeroExpirationInterval_returnsTokenWithNilExpiry {
+    // tokenExpirationInterval = 0 → expiresAt = nil (no-expiry branch)
+    self.auth.tokenExpirationInterval = 0.0;
+    NSError *err = nil;
+    SSBHTTPAuthToken *token = [self.auth generateTokenForClientId:@"@c.ed25519" error:&err];
+    XCTAssertNotNil(token);
+    XCTAssertNil(err);
+    XCTAssertFalse([token isExpired]);
+}
+
+#pragma mark - receiveSolution error paths
+
+- (void)testReceiveSolution_unknownServerChallenge_returnsNotFoundError {
+    XCTestExpectation *exp = [self expectationWithDescription:@"no pending solution"];
+    [self.auth receiveSolutionForServerChallenge:@"unknown-challenge-xyz-unique"
+                                 clientChallenge:@""
+                                        solution:@"sig"
+                                        clientId:@""
+                                      completion:^(BOOL success, NSError *error) {
+        XCTAssertFalse(success);
+        XCTAssertNotNil(error);
+        XCTAssertEqualObjects(error.domain, SSBHTTPAuthErrorDomain);
+        XCTAssertEqual(error.code, SSBHTTPAuthErrorSolutionNotFound);
+        [exp fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+- (void)testReceiveSolution_invalidClientId_missingCredentials {
+    // clientId="" → publicKeyFromClientId:@"" returns nil → MissingCredentials
+    NSDictionary *loginInfo = [self.auth handleServerInitiatedLoginWithQueryParams:@{}];
+    NSString *sc = loginInfo[@"serverChallenge"];
+
+    XCTestExpectation *exp = [self expectationWithDescription:@"missing credentials"];
+    [self.auth receiveSolutionForServerChallenge:sc
+                                 clientChallenge:@""
+                                        solution:@"sig"
+                                        clientId:@""
+                                      completion:^(BOOL success, NSError *error) {
+        XCTAssertFalse(success);
+        XCTAssertNotNil(error);
+        XCTAssertEqualObjects(error.domain, SSBHTTPAuthErrorDomain);
+        XCTAssertEqual(error.code, SSBHTTPAuthErrorMissingCredentials);
+        [exp fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:5.0 handler:nil];
+}
+
+#pragma mark - completeServerInitiatedAuth additional error paths
+
+- (void)testCompleteServerInitiatedAuth_noPendingSolution_returnsError {
+    NSDictionary *result = [self.auth completeServerInitiatedAuthWithServerChallenge:@"unknown-sc"
+                                                                     clientChallenge:@"cc"
+                                                                            solution:@"sig"
+                                                                           clientId:@"cid"];
+    XCTAssertEqualObjects(result[@"status"], @"error");
+}
+
+- (void)testCompleteServerInitiatedAuth_invalidClientId_returnsError {
+    // clientId with no decodable pubkey → "Cannot derive client public key"
+    NSDictionary *loginInfo = [self.auth handleServerInitiatedLoginWithQueryParams:@{}];
+    NSString *sc = loginInfo[@"serverChallenge"];
+
+    NSDictionary *result = [self.auth completeServerInitiatedAuthWithServerChallenge:sc
+                                                                     clientChallenge:@""
+                                                                            solution:@"sig"
+                                                                           clientId:@""];
+    XCTAssertEqualObjects(result[@"status"], @"error");
+}
+
+- (void)testCompleteServerInitiatedAuth_badSignature_returnsError {
+    NSDictionary *loginInfo = [self.auth handleServerInitiatedLoginWithQueryParams:@{}];
+    NSString *sc = loginInfo[@"serverChallenge"];
+
+    // 32-byte all-zeros pubkey → publicKeyFromClientId: returns 32 bytes, but signature is invalid
+    NSData *pubKey = [NSMutableData dataWithLength:32];
+    NSString *clientId = [NSString stringWithFormat:@"@%@.ed25519",
+                          [pubKey base64EncodedStringWithOptions:0]];
+
+    NSDictionary *result = [self.auth completeServerInitiatedAuthWithServerChallenge:sc
+                                                                     clientChallenge:@""
+                                                                            solution:@"invalidsig"
+                                                                           clientId:clientId];
+    XCTAssertEqualObjects(result[@"status"], @"error");
+}
+
+- (void)testCompleteServerInitiatedAuth_validSignature_returnsSuccess {
+    // Full round-trip: sign the correct message, pass to completeServerInitiatedAuth
+    NSDictionary *loginInfo = [self.auth handleServerInitiatedLoginWithQueryParams:@{}];
+    NSString *sc = loginInfo[@"serverChallenge"];
+
+    NSData *clientSec, *clientPub;
+    generateKeypair(&clientSec, &clientPub);
+    NSString *clientId = [NSString stringWithFormat:@"@%@.ed25519",
+                          [clientPub base64EncodedStringWithOptions:0]];
+    NSString *cc = @""; // matches pending solution's clientChallenge
+
+    NSString *sigMsg = [self.auth signatureMessageWithServerId:self.serverId
+                                                      clientId:clientId
+                                               serverChallenge:sc
+                                               clientChallenge:cc];
+    NSError *sigErr = nil;
+    NSString *solution = [self.auth signMessage:sigMsg withSecretKey:clientSec error:&sigErr];
+    XCTAssertNotNil(solution, @"Signing failed: %@", sigErr);
+
+    NSDictionary *result = [self.auth completeServerInitiatedAuthWithServerChallenge:sc
+                                                                     clientChallenge:cc
+                                                                            solution:solution
+                                                                           clientId:clientId];
+    XCTAssertEqualObjects(result[@"status"], @"success");
+    XCTAssertNotNil(result[@"token"]);
 }
 
 @end

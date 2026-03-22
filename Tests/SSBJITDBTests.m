@@ -170,4 +170,51 @@ static NSString *uniqueTempDir(void) {
     self.db = reopened; // tearDown will close it
 }
 
+- (void)testScheduleIndexSave_timerFires_afterDelay {
+    // Append a message — schedules the index-save timer (250 ms)
+    NSDictionary *msg = @{@"author": @"@alice.ed25519", @"content": @{@"type": @"post"}};
+    XCTestExpectation *exp = [self expectationWithDescription:@"appended"];
+    [self.db appendMessage:msg completion:^(uint64_t s, NSError *err) {
+        XCTAssertNil(err);
+        [exp fulfill];
+    }];
+    [self waitForExpectationsWithTimeout:3 handler:nil];
+
+    // Wait 400ms for the timer block to fire (timer set for 250ms)
+    [NSThread sleepForTimeInterval:0.4];
+
+    // DB remains functional after timer-triggered save
+    SSBBitset *result = [self.db query:@{@"type": @"post"}];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result isBitSetAtIndex:0]);
+}
+
+- (void)testReopen_staleIndex_triggersReindex {
+    // 1. Append a message and close (saves index with indexedRecordCount=1)
+    NSDictionary *msg = @{@"author": @"@alice.ed25519", @"content": @{@"type": @"post"}};
+    XCTestExpectation *exp = [self expectationWithDescription:@"appended"];
+    [self.db appendMessage:msg completion:^(uint64_t s, NSError *err) { [exp fulfill]; }];
+    [self waitForExpectationsWithTimeout:3 handler:nil];
+
+    [self.db close];
+    self.db = nil;
+
+    // 2. Tamper: overwrite meta file with indexedRecordCount=0 (stale)
+    NSString *metaPath = [self.dir stringByAppendingPathComponent:@"index.meta"];
+    uint64_t zeroCount = 0;
+    NSData *zeroData = [NSData dataWithBytes:&zeroCount length:sizeof(uint64_t)];
+    XCTAssertTrue([zeroData writeToFile:metaPath atomically:YES]);
+
+    // 3. Reopen: loadIndexes sees 0 < 1 → triggers reindexFromRecord:0
+    SSBJITDB *reopened = [[SSBJITDB alloc] initWithDirectory:self.dir];
+    XCTAssertNotNil(reopened);
+
+    // 4. After reindex, query must still find the post
+    SSBBitset *result = [reopened query:@{@"type": @"post"}];
+    XCTAssertTrue([result isBitSetAtIndex:0], @"Reindex must recover the post record");
+
+    [reopened close];
+    self.db = reopened; // tearDown will close it
+}
+
 @end

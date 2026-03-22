@@ -286,6 +286,23 @@
     XCTAssertTrue([self.server isInviteCodeExpired:code]);
 }
 
+- (void)testIsInviteCodeExpired_withDelegate_callsExpiredCallback {
+    MockInviteDelegate *delegate = [[MockInviteDelegate alloc] init];
+    self.server.delegate = delegate;
+
+    NSString *code = [self.server generateInviteCode];
+
+    // Advance environment time past expiry (25 hours)
+    FakeInviteEnv *fake = [[FakeInviteEnv alloc] init];
+    fake.fixedDate = [NSDate dateWithTimeIntervalSinceNow:60 * 60 * 25];
+    [SSBEnvironment setShared:fake];
+
+    BOOL expired = [self.server isInviteCodeExpired:code];
+    XCTAssertTrue(expired);
+    // Delegate must have received the expiry notification
+    XCTAssertEqualObjects(delegate.lastExpiredCode, code);
+}
+
 #pragma mark - listActiveInviteCodes
 
 - (void)testListActiveInviteCodes_freshCode_included {

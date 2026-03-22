@@ -15,6 +15,67 @@ static void BAMGenerateKeypair(NSData **outPK, NSData **outSK) {
     if (outSK) *outSK = [NSData dataWithBytes:sk length:64];
 }
 
+// Bamboo seq=2 entry layout (both lipmaa_link and backlink present):
+//   [0-31]   author (32 bytes)
+//   [32-63]  log_id (32 bytes)
+//   [64]     is_end_of_log (1 byte)
+//   [65-72]  seq_number (8 bytes, big-endian uint64 = 2)
+//   [73-104] lipmaa_link (32 bytes, hash of seq=1 entry since lipmaaSeq(2)=1)
+//   [105-136] backlink (32 bytes, hash of seq=1 entry)
+//   [137-168] payload_hash (32 bytes)
+//   [169-176] payload_size (8 bytes, big-endian uint64)
+//   [177-240] signature (64 bytes, signs bytes 0-176)
+// Total: 241 bytes
+static NSData *BAMBuildValidSeq2Entry(NSData *pubKey, NSData *secretKey, NSData *seq1Entry) {
+    NSMutableData *entry = [NSMutableData dataWithLength:241];
+    uint8_t *bytes = entry.mutableBytes;
+    const uint8_t *seq1bytes = (const uint8_t *)seq1Entry.bytes;
+
+    // author (bytes 0-31)
+    memcpy(bytes + 0, pubKey.bytes, 32);
+
+    // log_id (bytes 32-63): same log as seq=1
+    memcpy(bytes + 32, seq1bytes + 32, 32);
+
+    // is_end_of_log (byte 64): 0 = not end
+    bytes[64] = 0;
+
+    // seq_number (bytes 65-72): 2, big-endian
+    uint64_t seq = CFSwapInt64HostToBig(2);
+    memcpy(bytes + 65, &seq, 8);
+
+    // lipmaa_link (bytes 73-104): hash of seq=1 entry (since lipmaaSeq(2)=1)
+    NSData *seq1Hash = [SSBBamboo hashData:seq1Entry];
+    memcpy(bytes + 73, seq1Hash.bytes, 32);
+
+    // backlink (bytes 105-136): hash of previous entry (seq=1)
+    memcpy(bytes + 105, seq1Hash.bytes, 32);
+
+    // payload_hash (bytes 137-168): BLAKE2b-256 of "seq2 payload"
+    NSData *payloadData = [@"seq2 payload" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadHash = [SSBBamboo hashData:payloadData];
+    memcpy(bytes + 137, payloadHash.bytes, 32);
+
+    // payload_size (bytes 169-176): big-endian
+    uint64_t payloadSize = CFSwapInt64HostToBig((uint64_t)payloadData.length);
+    memcpy(bytes + 169, &payloadSize, 8);
+
+    // Sign bytes 0-176 (the pre-signature portion)
+    NSData *signedPart = [entry subdataWithRange:NSMakeRange(0, 177)];
+
+    unsigned long long smLen = BAMBOO_SIG_BYTES + (unsigned long long)signedPart.length;
+    uint8_t *sm = (uint8_t *)malloc((size_t)smLen);
+    unsigned long long actualSmLen = 0;
+    crypto_sign_ed25519(sm, &actualSmLen, signedPart.bytes, (unsigned long long)signedPart.length,
+                        (const unsigned char *)secretKey.bytes);
+
+    // First 64 bytes of sm are the Ed25519 signature
+    memcpy(bytes + 177, sm, BAMBOO_SIG_BYTES);
+    free(sm);
+
+    return entry;
+}
+
 // Bamboo seq=1 entry layout:
 //   [0-31]   author (32 bytes)
 //   [32-63]  log_id (32 bytes)
@@ -467,6 +528,123 @@ static NSData *BAMBuildValidSeq1Entry(NSData *pubKey, NSData *secretKey) {
 
 - (void)testExtractLipmaaLink_nil_returnsNil {
     XCTAssertNil([SSBBamboo extractLipmaaLink:nil]);
+}
+
+- (void)testExtractLipmaaLink_seq2_returns32Bytes {
+    NSData *seq1Entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *seq2Entry = BAMBuildValidSeq2Entry(self.publicKey, self.secretKey, seq1Entry);
+    NSData *link = [SSBBamboo extractLipmaaLink:seq2Entry];
+    XCTAssertNotNil(link);
+    XCTAssertEqual(link.length, 32u);
+    // The lipmaa link should equal hash(seq1Entry)
+    NSData *expectedHash = [SSBBamboo hashData:seq1Entry];
+    XCTAssertEqualObjects(link, expectedHash);
+}
+
+#pragma mark - verifyProof:error: — seq > 1 paths
+
+- (void)testVerifyProof_seq2_emptyPath_lipmaaMatchesRoot_returnsTrue {
+    NSData *seq1Entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *seq2Entry = BAMBuildValidSeq2Entry(self.publicKey, self.secretKey, seq1Entry);
+
+    // The lipmaa_link in seq2Entry = hash(seq1Entry)
+    NSData *lipmaaLink = [SSBBamboo hashData:seq1Entry];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = seq2Entry;
+    proof.rootHash = lipmaaLink; // rootHash == lipmaaLink → empty path succeeds
+    proof.authorPubKey = self.publicKey;
+    proof.lipmaaPath = @[];
+
+    NSError *err = nil;
+    BOOL result = [SSBBamboo verifyProof:proof error:&err];
+    XCTAssertTrue(result, @"Empty lipmaa path with rootHash==lipmaaLink should pass: %@", err);
+    XCTAssertNil(err);
+}
+
+- (void)testVerifyProof_seq2_emptyPath_lipmaaNotRoot_returnsFalse {
+    NSData *seq1Entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *seq2Entry = BAMBuildValidSeq2Entry(self.publicKey, self.secretKey, seq1Entry);
+
+    uint8_t wrongHashBytes[32] = {0xDE, 0xAD};
+    NSData *wrongRoot = [NSData dataWithBytes:wrongHashBytes length:32];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = seq2Entry;
+    proof.rootHash = wrongRoot; // rootHash != lipmaaLink → empty path fails
+    proof.authorPubKey = self.publicKey;
+    proof.lipmaaPath = @[];
+
+    BOOL result = [SSBBamboo verifyProof:proof error:nil];
+    XCTAssertFalse(result);
+}
+
+- (void)testVerifyProof_seq2_pathFirstMismatch_returnsError103 {
+    NSData *seq1Entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *seq2Entry = BAMBuildValidSeq2Entry(self.publicKey, self.secretKey, seq1Entry);
+
+    uint8_t wrongBytes[32] = {0x11, 0x22, 0x33};
+    NSData *wrongHash = [NSData dataWithBytes:wrongBytes length:32];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = seq2Entry;
+    proof.rootHash = [NSMutableData dataWithLength:32];
+    proof.authorPubKey = self.publicKey;
+    proof.lipmaaPath = @[wrongHash]; // firstObject != expectedLipmaaLink
+
+    NSError *err = nil;
+    BOOL result = [SSBBamboo verifyProof:proof error:&err];
+    XCTAssertFalse(result);
+    XCTAssertNotNil(err);
+    XCTAssertEqual(err.code, 103);
+}
+
+- (void)testVerifyProof_seq2_pathLastMismatch_returnsError104 {
+    NSData *seq1Entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *seq2Entry = BAMBuildValidSeq2Entry(self.publicKey, self.secretKey, seq1Entry);
+
+    NSData *lipmaaLink = [SSBBamboo hashData:seq1Entry];
+
+    // wrongLast (in path) and rootHash must differ so the lastObject != rootHash check fires
+    uint8_t wrongLastBytes[32] = {0x55, 0x66, 0x77};
+    NSData *wrongLast = [NSData dataWithBytes:wrongLastBytes length:32];
+    uint8_t rootBytes[32] = {0xAA, 0xBB, 0xCC};
+    NSData *differentRoot = [NSData dataWithBytes:rootBytes length:32];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = seq2Entry;
+    proof.rootHash = differentRoot;  // != wrongLast → error 104
+    proof.authorPubKey = self.publicKey;
+    // firstObject matches lipmaaLink, lastObject != rootHash
+    proof.lipmaaPath = @[lipmaaLink, wrongLast];
+
+    NSError *err = nil;
+    BOOL result = [SSBBamboo verifyProof:proof error:&err];
+    XCTAssertFalse(result);
+    XCTAssertNotNil(err);
+    XCTAssertEqual(err.code, 104);
+}
+
+- (void)testVerifyProof_seq2_validPath_returnsTrue {
+    NSData *seq1Entry = BAMBuildValidSeq1Entry(self.publicKey, self.secretKey);
+    NSData *seq2Entry = BAMBuildValidSeq2Entry(self.publicKey, self.secretKey, seq1Entry);
+
+    NSData *lipmaaLink = [SSBBamboo hashData:seq1Entry];
+    // Use a distinct rootHash and build a 2-element path
+    uint8_t rootBytes[32] = {0xAA, 0xBB};
+    NSData *rootHash = [NSData dataWithBytes:rootBytes length:32];
+
+    SSBBambooProof *proof = [[SSBBambooProof alloc] init];
+    proof.targetMessage = seq2Entry;
+    proof.rootHash = rootHash;
+    proof.authorPubKey = self.publicKey;
+    // firstObject == lipmaaLink, lastObject == rootHash → valid
+    proof.lipmaaPath = @[lipmaaLink, rootHash];
+
+    NSError *err = nil;
+    BOOL result = [SSBBamboo verifyProof:proof error:&err];
+    XCTAssertTrue(result, @"Valid 2-element lipmaa path should pass: %@", err);
+    XCTAssertNil(err);
 }
 
 @end

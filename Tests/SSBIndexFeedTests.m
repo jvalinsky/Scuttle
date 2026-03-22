@@ -7,6 +7,13 @@
 - (instancetype)initWithPublicKey:(NSData *)publicKey secretKey:(NSData *)secretKey;
 @end
 
+@interface SSBIndexFeed (TestPrivate)
++ (nullable NSData *)sha256:(NSData *)data;
++ (nullable NSData *)deriveIndexSeedFromMetafeed:(NSString *)metafeedID
+                                          purpose:(NSString *)purpose
+                                        feedKeys:(SSBMetafeedKeys *)feedKeys;
+@end
+
 @interface SSBIndexFeedTests : XCTestCase
 @end
 
@@ -248,10 +255,111 @@
     uint8_t dummyKey[32] = {0};
     NSData *pub = [NSData dataWithBytes:dummyKey length:32];
     SSBMetafeedKeys *keys = [[SSBMetafeedKeys alloc] initWithPublicKey:pub secretKey:pub];
-    
+
     NSDictionary *msg = [SSBIndexFeed createIndexFeedForQuery:query feedPurpose:@"index" metafeedID:@"@meta.ed25519" feedKeys:keys];
     XCTAssertNotNil(msg);
     XCTAssertEqualObjects(msg[@"type"], @"metafeed/add/derived");
+}
+
+// MARK: - Edge cases for nil params and type/format mismatches
+
+- (void)testAddExistingMessageForIndexFeed_nilParams_returnsNil {
+    uint8_t dummyKey[32] = {0};
+    NSData *pub = [NSData dataWithBytes:dummyKey length:32];
+    SSBMetafeedKeys *keys = [[SSBMetafeedKeys alloc] initWithPublicKey:pub secretKey:pub];
+
+    XCTAssertNil([SSBIndexFeed addExistingMessageForIndexFeed:nil metafeedID:@"@meta" feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed addExistingMessageForIndexFeed:@"@index" metafeedID:nil feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed addExistingMessageForIndexFeed:@"@index" metafeedID:@"@meta" feedKeys:nil]);
+}
+
+- (void)testPublicKeyFromIndexedFeedID_wrongFormat_returnsNil {
+    // A classic feed ID has type=Feed but format=Classic (not IndexedV1) → must return nil
+    uint8_t dummyKey[32] = {0x42};
+    NSData *pub = [NSData dataWithBytes:dummyKey length:32];
+    NSData *classicBFE = [SSBBFE encodeFeedID:pub format:SSBBFEFeedFormatClassic];
+    NSString *classicSigil = [SSBBFE sigilStringFromBFE:classicBFE];
+    // Pass without @ prefix; publicKeyFromIndexedFeedID strips it if present
+    XCTAssertNil([SSBIndexFeed publicKeyFromIndexedFeedID:classicSigil]);
+}
+
+- (void)testMessageIDFromIndexedMessageID_wrongFormat_returnsNil {
+    // A classic message ID has type=Message but format=Classic (not IndexedV1) → must return nil
+    uint8_t dummyHash[32] = {0x42};
+    NSData *hash = [NSData dataWithBytes:dummyHash length:32];
+    NSData *classicBFE = [SSBBFE encodeMessageID:hash format:SSBBFEMessageFormatClassic];
+    NSString *classicSigil = [SSBBFE sigilStringFromBFE:classicBFE];
+    NSString *indexedMsgID = [NSString stringWithFormat:@"%%%@", classicSigil];
+    XCTAssertNil([SSBIndexFeed messageIDFromIndexedMessageID:indexedMsgID]);
+}
+
+// MARK: - Nil / empty guard paths
+
+- (void)testPublicKeyFromIndexedFeedID_nilAndEmpty_returnsNil {
+    XCTAssertNil([SSBIndexFeed publicKeyFromIndexedFeedID:nil]);
+    XCTAssertNil([SSBIndexFeed publicKeyFromIndexedFeedID:@""]);
+}
+
+- (void)testIndexedMessageIDFromMessageID_nilAndEmpty_returnsNil {
+    XCTAssertNil([SSBIndexFeed indexedMessageIDFromMessageID:nil]);
+    XCTAssertNil([SSBIndexFeed indexedMessageIDFromMessageID:@""]);
+}
+
+- (void)testMessageIDFromIndexedMessageID_nilAndEmpty_returnsNil {
+    XCTAssertNil([SSBIndexFeed messageIDFromIndexedMessageID:nil]);
+    XCTAssertNil([SSBIndexFeed messageIDFromIndexedMessageID:@""]);
+}
+
+- (void)testCreateIndexFeedForQuery_nilParams_returnsNil {
+    uint8_t dummyKey[32] = {0};
+    NSData *pub = [NSData dataWithBytes:dummyKey length:32];
+    SSBMetafeedKeys *keys = [[SSBMetafeedKeys alloc] initWithPublicKey:pub secretKey:pub];
+    NSDictionary *query = @{@"type": @"post"};
+
+    XCTAssertNil([SSBIndexFeed createIndexFeedForQuery:nil feedPurpose:@"index" metafeedID:@"@meta.ed25519" feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed createIndexFeedForQuery:query feedPurpose:nil metafeedID:@"@meta.ed25519" feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed createIndexFeedForQuery:query feedPurpose:@"index" metafeedID:nil feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed createIndexFeedForQuery:query feedPurpose:@"index" metafeedID:@"@meta.ed25519" feedKeys:nil]);
+}
+
+- (void)testCreateIndexFeedForQuery_invalidMetafeedID_returnsNil {
+    // When metafeedID can't be decoded as a valid BFE sigil, deriveIndexSeedFromMetafeed: returns nil
+    uint8_t dummyKey[32] = {0};
+    NSData *pub = [NSData dataWithBytes:dummyKey length:32];
+    SSBMetafeedKeys *keys = [[SSBMetafeedKeys alloc] initWithPublicKey:pub secretKey:pub];
+    NSDictionary *query = @{@"type": @"post"};
+    XCTAssertNil([SSBIndexFeed createIndexFeedForQuery:query feedPurpose:@"index" metafeedID:@"not-a-valid-sigil" feedKeys:keys]);
+}
+
+// MARK: - Private helper nil paths
+
+- (void)testSha256_nilData_returnsNil {
+    XCTAssertNil([SSBIndexFeed sha256:nil]);
+}
+
+- (void)testSha256_emptyData_returns32Bytes {
+    NSData *result = [SSBIndexFeed sha256:[NSData data]];
+    XCTAssertNotNil(result);
+    XCTAssertEqual(result.length, (NSUInteger)32);
+}
+
+- (void)testDeriveIndexSeed_nilParams_returnsNil {
+    uint8_t dummyKey[32] = {0};
+    NSData *pub = [NSData dataWithBytes:dummyKey length:32];
+    SSBMetafeedKeys *keys = [[SSBMetafeedKeys alloc] initWithPublicKey:pub secretKey:pub];
+
+    XCTAssertNil([SSBIndexFeed deriveIndexSeedFromMetafeed:nil purpose:@"index" feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed deriveIndexSeedFromMetafeed:@"@meta.ed25519" purpose:nil feedKeys:keys]);
+    XCTAssertNil([SSBIndexFeed deriveIndexSeedFromMetafeed:@"@meta.ed25519" purpose:@"index" feedKeys:nil]);
+}
+
+- (void)testDeriveIndexSeed_invalidMetafeedID_returnsNil {
+    uint8_t dummyKey[32] = {0};
+    NSData *pub = [NSData dataWithBytes:dummyKey length:32];
+    SSBMetafeedKeys *keys = [[SSBMetafeedKeys alloc] initWithPublicKey:pub secretKey:pub];
+
+    // "not-a-sigil" has no recognized prefix → bfeDataFromSigilString: returns nil
+    XCTAssertNil([SSBIndexFeed deriveIndexSeedFromMetafeed:@"not-a-sigil" purpose:@"index" feedKeys:keys]);
 }
 
 @end

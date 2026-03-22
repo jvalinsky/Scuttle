@@ -91,6 +91,11 @@ static BOOL SSBGitWriteExactFD(int fd, const void *buffer, size_t size) {
     return YES;
 }
 
+// Expose the convenience method that is not declared in the public header
+@interface SSBGitRepo (PrivateConvenienceForTesting)
++ (void)publishRepoWithName:(NSString *)name client:(SSBRoomClient *)client completion:(SSBGitRepoCompletion)completion;
+@end
+
 @interface FakeGitFeedStore : SSBFeedStore
 @property (nonatomic, copy) NSArray<SSBMessage *> *stubMessages;
 @property (nonatomic, copy) NSDictionary<NSString *, id> *lastQuery;
@@ -567,6 +572,114 @@ static BOOL SSBGitWriteExactFD(int fd, const void *buffer, size_t size) {
     NSData *packObjectsInput = [NSData dataWithContentsOfFile:[logDir stringByAppendingPathComponent:@"pack-objects.stdin"]];
     NSData *expectedPackObjectsInput = [[NSString stringWithFormat:@"%@\n", manifest[@"commit_head"]] dataUsingEncoding:NSUTF8StringEncoding];
     XCTAssertEqualObjects(packObjectsInput, expectedPackObjectsInput);
+}
+
+// MARK: - publishRepoWithName: tests
+
+- (void)testPublishRepoWithNameAndUpstream_callsClientAndReturnsKey {
+    FakeGitPublishingClient *client = [[FakeGitPublishingClient alloc] init];
+    client.messageKey = @"%newrepo.sha256";
+    XCTestExpectation *done = [self expectationWithDescription:@"published"];
+
+    [SSBGitRepo publishRepoWithName:@"my-repo" upstream:@"%upstream.sha256" client:(SSBRoomClient *)client
+                         completion:^(NSString *msgID, NSError *error) {
+        XCTAssertEqualObjects(msgID, @"%newrepo.sha256");
+        XCTAssertNil(error);
+        [done fulfill];
+    }];
+
+    [self waitForExpectations:@[done] timeout:2.0];
+    XCTAssertEqualObjects(client.capturedContent[@"type"], @"git-repo");
+    XCTAssertEqualObjects(client.capturedContent[@"name"], @"my-repo");
+    XCTAssertEqualObjects(client.capturedContent[@"upstream"], @"%upstream.sha256");
+}
+
+- (void)testPublishRepoWithNameNoUpstream_doesNotIncludeUpstreamKey {
+    FakeGitPublishingClient *client = [[FakeGitPublishingClient alloc] init];
+    XCTestExpectation *done = [self expectationWithDescription:@"published"];
+
+    [SSBGitRepo publishRepoWithName:@"bare-repo" client:(SSBRoomClient *)client
+                         completion:^(NSString *msgID, NSError *error) {
+        XCTAssertNotNil(msgID);
+        XCTAssertNil(error);
+        [done fulfill];
+    }];
+
+    [self waitForExpectations:@[done] timeout:2.0];
+    XCTAssertEqualObjects(client.capturedContent[@"type"], @"git-repo");
+    XCTAssertEqualObjects(client.capturedContent[@"name"], @"bare-repo");
+    XCTAssertNil(client.capturedContent[@"upstream"]);
+}
+
+- (void)testPublishRepoWithName_clientError_callsBackWithError {
+    FakeGitPublishingClient *client = [[FakeGitPublishingClient alloc] init];
+    client.publishError = [NSError errorWithDomain:@"TestError" code:42 userInfo:nil];
+    XCTestExpectation *done = [self expectationWithDescription:@"error callback"];
+
+    [SSBGitRepo publishRepoWithName:@"bad-repo" upstream:nil client:(SSBRoomClient *)client
+                         completion:^(NSString *msgID, NSError *error) {
+        XCTAssertNil(msgID);
+        XCTAssertNotNil(error);
+        [done fulfill];
+    }];
+
+    [self waitForExpectations:@[done] timeout:2.0];
+}
+
+- (void)testPublishUpdateWithRefs_clientError_callsCompletionWithError {
+    FakeGitPublishingClient *client = [[FakeGitPublishingClient alloc] init];
+    client.publishError = [NSError errorWithDomain:@"TestError" code:1 userInfo:nil];
+    XCTestExpectation *done = [self expectationWithDescription:@"error callback"];
+
+    [self.repo publishUpdateWithRefs:@{@"refs/heads/main": @"abc123"}
+                               packs:@[]
+                             indexes:@[]
+                              client:(SSBRoomClient *)client
+                          completion:^(NSString * _Nullable msgID, NSError * _Nullable error) {
+        XCTAssertNil(msgID);
+        XCTAssertNotNil(error);
+        [done fulfill];
+    }];
+
+    [self waitForExpectations:@[done] timeout:2.0];
+}
+
+// MARK: - uploadBlobAtURL: tests
+
+- (void)testUploadBlobAtURL_validTempFile_storesBlobAndCallsBack {
+    NSString *tempFile = [NSTemporaryDirectory() stringByAppendingPathComponent:[[NSUUID UUID] UUIDString]];
+    NSData *testData = [@"git-blob-test-data" dataUsingEncoding:NSUTF8StringEncoding];
+    [testData writeToFile:tempFile atomically:YES];
+
+    XCTestExpectation *done = [self expectationWithDescription:@"upload complete"];
+    [SSBGitRepo uploadBlobAtURL:[NSURL fileURLWithPath:tempFile]
+                     completion:^(NSString *blobID, NSError *error) {
+        // Shared blob store should store the data
+        if (blobID) {
+            XCTAssertNil(error);
+            XCTAssertTrue([blobID hasPrefix:@"&"]);
+        } else {
+            // Shared store not writable in test env — at least error is set
+            XCTAssertNotNil(error);
+        }
+        [done fulfill];
+    }];
+
+    [self waitForExpectations:@[done] timeout:5.0];
+    [[NSFileManager defaultManager] removeItemAtPath:tempFile error:nil];
+}
+
+- (void)testUploadBlobAtURL_nonexistentFile_callsCompletionWithNilID {
+    NSURL *missingURL = [NSURL fileURLWithPath:@"/tmp/ssb-nonexistent-git-blob-test.pack"];
+    XCTestExpectation *done = [self expectationWithDescription:@"upload failed"];
+
+    [SSBGitRepo uploadBlobAtURL:missingURL
+                     completion:^(NSString *blobID, NSError *error) {
+        XCTAssertNil(blobID);
+        [done fulfill];
+    }];
+
+    [self waitForExpectations:@[done] timeout:2.0];
 }
 
 - (void)testRemoteHelperIgnoresMalformedFetchResponses {

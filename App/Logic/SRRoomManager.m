@@ -226,6 +226,11 @@ NSString * const SRRoomManagerEndpointsListKey = @"SRRoomManagerEndpointsListKey
                                                                   SRRoomManagerEndpointsListKey: snapshot
                                                               }];
         });
+
+        // Trigger background replication for all peers discovered in the room
+        for (NSString *peerID in snapshot) {
+            [client replicateFromPeer:peerID viaRoom:client.host];
+        }
     });
 }
 

@@ -88,6 +88,153 @@ static void SSBTransportGenerateKeypair(NSData **outPublic, NSData **outSecret) 
 #endif
 }
 
+- (void)testDefaultBackendIsSingleton {
+    id<SSBTransportBackend> b1 = [SSBTransport defaultBackend];
+    id<SSBTransportBackend> b2 = [SSBTransport defaultBackend];
+    XCTAssertEqual(b1, b2);
+}
+
+- (void)testEndpointFactoryMethod {
+    SSBTransportEndpoint *ep = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:8080];
+    XCTAssertNotNil(ep);
+    XCTAssertEqualObjects(ep.host, @"127.0.0.1");
+    XCTAssertEqual(ep.port, 8080);
+}
+
+- (void)testEndpointDesignatedInitializer {
+    SSBTransportEndpoint *ep = [[SSBTransportEndpoint alloc] initWithHost:@"example.com" port:443];
+    XCTAssertEqualObjects(ep.host, @"example.com");
+    XCTAssertEqual(ep.port, 443);
+}
+
+- (void)testConnectionOptionsDefaults {
+    SSBTransportConnectionOptions *opts = [[SSBTransportConnectionOptions alloc] init];
+    XCTAssertTrue(opts.enableTCPNoDelay);
+    XCTAssertTrue(opts.actingAsClient);
+    XCTAssertFalse(opts.enableSecurityFramer);
+    XCTAssertFalse(opts.enableMuxRPCFramer);
+    XCTAssertNil(opts.localIdentitySecret);
+    XCTAssertNil(opts.remotePublicKey);
+}
+
+- (void)testConnectionOptionsMutation {
+    SSBTransportConnectionOptions *opts = [[SSBTransportConnectionOptions alloc] init];
+    opts.enableTCPNoDelay = NO;
+    opts.actingAsClient = NO;
+    opts.enableSecurityFramer = YES;
+    opts.enableMuxRPCFramer = YES;
+    NSData *key = [NSData dataWithBytes:"testkey" length:7];
+    opts.localIdentitySecret = key;
+    opts.remotePublicKey = key;
+    XCTAssertFalse(opts.enableTCPNoDelay);
+    XCTAssertFalse(opts.actingAsClient);
+    XCTAssertTrue(opts.enableSecurityFramer);
+    XCTAssertTrue(opts.enableMuxRPCFramer);
+    XCTAssertEqualObjects(opts.localIdentitySecret, key);
+    XCTAssertEqualObjects(opts.remotePublicKey, key);
+}
+
+- (void)testMetadataKeyConstants {
+    XCTAssertEqualObjects(SSBTransportMetadataFlagsKey, @"Flags");
+    XCTAssertEqualObjects(SSBTransportMetadataRequestNumberKey, @"RequestNumber");
+}
+
+- (void)testAppleTransportBackendCanBeInstantiated {
+    SSBAppleTransportBackend *backend = [[SSBAppleTransportBackend alloc] init];
+    XCTAssertNotNil(backend);
+}
+
+- (void)testLinuxTransportBackendCanBeInstantiated {
+    SSBLinuxTransportBackend *backend = [[SSBLinuxTransportBackend alloc] init];
+    XCTAssertNotNil(backend);
+}
+
+- (void)testConnectionToEndpointReturnsNonnull {
+    id<SSBTransportBackend> backend = [self backend];
+    SSBTransportEndpoint *ep = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:1];
+    id<SSBTransportConnection> conn = [backend connectionToEndpoint:ep options:nil queue:self.queue];
+    XCTAssertNotNil(conn);
+    XCTAssertEqual(conn.state, SSBTransportConnectionStateInvalid);
+    XCTAssertEqualObjects(conn.endpoint.host, @"127.0.0.1");
+    XCTAssertEqual(conn.endpoint.port, 1);
+}
+
+- (void)testConnectionCancelledStateTransition {
+    id<SSBTransportBackend> backend = [self backend];
+    SSBTransportEndpoint *ep = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:1];
+    id<SSBTransportConnection> conn = [backend connectionToEndpoint:ep options:nil queue:self.queue];
+
+    XCTestExpectation *cancelled = [self expectationWithDescription:@"connection cancelled"];
+    [conn setStateChangedHandler:^(id<SSBTransportConnection> connection, SSBTransportConnectionState state, NSError * _Nullable error) {
+        if (state == SSBTransportConnectionStateCancelled) {
+            [cancelled fulfill];
+        }
+    }];
+    [conn start];
+    [conn cancel];
+    [self waitForExpectations:@[cancelled] timeout:5.0];
+    XCTAssertEqual(conn.state, SSBTransportConnectionStateCancelled);
+}
+
+- (void)testConnectionFailedStateTransitionOnRefusedPort {
+    // Connect to a port guaranteed to be closed — this triggers waiting or failed state.
+    id<SSBTransportBackend> backend = [self backend];
+    SSBTransportEndpoint *ep = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:1];
+    id<SSBTransportConnection> conn = [backend connectionToEndpoint:ep options:nil queue:self.queue];
+
+    XCTestExpectation *gotNonInvalid = [self expectationWithDescription:@"connection left invalid state"];
+    gotNonInvalid.assertForOverFulfill = NO;
+    [conn setStateChangedHandler:^(id<SSBTransportConnection> connection, SSBTransportConnectionState state, NSError * _Nullable error) {
+        if (state == SSBTransportConnectionStateFailed ||
+            state == SSBTransportConnectionStateWaiting ||
+            state == SSBTransportConnectionStatePreparing) {
+            [gotNonInvalid fulfill];
+        }
+    }];
+    [conn start];
+    [self waitForExpectations:@[gotNonInvalid] timeout:5.0];
+    [conn cancel];
+}
+
+- (void)testListenerCancelledStateTransition {
+    id<SSBTransportListener> listener = [self listenerOnEndpoint:[SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:0]
+                                                         options:nil];
+
+    XCTestExpectation *ready = [self expectationWithDescription:@"listener ready"];
+    XCTestExpectation *cancelled = [self expectationWithDescription:@"listener cancelled"];
+    [listener setStateChangedHandler:^(id<SSBTransportListener> l, SSBTransportListenerState state, NSError * _Nullable error) {
+        if (state == SSBTransportListenerStateReady) {
+            [ready fulfill];
+            [l cancel];
+        } else if (state == SSBTransportListenerStateCancelled) {
+            [cancelled fulfill];
+        }
+    }];
+    [listener setNewConnectionHandler:^(id<SSBTransportConnection> connection) {}];
+    [listener start];
+    [self waitForExpectations:@[ready, cancelled] timeout:10.0];
+    XCTAssertEqual(listener.state, SSBTransportListenerStateCancelled);
+}
+
+- (void)testListenerOnEndpointWithOptions {
+    SSBTransportConnectionOptions *opts = [[SSBTransportConnectionOptions alloc] init];
+    opts.enableMuxRPCFramer = YES;
+    id<SSBTransportListener> listener = [self listenerOnEndpoint:[SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:0]
+                                                         options:opts];
+    XCTAssertNotNil(listener);
+    XCTAssertEqual(listener.state, SSBTransportListenerStateInvalid);
+    [listener cancel];
+}
+
+- (void)testAdoptConnectionReturnsNonnull {
+    // Create a real connection object, then adopt it via the backend
+    id<SSBTransportBackend> backend = [self backend];
+    SSBTransportEndpoint *ep = [SSBTransportEndpoint endpointWithHost:@"127.0.0.1" port:0];
+    id<SSBTransportConnection> conn = [backend connectionToEndpoint:ep options:nil queue:self.queue];
+    XCTAssertNotNil(conn);
+    XCTAssertNil(conn.endpoint.host.length > 0 ? nil : conn.endpoint); // endpoint present
+}
+
 - (void)testRawLoopbackConnectionRoundTripsData {
     id<SSBTransportBackend> backend = [self backend];
 

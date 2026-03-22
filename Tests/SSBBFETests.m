@@ -688,4 +688,22 @@ static NSData *BFEMakeKey32(void) {
     XCTAssertTrue([result hasPrefix:@"%"]);
 }
 
+- (void)testDecodeBFEData_genericUnknownFormat_returnsRawData {
+    // SSBBFETypeGeneric = 6, with an unrecognized format byte (0xFF) → hits the inner `default:` branch
+    // and returns the raw payload NSData.
+    NSMutableData *bfe = [NSMutableData data];
+    uint8_t typeByte = (uint8_t)SSBBFETypeGeneric;
+    uint8_t unknownFormat = 0xFF;
+    uint8_t payload[] = {0x01, 0x02, 0x03};
+    [bfe appendBytes:&typeByte length:1];
+    [bfe appendBytes:&unknownFormat length:1];
+    [bfe appendBytes:payload length:3];
+
+    id result = [SSBBFE decodeBFEData:bfe];
+    XCTAssertNotNil(result);
+    XCTAssertTrue([result isKindOfClass:[NSData class]]);
+    NSData *expected = [NSData dataWithBytes:payload length:3];
+    XCTAssertEqualObjects(result, expected);
+}
+
 @end

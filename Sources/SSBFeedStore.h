@@ -95,7 +95,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSInteger)totalMessageCount;
 
 /// Returns a dictionary of author -> message count for visualization.
-- (NSDictionary<NSString *, NSNumber *> *)storageStatistics;
+- (NSDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *)storageStatistics;
 
 #pragma mark - Profiles
 

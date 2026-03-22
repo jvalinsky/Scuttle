@@ -379,4 +379,213 @@ static NSData *BTWBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     XCTAssertEqual(a, b);
 }
 
+// MARK: - validateMessage: author BFE edge cases
+
+- (void)testValidateMessage_wrongAuthorFormat {
+    // type=Feed (0x00) but format=Classic (0x01) not ButtwooV1 (0x04)
+    NSMutableData *badAuthorBFE = [NSMutableData dataWithCapacity:34];
+    uint8_t header[2] = {0x00, 0x01};
+    [badAuthorBFE appendBytes:header length:2];
+    [badAuthorBFE appendData:self.publicKey]; // 32 bytes → total 34
+
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[badAuthorBFE, @1, BTWNilBFE(), @0, content]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_shortAuthorBFE {
+    // type=Feed, format=ButtwooV1, but only 12 bytes total (not 34)
+    NSMutableData *shortAuthorBFE = [NSMutableData dataWithCapacity:12];
+    uint8_t header[2] = {0x00, 0x04};
+    [shortAuthorBFE appendBytes:header length:2];
+    uint8_t partial[10] = {0};
+    [shortAuthorBFE appendBytes:partial length:10]; // 12 total, need 34
+
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[shortAuthorBFE, @1, BTWNilBFE(), @0, content]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_wrongPrevBFEFormat {
+    // previous BFE that is neither nil-BFE (0x06,0x02) nor ButtwooMsg-BFE (0x01,0x05)
+    NSMutableData *wrongPrevBFE = [NSMutableData dataWithCapacity:34];
+    uint8_t prevHeader[2] = {0x01, 0x00}; // Message type, ClassicMsg format
+    [wrongPrevBFE appendBytes:prevHeader length:2];
+    uint8_t hash[32] = {0};
+    [wrongPrevBFE appendBytes:hash length:32]; // 34 bytes total
+
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @1, wrongPrevBFE, @0, content]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+// MARK: - validateMessage: signature BFE edge cases
+
+- (void)testValidateMessage_wrongSignatureBFEType {
+    // Sig BFE type=Feed (0x00) instead of Signature (0x04)
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @1, BTWNilBFE(), @0, content]];
+
+    NSMutableData *badSigBFE = [NSMutableData dataWithCapacity:66];
+    uint8_t sigHeader[2] = {0x00, 0x00}; // wrong type
+    [badSigBFE appendBytes:sigHeader length:2];
+    [badSigBFE appendData:[NSMutableData dataWithLength:64]];
+
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, badSigBFE]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_shortSignatureBFE {
+    // Sig BFE type=Signature (0x04) but only 12 bytes, need ≥ 66
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @1, BTWNilBFE(), @0, content]];
+
+    NSMutableData *shortSigBFE = [NSMutableData dataWithCapacity:12];
+    uint8_t sigHeader[2] = {0x04, 0x00};
+    [shortSigBFE appendBytes:sigHeader length:2];
+    [shortSigBFE appendData:[NSMutableData dataWithLength:10]]; // 12 total, need ≥ 66
+
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, shortSigBFE]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+// MARK: - computeMessageKey: edge cases
+
+- (void)testComputeMessageKey_emptyOuterList {
+    NSData *encoded = [SSBBIPF encodeList:@[]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
+- (void)testComputeMessageKey_payloadIsInteger {
+    // outer[0] is NSNumber, not NSData
+    NSData *encoded = [SSBBIPF encodeList:@[@42]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
+- (void)testComputeMessageKey_payloadListTooShort {
+    // payload BIPF list has only 1 element (needs ≥ 2)
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *shortPayload = [SSBBIPF encodeList:@[authorBFE]];
+    NSData *encoded = [SSBBIPF encodeList:@[shortPayload, [NSMutableData dataWithLength:66]]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
+- (void)testComputeMessageKey_shortAuthorBFE {
+    // authorBFE.length != 34 in payload
+    NSMutableData *shortAuthorBFE = [NSMutableData dataWithCapacity:12];
+    uint8_t header[2] = {0x00, 0x04};
+    [shortAuthorBFE appendBytes:header length:2];
+    uint8_t partial[10] = {0};
+    [shortAuthorBFE appendBytes:partial length:10]; // 12, not 34
+
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payload = [SSBBIPF encodeList:@[shortAuthorBFE, @1, BTWNilBFE(), @0, content]];
+    NSData *encoded = [SSBBIPF encodeList:@[payload, [NSMutableData dataWithLength:66]]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
+- (void)testComputeMessageKey_sequenceZero {
+    // sequenceNum.integerValue < 1
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *content = [@"c" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payload = [SSBBIPF encodeList:@[authorBFE, @0, BTWNilBFE(), @0, content]];
+    NSData *encoded = [SSBBIPF encodeList:@[payload, [NSMutableData dataWithLength:66]]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
+// MARK: - validateMessage: payload element type checks
+
+- (void)testValidateMessage_outerElementsNotNSData {
+    // Outer list has 2 elements but both are NSNumber, not NSData
+    NSData *encoded = [SSBBIPF encodeList:@[@42, @99]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_payloadAuthorNotNSData {
+    // payload[0] is NSNumber, not NSData
+    NSData *payloadBytes = [SSBBIPF encodeList:@[@42, @1, BTWNilBFE(), @0,
+                                                 [@"c" dataUsingEncoding:NSUTF8StringEncoding]]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_sequenceNotNSNumber {
+    // payload[1] is NSData, not NSNumber
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *notANumber = [@"1" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, notANumber, BTWNilBFE(), @0,
+                                                 [@"c" dataUsingEncoding:NSUTF8StringEncoding]]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_sequenceZero_inValidateMessage {
+    // payload[1] is @0 (NSNumber but < 1)
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @0, BTWNilBFE(), @0,
+                                                 [@"c" dataUsingEncoding:NSUTF8StringEncoding]]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_previousNotNSData {
+    // payload[2] is NSNumber, not NSData
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @1, @42, @0,
+                                                 [@"c" dataUsingEncoding:NSUTF8StringEncoding]]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+- (void)testValidateMessage_timestampNotNSNumber {
+    // payload[3] is NSData, not NSNumber
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *notANumber = [@"0" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payloadBytes = [SSBBIPF encodeList:@[authorBFE, @1, BTWNilBFE(), notANumber,
+                                                 [@"c" dataUsingEncoding:NSUTF8StringEncoding]]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payloadBytes, fakeSig]];
+    XCTAssertFalse([SSBButtwoo validateMessage:encoded]);
+}
+
+// MARK: - computeMessageKey: additional paths
+
+- (void)testComputeMessageKey_tooLarge {
+    // Message exceeding kMaxMessageSize (8192) should return nil
+    NSData *big = [NSMutableData dataWithLength:8193];
+    XCTAssertNil([SSBButtwoo computeMessageKey:big]);
+}
+
+- (void)testComputeMessageKey_payloadNotBIPFList {
+    // outer[0] is NSData that decodes as BIPF integer, not list
+    NSData *intPayload = [SSBBIPF encodeInteger:42]; // decodes to NSNumber
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[intPayload, fakeSig]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
+- (void)testComputeMessageKey_sequenceNotNSNumber {
+    // payload[1] is NSData, not NSNumber
+    NSData *authorBFE = BTWAuthorBFE(self.publicKey);
+    NSData *notNum = [@"1" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *payload = [SSBBIPF encodeList:@[authorBFE, notNum, BTWNilBFE(), @0,
+                                            [@"c" dataUsingEncoding:NSUTF8StringEncoding]]];
+    NSData *fakeSig = BTWSignatureBFE([NSMutableData dataWithLength:64]);
+    NSData *encoded = [SSBBIPF encodeList:@[payload, fakeSig]];
+    XCTAssertNil([SSBButtwoo computeMessageKey:encoded]);
+}
+
 @end

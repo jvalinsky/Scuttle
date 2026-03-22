@@ -225,4 +225,40 @@ static NSData *packRecord(NSData *payload) {
     [reopened close];
 }
 
+- (void)testInitWithPath_invalidDirectory_returnsNil {
+    // The parent directory does not exist, so open() returns -1 → init returns nil.
+    NSString *invalidPath = @"/nonexistent/directory/that/cannot/exist/test.log";
+    SSBLog *log = [[SSBLog alloc] initWithPath:invalidPath];
+    XCTAssertNil(log);
+}
+
+- (void)testScanContinueBranch_zeroLengthRecord_isSkipped {
+    // Close the freshly created empty log so we can replace it with crafted bytes.
+    [self.log close];
+    self.log = nil;
+
+    // Craft a log file: [4-byte zero-length record][4-byte length = 5]["hello"]
+    // The zero-length record must trigger the `len == 0` continue in _scanRecordCount
+    // and _buildOffsetMapByScanning. The valid record that follows must still be found.
+    NSMutableData *rawLog = [NSMutableData data];
+    uint32_t zeroLen = 0;
+    [rawLog appendBytes:&zeroLen length:sizeof(uint32_t)];
+    NSData *payload = [@"hello" dataUsingEncoding:NSUTF8StringEncoding];
+    uint32_t validLen = (uint32_t)payload.length;
+    [rawLog appendBytes:&validLen length:sizeof(uint32_t)];
+    [rawLog appendData:payload];
+    [rawLog writeToFile:self.logPath atomically:YES];
+
+    // No .offsets file → scan is triggered.
+    NSString *offsetsPath = [self.logPath stringByAppendingString:@".offsets"];
+    [[NSFileManager defaultManager] removeItemAtPath:offsetsPath error:nil];
+
+    SSBLog *log = [[SSBLog alloc] initWithPath:self.logPath];
+    XCTAssertNotNil(log);
+    // Only the valid record should be counted; the zero-length record is skipped.
+    XCTAssertEqual(log.recordCount, 1ULL);
+    [log close];
+    self.log = log; // tearDown will close it (already closed, close is idempotent)
+}
+
 @end

@@ -429,4 +429,133 @@ static NSData *GGBuildValidSeq1Message(NSData *pubKey, NSData *secretKey) {
     XCTAssertEqual(a, b);
 }
 
+// MARK: - Varint edge cases
+
+- (void)testDecodeVarint_overlong_returnsZero {
+    // 10 continuation bytes → shift reaches 70 (>= 64) → returns 0
+    uint8_t bytes[11];
+    memset(bytes, 0x80, 10); // 10 bytes with continuation bit set
+    bytes[10] = 0x01;         // terminal byte
+    NSUInteger offset = 0;
+    uint64_t value = [SSBGabbyGrove decodeVarintFrom:bytes length:11 offset:&offset];
+    XCTAssertEqual(value, 0u);
+}
+
+// MARK: - BLAKE2b-256 nil input
+
+- (void)testBlake2b256_nilInputReturnsNil {
+    NSData *result = [SSBGabbyGrove blake2b256:nil];
+    XCTAssertNil(result);
+}
+
+// MARK: - validateMessage: structural edge cases
+
+- (void)testValidateMessage_sequence0 {
+    // sequence field = 0 → fails msg.sequence < 1 check
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    GGAppendVarintField(payload, 2, 0);
+    uint8_t contentHash[32] = {0};
+    GGAppendBytesField(payload, 5, contentHash, 32);
+    uint8_t fakeSig[64] = {0};
+    GGAppendBytesField(payload, 8, fakeSig, 64);
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_shortSignatureField {
+    // signature field present but only 32 bytes, not 64
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    GGAppendVarintField(payload, 2, 1);
+    uint8_t contentHash[32] = {0};
+    GGAppendBytesField(payload, 5, contentHash, 32);
+    uint8_t shortSig[32] = {0};
+    GGAppendBytesField(payload, 8, shortSig, 32); // only 32 bytes
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_seq2NoPrevious {
+    // sequence=2 but no previous field (field 3) → fails previous check
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    GGAppendVarintField(payload, 2, 2);
+    // No field 3 (previous)
+    uint8_t contentHash[32] = {0};
+    GGAppendBytesField(payload, 5, contentHash, 32);
+    uint8_t fakeSig[64] = {0};
+    GGAppendBytesField(payload, 8, fakeSig, 64);
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_seq4NoLipmaa {
+    // sequence=4: lipmaaSeq(4)=1 != seq-1=3, so lipmaa field required but absent
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    GGAppendVarintField(payload, 2, 4);
+    uint8_t prev[32] = {0};
+    GGAppendBytesField(payload, 3, prev, 32); // previous present
+    // No field 4 (lipmaa)
+    uint8_t contentHash[32] = {0};
+    GGAppendBytesField(payload, 5, contentHash, 32);
+    uint8_t fakeSig[64] = {0};
+    GGAppendBytesField(payload, 8, fakeSig, 64);
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_noContentHash {
+    // No field 5 (contentHash) → fails contentHash check
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    GGAppendVarintField(payload, 2, 1);
+    // No field 5
+    uint8_t fakeSig[64] = {0};
+    GGAppendBytesField(payload, 8, fakeSig, 64);
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_signatureFieldFirst_returnsNO {
+    // Field 8 as the very first field → signatureFieldOffset=0 → rejected
+    NSMutableData *payload = [NSMutableData data];
+    uint8_t fakeSig[64] = {0};
+    GGAppendBytesField(payload, 8, fakeSig, 64); // field 8 first → offset=0
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    GGAppendVarintField(payload, 2, 1);
+    uint8_t contentHash[32] = {0};
+    GGAppendBytesField(payload, 5, contentHash, 32);
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+// MARK: - parseMessage wire type edge cases
+
+- (void)testValidateMessage_deprecatedWireType3_failsParsing {
+    // Wire type 3 (Start-group, deprecated) → parseMessage returns NO
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    uint64_t badTag = (99LL << 3) | 3; // wire type 3
+    [SSBGabbyGrove appendVarint:badTag toData:payload];
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_64bitFixed_truncated {
+    // Wire type 1 (64-bit fixed) with < 8 bytes remaining → parseMessage returns NO
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    uint64_t tag = (99LL << 3) | 1; // wire type 1
+    [SSBGabbyGrove appendVarint:tag toData:payload];
+    uint8_t shortData[4] = {0, 0, 0, 0}; // only 4 bytes, need 8
+    [payload appendBytes:shortData length:4];
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
+- (void)testValidateMessage_32bitFixed_truncated {
+    // Wire type 5 (32-bit fixed) with < 4 bytes remaining → parseMessage returns NO
+    NSMutableData *payload = [NSMutableData data];
+    GGAppendBytesField(payload, 1, self.publicKey.bytes, 32);
+    uint64_t tag = (99LL << 3) | 5; // wire type 5
+    [SSBGabbyGrove appendVarint:tag toData:payload];
+    uint8_t shortData[2] = {0, 0}; // only 2 bytes, need 4
+    [payload appendBytes:shortData length:2];
+    XCTAssertFalse([SSBGabbyGrove validateMessage:payload]);
+}
+
 @end

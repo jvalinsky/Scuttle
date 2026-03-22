@@ -61,4 +61,67 @@
     XCTAssertEqual(hunks.count, 0U);
 }
 
+- (void)testHistogram_capacityResize_atAnchorInsert {
+    // 5 unique lines on each side before a common anchor.
+    // Left recursion: 5 deletes + 5 adds = 10 edits, fills initial capacity=10.
+    // Anchor insert hits count==capacity → triggers resize in match-anchor block.
+    SSBDiffEngine *engine = [[SSBDiffEngine alloc] init];
+    NSString *a = @"a1\na2\na3\na4\na5\nanchor\nb1";
+    NSString *b = @"c1\nc2\nc3\nc4\nc5\nanchor\nd1";
+    NSArray<SSBDiffHunk *> *hunks = [engine diffString:a withString:b algorithm:SSBDiffAlgorithmTypeHistogram];
+    XCTAssertGreaterThan(hunks.count, 0U, @"Expected at least one hunk");
+}
+
+- (void)testHistogram_capacityResize_inAddLoop {
+    // 10 unique lines in A, 1 different unique line in B — no common anchor.
+    // 10 deletes fill capacity=10, then the first add triggers resize in the add loop.
+    SSBDiffEngine *engine = [[SSBDiffEngine alloc] init];
+    NSString *a = @"u1\nu2\nu3\nu4\nu5\nu6\nu7\nu8\nu9\nu10";
+    NSString *b = @"v1";
+    NSArray<SSBDiffHunk *> *hunks = [engine diffString:a withString:b algorithm:SSBDiffAlgorithmTypeHistogram];
+    XCTAssertGreaterThan(hunks.count, 0U, @"Expected at least one hunk");
+}
+
+- (void)testHistogram_capacityResize_inDeleteLoop {
+    // Pure m==0 path: A with 11 unique lines vs empty B.
+    // Edits 1-10 fill capacity=10; edit 11 triggers resize in the m==0 delete loop.
+    SSBDiffEngine *engine = [[SSBDiffEngine alloc] init];
+    NSString *a = @"d1\nd2\nd3\nd4\nd5\nd6\nd7\nd8\nd9\nd10\nd11";
+    NSString *b = @"";
+    NSArray<SSBDiffHunk *> *hunks = [engine diffString:a withString:b algorithm:SSBDiffAlgorithmTypeHistogram];
+    XCTAssertGreaterThan(hunks.count, 0U, @"Expected at least one hunk");
+}
+
+- (void)testHistogram_capacityResize_inAddLoop_n0 {
+    // Pure n==0 path: empty A vs B with 11 lines.
+    // Edits 1-10 fill capacity=10; edit 11 triggers resize in the n==0 add loop.
+    SSBDiffEngine *engine = [[SSBDiffEngine alloc] init];
+    NSString *a = @"";
+    NSString *b = @"e1\ne2\ne3\ne4\ne5\ne6\ne7\ne8\ne9\ne10\ne11";
+    NSArray<SSBDiffHunk *> *hunks = [engine diffString:a withString:b algorithm:SSBDiffAlgorithmTypeHistogram];
+    XCTAssertTrue(YES); // no crash; resize was exercised
+}
+
+- (void)testHistogram_recursive_n0_path {
+    // anchor is at index 0 in A → left recursion with n=0, m=1 hits n==0 code path.
+    // A = "anchor\nstuff", B = "before\nanchor\nstuff"
+    // anchor_a=0, anchor_b=1 → left: n=0, m=1
+    SSBDiffEngine *engine = [[SSBDiffEngine alloc] init];
+    NSString *a = @"anchor\nstuff";
+    NSString *b = @"before\nanchor\nstuff";
+    NSArray<SSBDiffHunk *> *hunks = [engine diffString:a withString:b algorithm:SSBDiffAlgorithmTypeHistogram];
+    XCTAssertGreaterThan(hunks.count, 0U);
+}
+
+- (void)testHistogram_recursive_m0_path {
+    // anchor is at index 0 in B → left recursion with n=1, m=0 hits m==0 code path.
+    // A = "before\nanchor", B = "anchor\nstuff"
+    // anchor_a=1, anchor_b=0 → left: n=1, m=0
+    SSBDiffEngine *engine = [[SSBDiffEngine alloc] init];
+    NSString *a = @"before\nanchor";
+    NSString *b = @"anchor\nstuff";
+    NSArray<SSBDiffHunk *> *hunks = [engine diffString:a withString:b algorithm:SSBDiffAlgorithmTypeHistogram];
+    XCTAssertGreaterThan(hunks.count, 0U);
+}
+
 @end

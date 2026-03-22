@@ -691,11 +691,20 @@ static const NSInteger kCurrentSchemaVersion = 4;
 - (NSArray<SSBMessage *> *)recentMessagesWithLimit:(NSInteger)limit {
     __block NSMutableArray<SSBMessage *> *results = [NSMutableArray array];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE content_type != 'metafeed/index' ORDER BY claimed_timestamp DESC LIMIT ?";
+        const char *sql = "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, is_private, content_type, value_json, content_json, feed_format FROM messages WHERE content_type NOT IN ('metafeed', 'metafeed/index', 'contact') ORDER BY claimed_timestamp DESC LIMIT ?";
+        
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_int64(stmt, 1, limit);
-        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            SSBMessage *msg = [self _messageFromStatement:stmt];
+            [results addObject:msg];
+            // Log to static log file for inspection
+            char logLine[512];
+            snprintf(logLine, sizeof(logLine), "[recentMessagesWithLimit] id=%s Type=%s\n", msg.key.UTF8String ?: "", msg.contentType.UTF8String ?: "NULL");
+            FILE *f = fopen("/tmp/scuttle_peer_discovery.log", "a");
+            if (f) { fputs(logLine, f); fclose(f); }
+        }
         sqlite3_finalize(stmt);
     });
     return results;
@@ -710,7 +719,7 @@ static const NSInteger kCurrentSchemaVersion = 4;
             "SELECT author, sequence, key, previous_key, claimed_timestamp, received_at, "
             "is_private, content_type, value_json, content_json, feed_format "
             "FROM messages "
-            "WHERE content_type != 'metafeed/index' AND ("
+            "WHERE content_type NOT IN ('metafeed', 'metafeed/index', 'contact') AND ("
             "    author IN (SELECT target_author FROM contacts WHERE following = 1)"
             "    OR author IN ("
             "        SELECT json_extract(content_json,'$.subfeed') "
@@ -720,10 +729,19 @@ static const NSInteger kCurrentSchemaVersion = 4;
             "    )"
             ") "
             "ORDER BY claimed_timestamp DESC LIMIT ?";
+
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(self->_db, sql, -1, &stmt, NULL) != SQLITE_OK) return;
         sqlite3_bind_int64(stmt, 1, limit);
-        while (sqlite3_step(stmt) == SQLITE_ROW) [results addObject:[self _messageFromStatement:stmt]];
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            SSBMessage *msg = [self _messageFromStatement:stmt];
+            [results addObject:msg];
+            // Log for inspection
+            char logLine[1024];
+            snprintf(logLine, sizeof(logLine), "[timelineWithLimit] item id=%s type=%s\n", msg.key.UTF8String ?: "", msg.contentType.UTF8String ?: "NULL");
+            FILE *f = fopen("/tmp/scuttle_peer_discovery.log", "a");
+            if (f) { fputs(logLine, f); fclose(f); }
+        }
         sqlite3_finalize(stmt);
     });
     return results;
@@ -1021,17 +1039,25 @@ static const NSInteger kCurrentSchemaVersion = 4;
     return count;
 }
 
-- (NSDictionary<NSString *, NSNumber *> *)storageStatistics {
+- (NSDictionary<NSString *, NSDictionary<NSString *, NSNumber *> *> *)storageStatistics {
     NSMutableDictionary *stats = [NSMutableDictionary dictionary];
     dispatch_sync(self.dbQueue, ^{
-        const char *sql = "SELECT author, COUNT(*) FROM messages GROUP BY author ORDER BY COUNT(*) DESC LIMIT 50";
+        const char *sql = "SELECT author, content_type, COUNT(*) FROM messages WHERE author IN (SELECT author FROM messages GROUP BY author ORDER BY COUNT(*) DESC LIMIT 10) GROUP BY author, content_type;";
         sqlite3_stmt *stmt = NULL;
         if (sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL) == SQLITE_OK) {
             while (sqlite3_step(stmt) == SQLITE_ROW) {
                 const char *author = (const char *)sqlite3_column_text(stmt, 0);
-                long long count = sqlite3_column_int64(stmt, 1);
+                const char *type = (const char *)sqlite3_column_text(stmt, 1);
+                long long count = sqlite3_column_int64(stmt, 2);
                 if (author) {
-                    stats[[NSString stringWithUTF8String:author]] = @(count);
+                    NSString *authorStr = [NSString stringWithUTF8String:author];
+                    NSString *typeStr = type ? [NSString stringWithUTF8String:type] : @"(unknown)";
+                    NSMutableDictionary *authorDict = stats[authorStr];
+                    if (!authorDict) {
+                        authorDict = [NSMutableDictionary dictionary];
+                        stats[authorStr] = authorDict;
+                    }
+                    authorDict[typeStr] = @(count);
                 }
             }
             sqlite3_finalize(stmt);

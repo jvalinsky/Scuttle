@@ -107,7 +107,11 @@
     AVCaptureMetadataOutput *output = [[AVCaptureMetadataOutput alloc] init];
     [self.session addOutput:output];
     [output setMetadataObjectsDelegate:self queue:dispatch_get_main_queue()];
-    output.metadataObjectTypes = @[AVMetadataObjectTypeQRCode];
+    if ([output.availableMetadataObjectTypes containsObject:AVMetadataObjectTypeQRCode]) {
+        output.metadataObjectTypes = @[AVMetadataObjectTypeQRCode];
+    } else {
+        self.statusLabel.stringValue = @"QR scanning unsupported on this camera.";
+    }
 
     self.previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.session];
     self.previewLayer.frame = self.view.bounds;

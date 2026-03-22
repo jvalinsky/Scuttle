@@ -109,4 +109,24 @@
     XCTAssertEqualObjects(blobID, @"&img.sha256");
 }
 
+- (void)testViewIsVisualEffectView {
+    SRFeedItem *item = [[SRFeedItem alloc] init];
+    (void)item.view; // Force loadView
+    
+    XCTAssertTrue([item.view isKindOfClass:[NSVisualEffectView class]], @"View should be NSVisualEffectView");
+}
+
+- (void)testCountLabels_presentAndHiddenByDefault {
+    SRFeedItem *item = [[SRFeedItem alloc] init];
+    (void)item.view; // Force loadView
+    
+    NSTextField *replyCount = [item valueForKey:@"replyCountLabel"];
+    NSTextField *likeCount = [item valueForKey:@"likeCountLabel"];
+    
+    XCTAssertNotNil(replyCount, @"replyCountLabel should be created");
+    XCTAssertNotNil(likeCount, @"likeCountLabel should be created");
+    XCTAssertTrue(replyCount.isHidden, @"replyCountLabel should be hidden by default");
+    XCTAssertTrue(likeCount.isHidden, @"likeCountLabel should be hidden by default");
+}
+
 @end

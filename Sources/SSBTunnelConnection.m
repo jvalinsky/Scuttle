@@ -218,7 +218,7 @@
 
 - (void)readFromServerConnection {
     __weak typeof(self) weakSelf = self;
-    [self.serverConnection receiveMinimumLength:1 maximumLength:65536 completion:^(NSData * _Nullable content, NSDictionary<NSString *,id> * _Nullable metadata, BOOL is_complete, NSError * _Nullable error) {
+    [self.serverConnection receiveMinimumLength:1 maximumLength:NW_MAX_FRAME_SIZE completion:^(NSData * _Nullable content, NSDictionary<NSString *,id> * _Nullable metadata, BOOL is_complete, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         
@@ -241,7 +241,7 @@
 
 - (void)readFromClientConnection {
     __weak typeof(self) weakSelf = self;
-    [self.clientConnection receiveMinimumLength:1 maximumLength:NW_MAX_FRAME_SIZE completion:^(NSData * _Nullable content, NSDictionary<NSString *,id> * _Nullable metadata, BOOL is_complete, NSError * _Nullable error) {
+    [self.clientConnection receiveMessageWithCompletion:^(NSData * _Nullable content, NSDictionary<NSString *,id> * _Nullable metadata, BOOL is_complete, NSError * _Nullable error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         

@@ -72,4 +72,100 @@
     XCTAssertEqual(state.feedFormat, SSBBFEFeedFormatBamboo);
 }
 
+// MARK: - Nullable properties
+
+- (void)testPreviousKeyCanBeNilledAfterSet {
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    msg.previousKey = @"%prev.sha256";
+    msg.previousKey = nil;
+    XCTAssertNil(msg.previousKey);
+}
+
+- (void)testContentTypeCanBeNilledAfterSet {
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    msg.contentType = @"post";
+    msg.contentType = nil;
+    XCTAssertNil(msg.contentType);
+}
+
+- (void)testContentCanBeNilledAfterSet {
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    msg.content = @{@"type": @"post"};
+    msg.content = nil;
+    XCTAssertNil(msg.content);
+}
+
+- (void)testFeedStateMaxKeyCanBeNilledAfterSet {
+    SSBFeedState *state = [[SSBFeedState alloc] init];
+    state.maxKey = @"%latest.sha256";
+    state.maxKey = nil;
+    XCTAssertNil(state.maxKey);
+}
+
+// MARK: - All feed format enum values
+
+- (void)testAllFeedFormatValues {
+    SSBMessage *msg = [[SSBMessage alloc] init];
+
+    msg.feedFormat = SSBBFEFeedFormatClassic;
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatClassic);
+
+    msg.feedFormat = SSBBFEFeedFormatGabbygroveV1;
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatGabbygroveV1);
+
+    msg.feedFormat = SSBBFEFeedFormatBamboo;
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatBamboo);
+
+    msg.feedFormat = SSBBFEFeedFormatBendybuttV1;
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatBendybuttV1);
+
+    msg.feedFormat = SSBBFEFeedFormatButtwooV1;
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatButtwooV1);
+
+    msg.feedFormat = SSBBFEFeedFormatIndexedV1;
+    XCTAssertEqual(msg.feedFormat, SSBBFEFeedFormatIndexedV1);
+}
+
+// MARK: - Edge cases
+
+- (void)testFirstMessageHasNilPreviousKey {
+    // Sequence 1 messages have no previous key
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    msg.sequence = 1;
+    msg.previousKey = nil;
+    XCTAssertEqual(msg.sequence, 1);
+    XCTAssertNil(msg.previousKey);
+}
+
+- (void)testLargeTimestampPrecision {
+    // int64_t must hold millisecond timestamps well beyond 2038
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    msg.claimedTimestamp = 9999999999999LL;
+    msg.receivedAt       = 9999999999999LL;
+    XCTAssertEqual(msg.claimedTimestamp, 9999999999999LL);
+    XCTAssertEqual(msg.receivedAt,       9999999999999LL);
+}
+
+- (void)testValueJSONRoundtrip {
+    NSString *jsonString = @"{\"type\":\"post\",\"text\":\"hello world\"}";
+    NSData *json = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+    SSBMessage *msg = [[SSBMessage alloc] init];
+    msg.valueJSON = json;
+    NSString *recovered = [[NSString alloc] initWithData:msg.valueJSON encoding:NSUTF8StringEncoding];
+    XCTAssertEqualObjects(recovered, jsonString);
+}
+
+- (void)testFeedStateFeedFormatAllValues {
+    SSBFeedState *state = [[SSBFeedState alloc] init];
+
+    state.feedFormat = SSBBFEFeedFormatClassic;
+    XCTAssertEqual(state.feedFormat, SSBBFEFeedFormatClassic);
+
+    state.feedFormat = SSBBFEFeedFormatBendybuttV1;
+    XCTAssertEqual(state.feedFormat, SSBBFEFeedFormatBendybuttV1);
+
+    state.feedFormat = SSBBFEFeedFormatIndexedV1;
+    XCTAssertEqual(state.feedFormat, SSBBFEFeedFormatIndexedV1);
+}
+
 @end

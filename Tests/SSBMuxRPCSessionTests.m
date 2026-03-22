@@ -5,6 +5,8 @@
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, id> *pendingRequests;
 @property (nonatomic, strong) NSMutableSet<NSNumber *> *activeIncomingRequests;
 @property (nonatomic, strong) dispatch_queue_t accessQueue;
+- (id _Nullable)parsedBodyForMessage:(SSBMuxRPCMessage *)message;
+- (nullable NSError *)errorFromEndPayload:(id _Nullable)payload;
 @end
 
 @interface SSBMuxRPCSessionTests : XCTestCase
@@ -207,6 +209,257 @@
         removed = (session.pendingRequests[@(reqID)] == nil);
     });
     XCTAssertTrue(removed, @"Error responses must clear the pending request");
+}
+
+// MARK: - parsedBodyForMessage edge cases
+
+- (void)testParsedBodyJSONWithInvalidBodyReturnsNil {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSData *notJSON = [@"not valid json {{{{" dataUsingEncoding:NSUTF8StringEncoding];
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:SSBMuxRPCFlagTypeJSON requestNumber:1 body:notJSON];
+    id result = [session parsedBodyForMessage:msg];
+    XCTAssertNil(result, @"Invalid JSON body should return nil");
+}
+
+- (void)testParsedBodyJSONWithEmptyBodyReturnsRawData {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSData *empty = [NSData data];
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:SSBMuxRPCFlagTypeJSON requestNumber:1 body:empty];
+    id result = [session parsedBodyForMessage:msg];
+    // length == 0, so skips JSON parse and falls through to return message.body
+    XCTAssertEqualObjects(result, empty);
+}
+
+- (void)testParsedBodyStringFlagWithNonEmptyBodyReturnsString {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSData *body = [@"hello" dataUsingEncoding:NSUTF8StringEncoding];
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:SSBMuxRPCFlagTypeString requestNumber:1 body:body];
+    id result = [session parsedBodyForMessage:msg];
+    XCTAssertEqualObjects(result, @"hello");
+}
+
+- (void)testParsedBodyStringFlagWithEmptyBodyReturnsRawData {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSData *empty = [NSData data];
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:SSBMuxRPCFlagTypeString requestNumber:1 body:empty];
+    id result = [session parsedBodyForMessage:msg];
+    XCTAssertEqualObjects(result, empty);
+}
+
+- (void)testParsedBodyNoTypeFlagReturnsBinaryData {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSData *body = [@"binary" dataUsingEncoding:NSUTF8StringEncoding];
+    SSBMuxRPCMessage *msg = [[SSBMuxRPCMessage alloc] initWithFlags:0 requestNumber:1 body:body];
+    id result = [session parsedBodyForMessage:msg];
+    XCTAssertEqualObjects(result, body);
+}
+
+// MARK: - errorFromEndPayload edge cases
+
+- (void)testErrorFromEndPayloadWithNilReturnsNil {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    XCTAssertNil([session errorFromEndPayload:nil]);
+}
+
+- (void)testErrorFromEndPayloadWithDictNoErrorNameReturnsNil {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSDictionary *d = @{@"name": @"Success", @"message": @"ok"};
+    XCTAssertNil([session errorFromEndPayload:d]);
+}
+
+- (void)testErrorFromEndPayloadWithDictContainingErrorReturnsNSError {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSDictionary *d = @{@"name": @"TypeError", @"message": @"bad type"};
+    NSError *err = [session errorFromEndPayload:d];
+    XCTAssertNotNil(err);
+    XCTAssertEqualObjects(err.domain, @"SSBMuxRPC");
+    XCTAssertTrue([err.localizedDescription containsString:@"bad type"]);
+}
+
+- (void)testErrorFromEndPayloadWithStringContainingErrorReturnsNSError {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSError *err = [session errorFromEndPayload:@"Error: something went wrong"];
+    XCTAssertNotNil(err);
+    XCTAssertEqualObjects(err.domain, @"SSBMuxRPC");
+}
+
+- (void)testErrorFromEndPayloadWithStringNotContainingErrorReturnsNil {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSError *err = [session errorFromEndPayload:@"operation complete"];
+    XCTAssertNil(err);
+}
+
+- (void)testErrorFromEndPayloadWithDictMissingMessageKeyUsesDefault {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    NSDictionary *d = @{@"name": @"AppError"};
+    NSError *err = [session errorFromEndPayload:d];
+    XCTAssertNotNil(err);
+    XCTAssertTrue([err.localizedDescription containsString:@"Unknown RPC Error"]);
+}
+
+// MARK: - sendData edge cases
+
+- (void)testSendDataWithNSDataSendsRawBytes {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    __block SSBMuxRPCMessage *sent = nil;
+    session.sendMessageBlock = ^(SSBMuxRPCMessage *m) { sent = m; };
+
+    NSData *data = [@"raw" dataUsingEncoding:NSUTF8StringEncoding];
+    [session sendData:data forRequest:5 isEnd:NO];
+
+    XCTAssertNotNil(sent);
+    XCTAssertEqualObjects(sent.body, data);
+    XCTAssertEqual(sent.requestNumber, 5);
+    XCTAssertTrue((sent.flags & SSBMuxRPCFlagStream) != 0);
+    XCTAssertFalse((sent.flags & SSBMuxRPCFlagEndErr) != 0);
+}
+
+- (void)testSendDataWithNSStringSetsStringFlag {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    __block SSBMuxRPCMessage *sent = nil;
+    session.sendMessageBlock = ^(SSBMuxRPCMessage *m) { sent = m; };
+
+    [session sendData:@"hello-string" forRequest:3 isEnd:NO];
+
+    XCTAssertNotNil(sent);
+    XCTAssertTrue((sent.flags & SSBMuxRPCFlagTypeString) != 0);
+    XCTAssertEqualObjects([[NSString alloc] initWithData:sent.body encoding:NSUTF8StringEncoding], @"hello-string");
+}
+
+- (void)testSendDataWithDictionarySetsJSONFlag {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    __block SSBMuxRPCMessage *sent = nil;
+    session.sendMessageBlock = ^(SSBMuxRPCMessage *m) { sent = m; };
+
+    [session sendData:@{@"key": @"value"} forRequest:7 isEnd:NO];
+
+    XCTAssertNotNil(sent);
+    XCTAssertTrue((sent.flags & SSBMuxRPCFlagTypeJSON) != 0);
+}
+
+- (void)testSendDataWithIsEndSetsEndErrFlag {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    __block SSBMuxRPCMessage *sent = nil;
+    session.sendMessageBlock = ^(SSBMuxRPCMessage *m) { sent = m; };
+
+    [session sendData:nil forRequest:9 isEnd:YES];
+
+    XCTAssertNotNil(sent);
+    XCTAssertTrue((sent.flags & SSBMuxRPCFlagEndErr) != 0);
+}
+
+// MARK: - sendRequest edge cases
+
+- (void)testSendRequestWithoutSendMessageBlockDoesNotCrash {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    // No sendMessageBlock set — should not crash
+    int32_t reqID = [session sendRequest:@[@"whoami"] args:@[] type:@"async" completion:nil];
+    XCTAssertGreaterThan(reqID, 0);
+}
+
+- (void)testSendRequestWithDuplexTypeSetsStreamFlag {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    __block SSBMuxRPCMessage *sent = nil;
+    session.sendMessageBlock = ^(SSBMuxRPCMessage *m) { sent = m; };
+
+    [session sendRequest:@[@"tunnel", @"connect"] args:@[] type:@"duplex" completion:nil];
+
+    XCTAssertNotNil(sent);
+    XCTAssertTrue((sent.flags & SSBMuxRPCFlagStream) != 0);
+}
+
+- (void)testSendRequestWithSinkTypeSetsStreamFlag {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    __block SSBMuxRPCMessage *sent = nil;
+    session.sendMessageBlock = ^(SSBMuxRPCMessage *m) { sent = m; };
+
+    [session sendRequest:@[@"blobs", @"add"] args:@[] type:@"sink" completion:nil];
+
+    XCTAssertNotNil(sent);
+    XCTAssertTrue((sent.flags & SSBMuxRPCFlagStream) != 0);
+}
+
+// MARK: - handleIncomingMessage edge cases
+
+- (void)testHandleIncomingPositiveReqIDResponseTriggersCallback {
+    // A positive reqID response (not negated) should still match a pending request with the same ID
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    XCTestExpectation *exp = [self expectationWithDescription:@"callback fired"];
+    __block id capturedPayload = nil;
+
+    int32_t reqID = [session sendRequest:@[@"test"] args:@[] type:@"async" completion:^(id _Nullable r, NSError *_Nullable e) {
+        capturedPayload = r;
+        [exp fulfill];
+    }];
+
+    // Respond with the positive reqID (same value, not negated)
+    SSBMuxRPCMessage *resp = [self jsonMessageWithFlags:(SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagEndErr)
+                                           requestNumber:reqID
+                                                  object:@{@"result": @YES}];
+    [session handleIncomingMessage:resp];
+    [self waitForExpectations:@[exp] timeout:2.0];
+    XCTAssertNotNil(capturedPayload);
+}
+
+- (void)testHandleIncomingMessageWithNoCallbackAndNoReceiveBlockDoesNotCrash {
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    // No pending request, no receiveRequestBlock — should not crash
+    SSBMuxRPCMessage *msg = [self jsonMessageWithFlags:SSBMuxRPCFlagTypeJSON requestNumber:99 object:@{}];
+    XCTAssertNoThrow([session handleIncomingMessage:msg]);
+}
+
+- (void)testStreamEndWithNonTrueValueFiresCallbackOnce {
+    // isEndErr && isStream && parsedBody != @YES → fires callback with data then removes pending
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    XCTestExpectation *exp = [self expectationWithDescription:@"stream final value callback"];
+    __block NSInteger count = 0;
+    __block id captured = nil;
+
+    int32_t reqID = [session sendRequest:@[@"room", @"attendants"] args:@[] type:@"source" completion:^(id _Nullable r, NSError *_Nullable e) {
+        count++;
+        captured = r;
+        [exp fulfill];
+    }];
+
+    // End with a non-@YES payload (actual final data value)
+    SSBMuxRPCMessage *end = [self jsonMessageWithFlags:(SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagStream | SSBMuxRPCFlagEndErr)
+                                          requestNumber:-reqID
+                                                 object:@{@"final": @"value"}];
+    [session handleIncomingMessage:end];
+    [self waitForExpectations:@[exp] timeout:2.0];
+    XCTAssertEqual(count, 1);
+    XCTAssertEqualObjects(captured[@"final"], @"value");
+}
+
+- (void)testAsyncRequest_nonStreamNonEndErr_response_cleansUpPendingRequest {
+    // A non-stream, non-endErr response to an async request hits the else branch
+    // (lines 239-244) which calls the callback and removes the pending request.
+    SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
+    XCTestExpectation *exp = [self expectationWithDescription:@"async callback"];
+    __block id receivedResult = nil;
+
+    int32_t reqID = [session sendRequest:@[@"whoami"]
+                                    args:@[]
+                                    type:@"async"
+                              completion:^(id _Nullable response, NSError * _Nullable error) {
+        XCTAssertNil(error);
+        receivedResult = response;
+        [exp fulfill];
+    }];
+
+    SSBMuxRPCMessage *response = [self jsonMessageWithFlags:SSBMuxRPCFlagTypeJSON
+                                              requestNumber:-reqID
+                                                     object:@{@"id": @"@peer.ed25519"}];
+    [session handleIncomingMessage:response];
+
+    [self waitForExpectations:@[exp] timeout:2.0];
+    XCTAssertEqualObjects(receivedResult[@"id"], @"@peer.ed25519");
+
+    __block BOOL cleaned = NO;
+    dispatch_sync(session.accessQueue, ^{
+        cleaned = (session.pendingRequests[@(reqID)] == nil);
+    });
+    XCTAssertTrue(cleaned, @"Pending request must be removed after async non-stream response");
 }
 
 - (void)testStreamEndTrueClearsPendingRequestWithoutEmittingExtraPayload {

@@ -17,6 +17,50 @@ extern id nw_framer_options_copy_object_value(nw_protocol_options_t options, con
 
 @implementation SSBSecurityFramerTests
 
+- (void)testCreateDefinitionIsIdempotent {
+    // dispatch_once guarantees the same object is returned on every call
+    nw_protocol_definition_t def1 = [SSBSecurityFramer createDefinition];
+    nw_protocol_definition_t def2 = [SSBSecurityFramer createDefinition];
+    XCTAssertNotNil(def1);
+    XCTAssertEqual(def1, def2);
+}
+
+- (void)testCreateOptionsProducesDistinctInstances {
+    unsigned char pk[32], sk[64];
+    crypto_sign_ed25519_keypair(pk, sk);
+    NSData *localSK = [NSData dataWithBytes:sk length:64];
+    NSData *remotePK = [NSData dataWithBytes:pk length:32];
+
+    nw_protocol_options_t opts1 = [SSBSecurityFramer createOptionsWithLocalSecretKey:localSK
+                                                                     remotePublicKey:remotePK
+                                                                            asClient:YES];
+    nw_protocol_options_t opts2 = [SSBSecurityFramer createOptionsWithLocalSecretKey:localSK
+                                                                     remotePublicKey:remotePK
+                                                                            asClient:YES];
+    XCTAssertNotNil(opts1);
+    XCTAssertNotNil(opts2);
+    XCTAssertNotEqual(opts1, opts2);
+}
+
+- (void)testClientAndServerOptionsAreDifferent {
+    unsigned char pk[32], sk[64];
+    crypto_sign_ed25519_keypair(pk, sk);
+    NSData *localSK = [NSData dataWithBytes:sk length:64];
+    NSData *remotePK = [NSData dataWithBytes:pk length:32];
+
+    nw_protocol_options_t clientOpts = [SSBSecurityFramer createOptionsWithLocalSecretKey:localSK
+                                                                          remotePublicKey:remotePK
+                                                                                 asClient:YES];
+    nw_protocol_options_t serverOpts = [SSBSecurityFramer createOptionsWithLocalSecretKey:localSK
+                                                                          remotePublicKey:nil
+                                                                                 asClient:NO];
+
+    NSNumber *clientFlag = nw_framer_options_copy_object_value(clientOpts, "AsClient");
+    NSNumber *serverFlag = nw_framer_options_copy_object_value(serverOpts, "AsClient");
+    XCTAssertTrue(clientFlag.boolValue);
+    XCTAssertFalse(serverFlag.boolValue);
+}
+
 - (void)testCreateDefinitionReturnsNonnull {
     nw_protocol_definition_t def = [SSBSecurityFramer createDefinition];
     XCTAssertNotNil(def);
