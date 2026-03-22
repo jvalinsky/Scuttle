@@ -145,6 +145,9 @@ static NSString * const kMetafeedAnnouncedKey = @"ssb_metafeed_announced";
 
 id<SSBSecretStore> SSBCreateDefaultSecretStore(void) {
 #if defined(__APPLE__) && __has_include(<Security/Security.h>)
+    if (NSProcessInfo.processInfo.environment[@"SSB_USE_FILE_STORE"]) {
+        return [[SSBFileSecretStore alloc] initWithBaseDirectory:nil];
+    }
     return [[SSBAppleKeychainSecretStore alloc] init];
 #else
     return [[SSBFileSecretStore alloc] initWithBaseDirectory:nil];

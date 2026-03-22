@@ -516,23 +516,14 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 }
 
 - (BOOL)isAttendantsEventDictionary:(NSDictionary *)dict {
-    NSString *type = dict[@"type"];
-    NSString *event = dict[@"event"];
-    NSString *ids = dict[@"ids"];
-    NSString *peers = dict[@"peers"];
-    NSString *attendants = dict[@"attendants"];
-    NSString *id = dict[@"id"];
-    NSString *key = dict[@"key"];
-    NSString *feed = dict[@"feed"];
-    
-    return (type.length > 0 ||
-            event.length > 0 ||
-            ids.length > 0 ||
-            peers.length > 0 ||
-            attendants.length > 0 ||
-            id.length > 0 ||
-            key.length > 0 ||
-            feed.length > 0);
+    return (dict[@"type"]       != nil ||
+            dict[@"event"]      != nil ||
+            dict[@"ids"]        != nil ||
+            dict[@"peers"]      != nil ||
+            dict[@"attendants"] != nil ||
+            dict[@"id"]         != nil ||
+            dict[@"key"]        != nil ||
+            dict[@"feed"]       != nil);
 }
 
 - (nullable id)jsonObjectFromDataIfPossible:(NSData *)data {
