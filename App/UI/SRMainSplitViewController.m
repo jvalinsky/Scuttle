@@ -41,6 +41,9 @@ static os_log_t split_log;
 /// Home view controller representing the main timeline or feed.
 @property (nonatomic, strong) SRHomeViewController *homeVC;
 
+/// Peer list panel (trailing split item, collapsed by default).
+@property (nonatomic, strong) SRPeerListViewController *peerListVC;
+
 /// Currently selected room configuration for context.
 @property (nonatomic, strong, nullable) RoomConfig *selectedRoom;
 
@@ -84,7 +87,11 @@ static os_log_t split_log;
         }];
     }
 
-    // Setup the split view with just sidebar and content container.
+    // Peer list panel (trailing side, collapsed by default).
+    self.peerListVC = [[SRPeerListViewController alloc] init];
+    self.peerListVC.delegate = self;
+
+    // Setup three-pane split: Sidebar | Content | PeerList
     NSSplitViewItem *sidebarItem = [NSSplitViewItem sidebarWithViewController:self.sidebarVC];
     sidebarItem.minimumThickness = 200;
     sidebarItem.maximumThickness = 300;
@@ -92,8 +99,14 @@ static os_log_t split_log;
     NSSplitViewItem *contentItem = [NSSplitViewItem splitViewItemWithViewController:self.contentContainer];
     contentItem.minimumThickness = 600;
 
+    NSSplitViewItem *peerListItem = [NSSplitViewItem sidebarWithViewController:self.peerListVC];
+    peerListItem.minimumThickness = 200;
+    peerListItem.maximumThickness = 280;
+    peerListItem.collapsed = YES;
+
     [self addSplitViewItem:sidebarItem];
     [self addSplitViewItem:contentItem];
+    [self addSplitViewItem:peerListItem];
 
     // Set divider style to thin for modern appearance.
     self.splitView.dividerStyle = NSSplitViewDividerStyleThin;
@@ -148,10 +161,12 @@ static os_log_t split_log;
         reposVC.currentClient = [self currentClient];
         [self showContentViewController:reposVC animated:YES];
     } else if ([destination isEqualToString:@"peers"]) {
-        SRPeerListViewController *peersVC = [[SRPeerListViewController alloc] init];
-        peersVC.roomHost = self.selectedRoom.host;
-        peersVC.delegate = self;
-        [self showContentViewController:peersVC animated:YES];
+        self.peerListVC.roomHost = self.selectedRoom.host;
+        // Expand the peer list panel if it's collapsed
+        NSSplitViewItem *peerItem = self.splitViewItems.lastObject;
+        if (peerItem.isCollapsed) {
+            peerItem.animator.collapsed = NO;
+        }
     } else if ([destination isEqualToString:@"settings"]) {
         [self showPreferences];
     } else {

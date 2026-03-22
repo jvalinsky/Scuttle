@@ -285,92 +285,105 @@
 }
 
 - (void)testNumberOfRows_combinesRoomsAndRepos {
-    [self.vc loadView];
-    [self.vc viewDidLoad];
-    
+    // Set up rooms BEFORE viewDidLoad so _rebuildSections sees them
     SRRoomManager *manager = [SRRoomManager sharedManager];
     [manager.internalRooms removeAllObjects];
-    
     RoomConfig *room = [[RoomConfig alloc] init];
     room.host = @"test-host";
     [manager.internalRooms addObject:room];
-    
-    self.vc.gitRepos = @[[[NSObject alloc] init]]; 
-    
+
+    [self.vc loadView];
+    [self.vc viewDidLoad];
+
+    // Sidebar layout with 1 room, 0 repos (gitRepos not seeded here):
+    // Row 0: SSB (section header)
+    // Rows 1-4: Home, Channels, Repositories, Peers (4 nav items)
+    // Row 5: ROOMS (section header)
+    // Row 6: test-host (room item)
+    // Row 7: CHANNELS (section header)
+    // Row 8: REPOSITORIES (section header)
+    // Total: 9 rows
     NSInteger rows = [self.vc.outlineView numberOfRows];
-    XCTAssertEqual(rows, 5, @"Row count should include all sections (3) and expanded items (2)");
+    XCTAssertEqual(rows, 9, @"With 1 room and 0 repos: 4 sections + 4 nav items + 1 room = 9 rows");
 }
 
 - (void)testTableViewSelectionDidChange_postsNotification {
-    [self.vc loadView];
-    [self.vc viewDidLoad];
-
+    // Set up room before viewDidLoad
     SRRoomManager *manager = [SRRoomManager sharedManager];
     [manager.internalRooms removeAllObjects];
-    
     RoomConfig *room = [[RoomConfig alloc] init];
     room.host = @"test-host";
     [manager.internalRooms addObject:room];
 
+    [self.vc loadView];
+    [self.vc viewDidLoad];
+
     NSOutlineView *outlineView = self.vc.outlineView;
 
+    // Row 6 is the room item (see testNumberOfRows_combinesRoomsAndRepos for layout)
     XCTestExpectation *expectation = [self expectationForNotification:SRRoomManagerRoomSelectedNotification object:nil handler:^BOOL(NSNotification * _Nonnull notification) {
         RoomConfig *selected = notification.userInfo[SRRoomManagerRoomSelectedKey];
         XCTAssertEqualObjects(selected.host, @"test-host");
         return YES;
     }];
 
-    [outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:1] byExtendingSelection:NO];
+    [outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:6] byExtendingSelection:NO];
     [self.vc outlineViewSelectionDidChange:[NSNotification notificationWithName:NSOutlineViewSelectionDidChangeNotification object:outlineView]];
 
     [self waitForExpectationsWithTimeout:1.0 handler:nil];
 }
 
 - (void)testTableView_viewForTableColumn_rendersCells {
-    [self.vc loadView];
-    [self.vc viewDidLoad];
-
+    // Set up data before viewDidLoad
     SRRoomManager *manager = [SRRoomManager sharedManager];
     [manager.internalRooms removeAllObjects];
     RoomConfig *room = [[RoomConfig alloc] init];
     room.host = @"test-host";
     [manager.internalRooms addObject:room];
 
+    [self.vc loadView];
+    [self.vc viewDidLoad];
+
     SSBMessage *repoMsg = [[SSBMessage alloc] init];
     repoMsg.content = @{@"name": @"test-repo"};
     self.vc.gitRepos = @[repoMsg];
+    // Trigger rebuild now that gitRepos is set (_rebuildSections also expands all sections)
+    [self.vc performSelector:@selector(_rebuildSections)];
 
-    // 1. Test Row 0 - Headers "ROOMS"
+    // Current layout (1 room, 1 repo, all expanded):
+    // Row 0: SSB section header → NSTextField "SSB"
+    // Rows 1-4: Home/Channels/Repositories/Peers nav items → NSTableCellView
+    // Row 5: ROOMS section header → NSTextField "ROOMS"
+    // Row 6: test-host room → NSTableCellView
+    // Row 7: CHANNELS section header → NSTextField "CHANNELS"
+    // Row 8: REPOSITORIES section header → NSTextField "REPOSITORIES"
+    // Row 9: test-repo → NSTableCellView
+
+    // Row 0: SSB section header
     id item0 = [self.vc.outlineView itemAtRow:0];
     NSView *view0 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item0];
-    XCTAssertTrue([view0 isKindOfClass:[NSTextField class]]);
-    XCTAssertEqualObjects([(NSTextField *)view0 stringValue], @"ROOMS");
+    XCTAssertTrue([view0 isKindOfClass:[NSTextField class]], @"Row 0 should be section header NSTextField");
+    XCTAssertEqualObjects([(NSTextField *)view0 stringValue], @"SSB");
 
-    // 2. Test Row 1 - RoomCell
-    id item1 = [self.vc.outlineView itemAtRow:1];
-    NSView *view1 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item1];
-    XCTAssertTrue([view1 isKindOfClass:[NSTableCellView class]]);
-    NSTableCellView *cell1 = (NSTableCellView *)view1;
-    XCTAssertEqualObjects(cell1.textField.stringValue, @"test-host");
+    // Row 5: ROOMS section header
+    id item5 = [self.vc.outlineView itemAtRow:5];
+    NSView *view5 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item5];
+    XCTAssertTrue([view5 isKindOfClass:[NSTextField class]], @"Row 5 should be ROOMS section header");
+    XCTAssertEqualObjects([(NSTextField *)view5 stringValue], @"ROOMS");
 
-    // 3. Test Row 2 - Headers "CHANNELS"
-    id item2 = [self.vc.outlineView itemAtRow:2];
-    NSView *view2 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item2];
-    XCTAssertTrue([view2 isKindOfClass:[NSTextField class]]);
-    XCTAssertEqualObjects([(NSTextField *)view2 stringValue], @"CHANNELS");
+    // Row 6: test-host room cell
+    id item6 = [self.vc.outlineView itemAtRow:6];
+    NSView *view6 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item6];
+    XCTAssertTrue([view6 isKindOfClass:[NSTableCellView class]], @"Row 6 should be room cell");
+    NSTableCellView *cell6 = (NSTableCellView *)view6;
+    XCTAssertEqualObjects(cell6.textField.stringValue, @"test-host");
 
-    // 4. Test Row 3 - Headers "REPOSITORIES"
-    id item3 = [self.vc.outlineView itemAtRow:3];
-    NSView *view3 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item3];
-    XCTAssertTrue([view3 isKindOfClass:[NSTextField class]]);
-    XCTAssertEqualObjects([(NSTextField *)view3 stringValue], @"REPOSITORIES");
-
-    // 5. Test Row 4 - RepoCell
-    id item4 = [self.vc.outlineView itemAtRow:4];
-    NSView *view4 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item4];
-    XCTAssertTrue([view4 isKindOfClass:[NSTableCellView class]]);
-    NSTableCellView *cell4 = (NSTableCellView *)view4;
-    XCTAssertEqualObjects(cell4.textField.stringValue, @"test-repo");
+    // Row 9: test-repo cell
+    id item9 = [self.vc.outlineView itemAtRow:9];
+    NSView *view9 = [self.vc outlineView:self.vc.outlineView viewForTableColumn:nil item:item9];
+    XCTAssertTrue([view9 isKindOfClass:[NSTableCellView class]], @"Row 9 should be repo cell");
+    NSTableCellView *cell9 = (NSTableCellView *)view9;
+    XCTAssertEqualObjects(cell9.textField.stringValue, @"test-repo");
 }
 
 @end

@@ -1,4 +1,5 @@
 #import "SRContentContainerViewController.h"
+#import <QuartzCore/QuartzCore.h>
 
 @interface SRContentContainerViewController ()
 /// stack[0] is always the root; stack[1] (when present) is the detail.
@@ -93,12 +94,27 @@
     NSViewController *toVC = self.stack[self.stack.count - 2];
     [self.stack removeLastObject];
 
-    [self transitionFromViewController:fromVC
-                      toViewController:toVC
-                               options:NSViewControllerTransitionSlideRight
-                     completionHandler:^{
-                         [fromVC removeFromParentViewController];
-                     }];
+    // Remove from parent immediately so childViewControllers reflects the new state.
+    // The view stays in the superview until the slide animation finishes.
+    [fromVC removeFromParentViewController];
+
+    NSView *fromView = fromVC.view;
+    NSView *toView = toVC.view;
+    CGFloat width = NSWidth(self.view.bounds);
+
+    // Ensure toVC's view is visible and in the hierarchy before animating.
+    if (!toView.superview) {
+        toView.frame = [self contentFrameForCurrentBounds];
+        [self.view addSubview:toView positioned:NSWindowBelow relativeTo:fromView];
+    }
+
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *ctx) {
+        ctx.duration = 0.25;
+        ctx.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        fromView.animator.frame = NSOffsetRect(fromView.frame, width, 0);
+    } completionHandler:^{
+        [fromView removeFromSuperview];
+    }];
 }
 
 - (void)transitionToViewController:(NSViewController *)vc {
