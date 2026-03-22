@@ -1,5 +1,6 @@
 #import "SRFeedItem.h"
 #import "SRMarkdownParser.h"
+#import "SRStyle.h"
 #import "../Logic/SRQRUtils.h"
 #import "../../Sources/SSBFeedStore.h"
 #import <SSBNetwork/SSBBlobStore.h>
@@ -7,31 +8,39 @@
 @interface SRFeedItem ()
 @property (nonatomic, strong) NSLayoutConstraint *imageHeightConstraint;
 @property (nonatomic, copy) NSString *currentBlobID;
+@property (nonatomic, strong) NSTextField *replyCountLabel;
+@property (nonatomic, strong) NSTextField *likeCountLabel;
+
+// Thread view support
+@property (nonatomic, strong) NSView *branchLineView;
+@property (nonatomic, strong) NSLayoutConstraint *avatarLeadingConstraint;
 @end
 
 @implementation SRFeedItem
 
 - (void)loadView {
-    self.view = [[NSView alloc] init];
-    self.view.wantsLayer = YES;
-    self.view.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
-    self.view.layer.cornerRadius = 8;
-    self.view.layer.borderWidth = 1;
-    self.view.layer.borderColor = [NSColor separatorColor].CGColor;
-    
+    NSVisualEffectView *effectView = [[NSVisualEffectView alloc] init];
+    effectView.material = NSVisualEffectMaterialContentBackground;
+    effectView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    effectView.state = NSVisualEffectStateActive;
+    self.view = effectView;
+    [SRStyle styleCardView:self.view];
+    // Clear background to let material show
+    self.view.layer.backgroundColor = [NSColor clearColor].CGColor;
+
     _avatarView = [[NSView alloc] init];
     _avatarView.wantsLayer = YES;
-    _avatarView.layer.cornerRadius = 16;
+    _avatarView.layer.cornerRadius = [SRStyle avatarSizeMedium] / 2;
     _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_avatarView];
-    
+
     _authorLabel = [NSTextField labelWithString:@""];
-    _authorLabel.font = [NSFont boldSystemFontOfSize:12];
+    _authorLabel.font = [SRStyle headlineFont];
     _authorLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_authorLabel];
-    
+
     _cwLabel = [NSTextField labelWithString:@""];
-    _cwLabel.font = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
+    _cwLabel.font = [SRStyle captionFont];
     _cwLabel.textColor = [NSColor systemOrangeColor];
     _cwLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _cwLabel.hidden = YES;
@@ -45,7 +54,7 @@
     [self.view addSubview:_showCWButton];
     
     _contentLabel = [NSTextField labelWithString:@""];
-    _contentLabel.font = [NSFont systemFontOfSize:13];
+    _contentLabel.font = [SRStyle bodyFont];
     _contentLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _contentLabel.maximumNumberOfLines = 0;
     _contentLabel.cell.lineBreakMode = NSLineBreakByWordWrapping;
@@ -77,19 +86,46 @@
     _qrButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_qrButton];
     
+    _replyCountLabel = [NSTextField labelWithString:@""];
+    _replyCountLabel.font = [SRStyle caption2Font];
+    _replyCountLabel.textColor = [NSColor secondaryLabelColor];
+    _replyCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _replyCountLabel.hidden = YES;
+    [self.view addSubview:_replyCountLabel];
+
+    _likeCountLabel = [NSTextField labelWithString:@""];
+    _likeCountLabel.font = [SRStyle caption2Font];
+    _likeCountLabel.textColor = [NSColor secondaryLabelColor];
+    _likeCountLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _likeCountLabel.hidden = YES;
+    [self.view addSubview:_likeCountLabel];
+    
     _timestampLabel = [NSTextField labelWithString:@""];
-    _timestampLabel.font = [NSFont systemFontOfSize:11];
+    _timestampLabel.font = [SRStyle captionFont];
     _timestampLabel.textColor = [NSColor secondaryLabelColor];
     _timestampLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:_timestampLabel];
+
+    _branchLineView = [[NSView alloc] init];
+    _branchLineView.wantsLayer = YES;
+    _branchLineView.layer.backgroundColor = [NSColor separatorColor].CGColor;
+    _branchLineView.translatesAutoresizingMaskIntoConstraints = NO;
+    _branchLineView.hidden = YES;
+    [self.view addSubview:_branchLineView];
     
     _imageHeightConstraint = [_blobImageView.heightAnchor constraintEqualToConstant:0];
+    _avatarLeadingConstraint = [_avatarView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12];
     
     [NSLayoutConstraint activateConstraints:@[
-        [_avatarView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:12],
+        _avatarLeadingConstraint,
         [_avatarView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
         [_avatarView.widthAnchor constraintEqualToConstant:32],
         [_avatarView.heightAnchor constraintEqualToConstant:32],
+
+        [_branchLineView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:32],
+        [_branchLineView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [_branchLineView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [_branchLineView.widthAnchor constraintEqualToConstant:2],
         
         [_authorLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:10],
         [_authorLabel.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
@@ -117,12 +153,24 @@
         [_replyButton.leadingAnchor constraintEqualToAnchor:_authorLabel.leadingAnchor],
         [_replyButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
         
-        [_likeButton.leadingAnchor constraintEqualToAnchor:_replyButton.trailingAnchor constant:16],
-        [_likeButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
+        [_replyCountLabel.leadingAnchor constraintEqualToAnchor:_replyButton.trailingAnchor constant:4],
+        [_replyCountLabel.centerYAnchor constraintEqualToAnchor:_replyButton.centerYAnchor],
 
-        [_qrButton.leadingAnchor constraintEqualToAnchor:_likeButton.trailingAnchor constant:16],
+        [_likeButton.leadingAnchor constraintEqualToAnchor:_replyCountLabel.trailingAnchor constant:16],
+        [_likeButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8],
+        
+        [_likeCountLabel.leadingAnchor constraintEqualToAnchor:_likeButton.trailingAnchor constant:4],
+        [_likeCountLabel.centerYAnchor constraintEqualToAnchor:_likeButton.centerYAnchor],
+
+        [_qrButton.leadingAnchor constraintEqualToAnchor:_likeCountLabel.trailingAnchor constant:16],
         [_qrButton.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-8]
     ]];
+
+    // Cleanup that was there before
+    NSTrackingArea *area = [[NSTrackingArea alloc] initWithRect:NSZeroRect
+        options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect
+        owner:self userInfo:nil];
+    [self.view addTrackingArea:area];
 }
 
 - (void)showQRAction:(id)sender {
@@ -168,6 +216,11 @@
     self.imageHeightConstraint.constant = 0;
     self.currentBlobID = nil;
     
+    self.replyCountLabel.hidden = YES;
+    self.replyCountLabel.stringValue = @"";
+    self.likeCountLabel.hidden = YES;
+    self.likeCountLabel.stringValue = @"";
+    
     if ([representedObject isKindOfClass:[SSBMessage class]]) {
         SSBMessage *msg = (SSBMessage *)representedObject;
         self.authorLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:msg.author];
@@ -179,10 +232,24 @@
             self.showCWButton.hidden = NO;
             self.contentLabel.hidden = YES;
         } else {
-            self.cwLabel.hidden = YES;
-            self.showCWButton.hidden = YES;
-            self.contentLabel.hidden = NO;
-            NSString *text = msg.content[@"text"] ?: @"(No text)";
+            NSString *text = msg.content[@"text"];
+            if (!text) {
+                NSString *type = msg.contentType;
+                if ([type isEqualToString:@"about"]) {
+                    NSString *name = msg.content[@"name"];
+                    text = [NSString stringWithFormat:@"Updated profile Name: %@", name ?: @"(unnamed)"];
+                } else if ([type isEqualToString:@"contact"]) {
+                    NSString *target = msg.content[@"contact"];
+                    BOOL following = [msg.content[@"following"] boolValue];
+                    text = [NSString stringWithFormat:@"%@ @%@", following ? @"Followed" : @"Unfollowed", [target substringToIndex:MIN(10, target.length)]];
+                } else if ([type isEqualToString:@"pub"]) {
+                    text = @"Announced a pub location.";
+                } else if ([type isEqualToString:@"metafeed"]) {
+                    text = @"Created a metafeed node.";
+                } else {
+                    text = [NSString stringWithFormat:@"[%@] message.", type ?: @"(unknown)"];
+                }
+            }
             NSAttributedString *attrText = [SRMarkdownParser attributedStringFromMarkdown:text];
             [self.contentLabel setAttributedStringValue:attrText];
         }
@@ -192,11 +259,7 @@
         
         if (msg.claimedTimestamp > 0) {
             NSDate *date = [NSDate dateWithTimeIntervalSince1970:msg.claimedTimestamp / 1000.0];
-            NSDateFormatter *df = [[NSDateFormatter alloc] init];
-            df.dateStyle = NSDateFormatterShortStyle;
-            df.timeStyle = NSDateFormatterShortStyle;
-            df.doesRelativeDateFormatting = YES;
-            self.timestampLabel.stringValue = [df stringFromDate:date];
+            self.timestampLabel.stringValue = [self _relativeTimestampForDate:date];
         } else {
             self.timestampLabel.stringValue = @"";
         }
@@ -273,6 +336,33 @@
         CGFloat height = MIN(maxWidth * aspectRatio, 300);
         self.imageHeightConstraint.constant = height;
     }
+}
+
+- (void)setIsReply:(BOOL)isReply {
+    _isReply = isReply;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.avatarLeadingConstraint.constant = isReply ? 48 : 12;
+        self.branchLineView.hidden = !isReply;
+        if (isReply) {
+            self.branchLineView.layer.backgroundColor = [[NSColor separatorColor] colorWithAlphaComponent:0.6].CGColor;
+        }
+    });
+}
+
+- (NSString *)_relativeTimestampForDate:(NSDate *)date {
+    NSRelativeDateTimeFormatter *fmt = [[NSRelativeDateTimeFormatter alloc] init];
+    fmt.unitsStyle = NSRelativeDateTimeFormatterUnitsStyleAbbreviated;
+    return [fmt localizedStringForDate:date relativeToDate:[NSDate date]];
+}
+
+
+
+- (void)mouseEntered:(NSEvent *)event {
+    self.view.layer.backgroundColor = [[NSColor controlBackgroundColor] colorWithAlphaComponent:0.85].CGColor;
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    self.view.layer.backgroundColor = [NSColor controlBackgroundColor].CGColor;
 }
 
 - (void)toggleCW:(id)sender {

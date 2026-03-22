@@ -32,7 +32,11 @@
     [container addSubview:self.scrollView];
     
     self.backButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"chevron.left" accessibilityDescription:@"Back"] target:self action:@selector(backAction:)];
-    self.backButton.bezelStyle = NSBezelStyleTexturedRounded;
+    self.backButton.bezelStyle = NSBezelStyleRegularSquare;
+    self.backButton.bordered = NO;
+    self.backButton.wantsLayer = YES;
+    self.backButton.layer.backgroundColor = [[NSColor controlColor] colorWithAlphaComponent:0.5].CGColor;
+    self.backButton.layer.cornerRadius = 14;
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [container addSubview:self.backButton];
     
@@ -54,7 +58,7 @@
     
     NSCollectionViewFlowLayout *layout = [[NSCollectionViewFlowLayout alloc] init];
     layout.minimumLineSpacing = 8;
-    layout.sectionInset = NSEdgeInsetsMake(12, 40, 40, 40); // Indent replies?
+    layout.sectionInset = NSEdgeInsetsMake(12, 12, 12, 12); // Full width margins
     
     self.collectionView = [[NSCollectionView alloc] initWithFrame:NSZeroRect];
     self.collectionView.collectionViewLayout = layout;
@@ -98,6 +102,10 @@
     item.representedObject = self.threadMessages[indexPath.item];
     item.client = self.client;
     item.owner = self;
+    
+    // Set response flag for branch line and indent
+    item.isReply = (indexPath.item > 0);
+    
     return item;
 }
 
@@ -146,7 +154,7 @@
         height += imageHeight + 16;
     }
     
-    return NSMakeSize(collectionView.bounds.size.width - 80, height);
+    return NSMakeSize(collectionView.bounds.size.width - 24, height); // Reduced margin for full width
 }
 
 @end

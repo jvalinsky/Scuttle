@@ -8,6 +8,7 @@
 #import "../Logic/SRNotificationNames.h"
 #import "../Logic/SRRoomManager.h"
 #import "SRPlatformLog.h"
+#import "SRNotificationBannerView.h"
 
 static os_log_t profile_log;
 
@@ -54,7 +55,11 @@ static os_log_t profile_log;
     [self.view addSubview:self.headerView];
     
     self.backButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"chevron.left" accessibilityDescription:@"Back"] target:self action:@selector(backAction:)];
-    self.backButton.bezelStyle = NSBezelStyleTexturedRounded;
+    self.backButton.bezelStyle = NSBezelStyleRegularSquare;
+    self.backButton.bordered = NO;
+    self.backButton.wantsLayer = YES;
+    self.backButton.layer.backgroundColor = [[NSColor controlColor] colorWithAlphaComponent:0.5].CGColor;
+    self.backButton.layer.cornerRadius = 14; // Circle-ish if size is 28x28
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:self.backButton];
     
@@ -79,20 +84,21 @@ static os_log_t profile_log;
     
     [NSLayoutConstraint activateConstraints:@[
         [self.backButton.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
-        [self.backButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
+        [self.backButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:16],
+        [self.backButton.widthAnchor constraintEqualToConstant:28],
+        [self.backButton.heightAnchor constraintEqualToConstant:28],
         
         [self.headerView.leadingAnchor constraintEqualToAnchor:self.backButton.trailingAnchor constant:12],
         [self.headerView.trailingAnchor constraintEqualToAnchor:self.followButton.leadingAnchor constant:-12],
-        [self.headerView.heightAnchor constraintEqualToConstant:80],
-        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [self.headerView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:16],
 
-        [self.followButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:12],
+        [self.followButton.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:16],
         [self.followButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
-        [self.followButton.widthAnchor constraintEqualToConstant:80],
+        [self.followButton.widthAnchor constraintEqualToConstant:90], // Slightly wider
         
-        [self.blockButton.topAnchor constraintEqualToAnchor:self.followButton.bottomAnchor constant:4],
+        [self.blockButton.topAnchor constraintEqualToAnchor:self.followButton.bottomAnchor constant:8],
         [self.blockButton.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
-        [self.blockButton.widthAnchor constraintEqualToConstant:80],
+        [self.blockButton.widthAnchor constraintEqualToConstant:90],
         
         [self.feedVC.view.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
         [self.feedVC.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
@@ -159,10 +165,19 @@ static os_log_t profile_log;
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error) {
                 SSBLogError(SSBLogCategoryUI, @"   ❌ publishContact error: %@", error.localizedDescription);
+                if (self.view.window.contentView) {
+                    [SRNotificationBannerView showInView:self.view.window.contentView message:error.localizedDescription type:SRNotificationTypeError];
+                }
             } else if (response) {
                 SSBLogInfo(SSBLogCategoryUI, @"   ✅ publishContact succeeded: %@", response);
+                if (self.view.window.contentView) {
+                    [SRNotificationBannerView showInView:self.view.window.contentView message:currentlyFollowing ? @"Unfollowed author" : @"Followed author" type:SRNotificationTypeSuccess];
+                }
             } else {
                 SSBLogWarning(SSBLogCategoryUI, @"   ⏳ publishContact queued (feed not synced)");
+                if (self.view.window.contentView) {
+                    [SRNotificationBannerView showInView:self.view.window.contentView message:@"Action queued (Offline)" type:SRNotificationTypeWarning];
+                }
             }
             [self updateFollowButton];
         });
@@ -178,10 +193,19 @@ static os_log_t profile_log;
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (error) {
                     SSBLogError(SSBLogCategoryUI, @"   ❌ publishBlock error: %@", error.localizedDescription);
+                    if (self.view.window.contentView) {
+                        [SRNotificationBannerView showInView:self.view.window.contentView message:error.localizedDescription type:SRNotificationTypeError];
+                    }
                 } else if (response) {
                     SSBLogInfo(SSBLogCategoryUI, @"   ✅ publishBlock succeeded");
+                    if (self.view.window.contentView) {
+                        [SRNotificationBannerView showInView:self.view.window.contentView message:currentlyBlocked ? @"Unblocked author" : @"Blocked author" type:SRNotificationTypeSuccess];
+                    }
                 } else {
                     SSBLogWarning(SSBLogCategoryUI, @"   ⏳ publishBlock queued (feed not synced)");
+                    if (self.view.window.contentView) {
+                        [SRNotificationBannerView showInView:self.view.window.contentView message:@"Action queued (Offline)" type:SRNotificationTypeWarning];
+                    }
                 }
                 [self updateFollowButton];
             });
@@ -190,6 +214,8 @@ static os_log_t profile_log;
 }
 
 - (void)backAction:(id)sender {
+    FILE *f = fopen("/tmp/scuttle_peer_discovery.log", "a");
+    if (f) { fprintf(f, "[SRProfileVC backAction] delegate=%p\n", self.delegate); fclose(f); }
     if ([self.delegate respondsToSelector:@selector(profileViewControllerDidRequestBack:)]) {
         [self.delegate profileViewControllerDidRequestBack:self];
     }

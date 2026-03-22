@@ -1,6 +1,8 @@
 #import "SRProfileHeaderView.h"
+#import <QuartzCore/QuartzCore.h>
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
+#import "SRStyle.h"
 #import <SSBNetwork/SSBSecretStore.h>
 #import "SRPlatformLog.h"
 
@@ -14,6 +16,23 @@ static os_log_t profile_header_log;
 @property (nonatomic, strong) NSProgressIndicator *syncProgressBar;
 @property (nonatomic, strong) NSTextField *statusLabel;
 @property (nonatomic, copy) NSString *feedId;
+
+// Stats Row
+@property (nonatomic, strong) NSStackView *statsStackView;
+@property (nonatomic, strong) NSTextField *messagesLabel;
+@property (nonatomic, strong) NSTextField *followingLabel;
+@property (nonatomic, strong) NSTextField *followersLabel;
+
+// Dynamic Height Constraints
+@property (nonatomic, strong) NSLayoutConstraint *regularBottomConstraint;
+@property (nonatomic, strong) NSLayoutConstraint *compactBottomConstraint;
+
+// Conditional Layout Support
+@property (nonatomic, strong) NSArray<NSLayoutConstraint *> *regularConstraints;
+@property (nonatomic, strong) NSArray<NSLayoutConstraint *> *compactConstraints;
+
+// Aesthetic Elements
+@property (nonatomic, strong) CAGradientLayer *gradientLayer;
 @end
 
 @implementation SRProfileHeaderView
@@ -27,6 +46,17 @@ static os_log_t profile_header_log;
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
+        self.wantsLayer = YES;
+        self.layer.cornerRadius = 16;
+        self.layer.masksToBounds = YES;
+        self.layer.borderWidth = 1.0;
+        self.layer.borderColor = [[NSColor separatorColor] colorWithAlphaComponent:0.3].CGColor;
+        
+        _gradientLayer = [CAGradientLayer layer];
+        _gradientLayer.startPoint = CGPointMake(0.0, 0.0);
+        _gradientLayer.endPoint = CGPointMake(1.0, 1.0);
+        [self.layer insertSublayer:_gradientLayer atIndex:0];
+
         [self setupUI];
         [self loadLocalIdentity];
         
@@ -40,6 +70,12 @@ static os_log_t profile_header_log;
                                                    object:nil];
     }
     return self;
+}
+
+- (void)layout {
+    [super layout];
+    self.gradientLayer.frame = NSRectToCGRect(self.bounds);
+    self.avatarView.layer.cornerRadius = self.avatarView.bounds.size.height / 2.0;
 }
 
 - (void)handleProfileUpdated:(NSNotification *)notification {
@@ -61,18 +97,24 @@ static os_log_t profile_header_log;
 - (void)setupUI {
     _avatarView = [[NSView alloc] init];
     _avatarView.wantsLayer = YES;
-    _avatarView.layer.cornerRadius = 16;
     _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
+    
+    // Prevent stretching by layout system
+    [_avatarView setContentHuggingPriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [_avatarView setContentHuggingPriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationVertical];
+    [_avatarView setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [_avatarView setContentCompressionResistancePriority:NSLayoutPriorityRequired forOrientation:NSLayoutConstraintOrientationVertical];
+    
     [self addSubview:_avatarView];
 
     _nameLabel = [NSTextField labelWithString:@""];
-    _nameLabel.font = [NSFont boldSystemFontOfSize:13];
+    _nameLabel.font = [NSFont boldSystemFontOfSize:18]; // Larger for profile
     _nameLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     [self addSubview:_nameLabel];
 
     _idLabel = [NSTextField labelWithString:@""];
-    _idLabel.font = [NSFont monospacedSystemFontOfSize:9 weight:NSFontWeightRegular];
+    _idLabel.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
     _idLabel.textColor = [NSColor secondaryLabelColor];
     _idLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _idLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
@@ -100,31 +142,98 @@ static os_log_t profile_header_log;
     _statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_statusLabel];
 
-    [NSLayoutConstraint activateConstraints:@[
-        [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12],
-        [_avatarView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [_avatarView.widthAnchor constraintEqualToConstant:32],
-        [_avatarView.heightAnchor constraintEqualToConstant:32],
+    // Stats Labels
+    _messagesLabel = [self createStatsLabel];
+    _followingLabel = [self createStatsLabel];
+    _followersLabel = [self createStatsLabel];
 
-        [_nameLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:8],
-        [_nameLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:12],
-        [_nameLabel.trailingAnchor constraintEqualToAnchor:_profileButton.leadingAnchor constant:-4],
+    _statsStackView = [[NSStackView alloc] init];
+    _statsStackView.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    _statsStackView.spacing = 16;
+    _statsStackView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self addSubview:_statsStackView];
+
+    [_statsStackView addArrangedSubview:_messagesLabel];
+    [_statsStackView addArrangedSubview:_followingLabel];
+    [_statsStackView addArrangedSubview:_followersLabel];
+
+    [self updateStatsWithMessages:0 following:0 followers:0]; // Initial mockup
+
+    // General Always-Active Safety Clamps
+    [NSLayoutConstraint activateConstraints:@[
+        [_avatarView.widthAnchor constraintEqualToConstant:64],
+        [_avatarView.heightAnchor constraintEqualToConstant:64],
+        [self.bottomAnchor constraintGreaterThanOrEqualToAnchor:_avatarView.bottomAnchor constant:16],
+        [_syncProgressBar.widthAnchor constraintEqualToConstant:100],
+        [_syncProgressBar.heightAnchor constraintEqualToConstant:6]
+    ]];
+
+    // --- Regular Mode (Centered) Constraints ---
+    _regularConstraints = @[
+        [_avatarView.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_avatarView.topAnchor constraintEqualToAnchor:self.topAnchor constant:24],
+
+        [_nameLabel.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_nameLabel.topAnchor constraintEqualToAnchor:_avatarView.bottomAnchor constant:12],
+        [_nameLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:16],
+        [_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-16],
+
+        [_idLabel.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_idLabel.topAnchor constraintEqualToAnchor:_nameLabel.bottomAnchor constant:4],
+        [_idLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.leadingAnchor constant:16],
+        [_idLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-16],
+
+        [_statsStackView.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_statsStackView.topAnchor constraintEqualToAnchor:_idLabel.bottomAnchor constant:16],
+
+        [_statusLabel.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_statusLabel.topAnchor constraintEqualToAnchor:_statsStackView.bottomAnchor constant:8],
+
+        [_syncProgressBar.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [_syncProgressBar.topAnchor constraintEqualToAnchor:_statusLabel.bottomAnchor constant:8],
+
+        [_profileButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16],
+        [_profileButton.topAnchor constraintEqualToAnchor:self.topAnchor constant:16],
+        
+        [self.heightAnchor constraintEqualToConstant:220]
+    ];
+
+    _regularBottomConstraint = [self.bottomAnchor constraintGreaterThanOrEqualToAnchor:_statusLabel.bottomAnchor constant:16];
+
+    // --- Compact Mode (Left-Aligned Sidebar) Constraints ---
+    _compactConstraints = @[
+        [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:20],
+        [_avatarView.topAnchor constraintEqualToAnchor:self.topAnchor constant:16],
+
+        [_nameLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:16],
+        [_nameLabel.topAnchor constraintEqualToAnchor:_avatarView.topAnchor constant:4],
+        [_nameLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-16],
 
         [_idLabel.leadingAnchor constraintEqualToAnchor:_nameLabel.leadingAnchor],
-        [_idLabel.topAnchor constraintEqualToAnchor:_nameLabel.bottomAnchor constant:2],
-        [_idLabel.trailingAnchor constraintEqualToAnchor:_nameLabel.trailingAnchor],
-        
-        [_statusLabel.leadingAnchor constraintEqualToAnchor:_idLabel.leadingAnchor],
-        [_statusLabel.topAnchor constraintEqualToAnchor:_idLabel.bottomAnchor constant:4],
-        
-        [_syncProgressBar.leadingAnchor constraintEqualToAnchor:_statusLabel.trailingAnchor constant:8],
-        [_syncProgressBar.centerYAnchor constraintEqualToAnchor:_statusLabel.centerYAnchor],
-        [_syncProgressBar.widthAnchor constraintEqualToConstant:100],
-        [_syncProgressBar.heightAnchor constraintEqualToConstant:6],
+        [_idLabel.topAnchor constraintEqualToAnchor:_nameLabel.bottomAnchor constant:4],
+        [_idLabel.trailingAnchor constraintEqualToAnchor:_nameLabel.trailingAnchor]
+    ];
 
-        [_profileButton.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-8],
-        [_profileButton.centerYAnchor constraintEqualToAnchor:self.centerYAnchor]
-    ]];
+    _compactBottomConstraint = [self.bottomAnchor constraintGreaterThanOrEqualToAnchor:_idLabel.bottomAnchor constant:16];
+
+    // Default Activation
+    [NSLayoutConstraint activateConstraints:_regularConstraints];
+    _regularBottomConstraint.active = YES;
+}
+
+- (NSTextField *)createStatsLabel {
+    NSTextField *label = [NSTextField labelWithString:@""];
+    label.font = [NSFont systemFontOfSize:12 weight:NSFontWeightMedium];
+    label.textColor = [NSColor labelColor];
+    return label;
+}
+
+- (void)updateStatsWithMessages:(NSInteger)messages following:(NSInteger)following followers:(NSInteger)followers {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.messagesLabel.stringValue = [NSString stringWithFormat:@"%ld Messages", (long)messages];
+        self.followingLabel.stringValue = [NSString stringWithFormat:@"%ld Following", (long)following];
+        self.followersLabel.stringValue = [NSString stringWithFormat:@"%ld Followers", (long)followers];
+    });
 }
 
 - (void)updateSyncProgress:(float)progress status:(NSString *)status {
@@ -159,6 +268,28 @@ static os_log_t profile_header_log;
 
 - (void)updateWithIdentity:(NSString *)feedId name:(nullable NSString *)name {
     self.feedId = feedId;
+
+    // Generate aesthetically rich gradient based on identity string
+    if (feedId.length > 10) {
+        NSUInteger hash = [feedId hash];
+        CGFloat hue1 = (CGFloat)(hash % 360) / 360.0;
+        CGFloat hue2 = (CGFloat)((hash + 40) % 360) / 360.0; // 40 deg offset
+        
+        NSColor *color1 = [NSColor colorWithHue:hue1 saturation:0.65 brightness:0.85 alpha:0.9];
+        NSColor *color2 = [NSColor colorWithHue:hue2 saturation:0.75 brightness:0.55 alpha:0.9];
+        
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        self.gradientLayer.colors = @[(__bridge id)color1.CGColor, (__bridge id)color2.CGColor];
+        [CATransaction commit];
+        
+        // Ensure titles look great on color
+        self.nameLabel.textColor = [NSColor whiteColor];
+        self.idLabel.textColor = [[NSColor whiteColor] colorWithAlphaComponent:0.7];
+    } else {
+        self.gradientLayer.colors = nil;
+        self.layer.backgroundColor = [SRStyle surfaceColor].CGColor;
+    }
 
     if (name.length > 0) {
         self.nameLabel.stringValue = name;
@@ -253,6 +384,38 @@ static os_log_t profile_header_log;
             }];
         }
     }
+}
+
+- (void)setCompactMode:(BOOL)compactMode {
+    _compactMode = compactMode;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSLayoutConstraint deactivateConstraints:self.regularConstraints];
+        [NSLayoutConstraint deactivateConstraints:self.compactConstraints];
+        self.regularBottomConstraint.active = NO;
+        self.compactBottomConstraint.active = NO;
+
+        if (compactMode) {
+            self.statsStackView.hidden = YES;
+            self.statusLabel.hidden = YES;
+            self.syncProgressBar.hidden = YES;
+            self.profileButton.hidden = YES;
+            
+            self.nameLabel.alignment = NSTextAlignmentLeft;
+            self.idLabel.alignment = NSTextAlignmentLeft;
+
+            [NSLayoutConstraint activateConstraints:self.compactConstraints];
+            self.compactBottomConstraint.active = YES;
+        } else {
+            self.statsStackView.hidden = NO;
+            self.profileButton.hidden = NO;
+            
+            self.nameLabel.alignment = NSTextAlignmentCenter;
+            self.idLabel.alignment = NSTextAlignmentCenter;
+
+            [NSLayoutConstraint activateConstraints:self.regularConstraints];
+            self.regularBottomConstraint.active = YES;
+        }
+    });
 }
 
 @end

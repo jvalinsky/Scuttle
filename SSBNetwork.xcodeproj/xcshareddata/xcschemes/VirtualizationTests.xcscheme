@@ -15,9 +15,23 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "BD1C876785A2AB5CDF9C0ECE"
-               BuildableName = "ScuttleRoomApp.app"
-               BlueprintName = "ScuttleRoomApp"
+               BlueprintIdentifier = "F80C1403BB4CE5B389DF80B4"
+               BuildableName = "LinuxTestHostApp.app"
+               BlueprintName = "LinuxTestHostApp"
+               ReferencedContainer = "container:SSBNetwork.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "66F21EFA9776C93F732FDC9A"
+               BuildableName = "VirtualizationTests.xctest"
+               BlueprintName = "VirtualizationTests"
                ReferencedContainer = "container:SSBNetwork.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -32,9 +46,9 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "BD1C876785A2AB5CDF9C0ECE"
-            BuildableName = "ScuttleRoomApp.app"
-            BlueprintName = "ScuttleRoomApp"
+            BlueprintIdentifier = "F80C1403BB4CE5B389DF80B4"
+            BuildableName = "LinuxTestHostApp.app"
+            BlueprintName = "LinuxTestHostApp"
             ReferencedContainer = "container:SSBNetwork.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
@@ -44,20 +58,9 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3A93F7BE0745FD7F2CA435AF"
-               BuildableName = "ScuttleRoomAppTests.xctest"
-               BlueprintName = "ScuttleRoomAppTests"
-               ReferencedContainer = "container:SSBNetwork.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F382EEE9636D9A77BE214107"
-               BuildableName = "ScuttleRoomAppUITests.xctest"
-               BlueprintName = "ScuttleRoomAppUITests"
+               BlueprintIdentifier = "66F21EFA9776C93F732FDC9A"
+               BuildableName = "VirtualizationTests.xctest"
+               BlueprintName = "VirtualizationTests"
                ReferencedContainer = "container:SSBNetwork.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -79,9 +82,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "BD1C876785A2AB5CDF9C0ECE"
-            BuildableName = "ScuttleRoomApp.app"
-            BlueprintName = "ScuttleRoomApp"
+            BlueprintIdentifier = "F80C1403BB4CE5B389DF80B4"
+            BuildableName = "LinuxTestHostApp.app"
+            BlueprintName = "LinuxTestHostApp"
             ReferencedContainer = "container:SSBNetwork.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -96,9 +99,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "BD1C876785A2AB5CDF9C0ECE"
-            BuildableName = "ScuttleRoomApp.app"
-            BlueprintName = "ScuttleRoomApp"
+            BlueprintIdentifier = "F80C1403BB4CE5B389DF80B4"
+            BuildableName = "LinuxTestHostApp.app"
+            BlueprintName = "LinuxTestHostApp"
             ReferencedContainer = "container:SSBNetwork.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

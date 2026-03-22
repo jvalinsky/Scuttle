@@ -1,5 +1,6 @@
 #import "SRFeedViewController.h"
 #import "SRFeedItem.h"
+#import "SRStyle.h"
 #import "../../Sources/SSBLogger.h"
 #import "../../Sources/SSBNetwork.h"
 #import <SSBNetwork/SSBBlobStore.h>
@@ -35,8 +36,8 @@
     self.verifiedAuthors = [NSMutableSet set];
 
     NSCollectionViewFlowLayout *layout = [[NSCollectionViewFlowLayout alloc] init];
-    layout.minimumLineSpacing = 12;
-    layout.sectionInset = NSEdgeInsetsMake(20, 20, 20, 20);
+    layout.minimumLineSpacing = [SRStyle spacingMD];
+    layout.sectionInset = NSEdgeInsetsMake([SRStyle spacingXL], [SRStyle spacingXL], [SRStyle spacingXL], [SRStyle spacingXL]);
 
     self.collectionView = [[NSCollectionView alloc] initWithFrame:NSZeroRect];
     self.collectionView.collectionViewLayout = layout;
@@ -65,6 +66,7 @@
                   }];
 
     self.backButton = [NSButton buttonWithTitle:@"Show All Messages" target:self action:@selector(showAllAction:)];
+    self.backButton.toolTip = @"Clear feed filter and show all messages";
     self.backButton.bezelStyle = NSBezelStyleRounded;
     self.backButton.translatesAutoresizingMaskIntoConstraints = NO;
     self.backButton.hidden = YES;
@@ -153,6 +155,12 @@
         NSMutableArray<SSBMessage *> *newMessages = [NSMutableArray array];
         BOOL showBackButton = NO;
 
+        // Log to static log file for inspection
+        char logLine[1024];
+        snprintf(logLine, sizeof(logLine), "[refreshFeed] filterAuthor=%s filterChannel=%s feedType=%d\n", filterAuthor ? filterAuthor.UTF8String : "nil", filterChannel ? filterChannel.UTF8String : "nil", (int)feedType);
+        FILE *f = fopen("/tmp/scuttle_peer_discovery.log", "a");
+        if (f) { fputs(logLine, f); fclose(f); }
+
         if (filterAuthor) {
             [newMessages addObjectsFromArray:[[SSBFeedStore sharedStore] feedForAuthor:filterAuthor limit:50]];
             showBackButton = !hidesBackButton;
@@ -193,15 +201,15 @@
 
 - (void)applySnapshotWithMessages:(NSArray<SSBMessage *> *)messages {
     [self.messagesByKey removeAllObjects];
-    NSMutableArray<NSString *> *keys = [NSMutableArray arrayWithCapacity:messages.count];
+    NSDiffableDataSourceSnapshot<NSString *, NSString *> *snapshot = [[NSDiffableDataSourceSnapshot alloc] init];
+    [snapshot appendSectionsWithIdentifiers:@[@"main"]];
+    
+    NSMutableArray<NSString *> *msgKeys = [NSMutableArray array];
     for (SSBMessage *msg in messages) {
         self.messagesByKey[msg.key] = msg;
-        [keys addObject:msg.key];
+        [msgKeys addObject:msg.key];
     }
-
-    NSDiffableDataSourceSnapshot<NSString *, NSString *> *snapshot = [NSDiffableDataSourceSnapshot new];
-    [snapshot appendSectionsWithIdentifiers:@[@"main"]];
-    [snapshot appendItemsWithIdentifiers:keys intoSectionWithIdentifier:@"main"];
+    [snapshot appendItemsWithIdentifiers:msgKeys intoSectionWithIdentifier:@"main"];
     [self.dataSource applySnapshot:snapshot animatingDifferences:YES];
 }
 

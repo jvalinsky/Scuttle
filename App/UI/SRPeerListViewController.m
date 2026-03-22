@@ -8,6 +8,7 @@ static os_log_t peer_list_log;
 
 @interface SRPeerCell : NSTableCellView
 @property (nonatomic, strong) NSView *avatarView;
+@property (nonatomic, strong) NSView *connectionStatusDot; // Online/Offline Indicator
 @property (nonatomic, strong) NSTextField *idLabel;
 @property (nonatomic, strong) NSView *followStatusDot;
 @property (nonatomic, strong) NSProgressIndicator *syncProgressBar;
@@ -20,12 +21,20 @@ static os_log_t peer_list_log;
     if (self) {
         _avatarView = [[NSView alloc] init];
         _avatarView.wantsLayer = YES;
-        _avatarView.layer.cornerRadius = 14;
+        _avatarView.layer.cornerRadius = 20; // Half of 40
         _avatarView.translatesAutoresizingMaskIntoConstraints = NO;
         [self addSubview:_avatarView];
+
+        _connectionStatusDot = [[NSView alloc] init];
+        _connectionStatusDot.wantsLayer = YES;
+        _connectionStatusDot.layer.cornerRadius = 5;
+        _connectionStatusDot.layer.borderWidth = 1.5;
+        _connectionStatusDot.layer.borderColor = [NSColor windowBackgroundColor].CGColor;
+        _connectionStatusDot.translatesAutoresizingMaskIntoConstraints = NO;
+        [self addSubview:_connectionStatusDot];
         
         _idLabel = [NSTextField labelWithString:@""];
-        _idLabel.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightMedium];
+        _idLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
         _idLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _idLabel.cell.lineBreakMode = NSLineBreakByTruncatingMiddle;
         [self addSubview:_idLabel];
@@ -48,30 +57,35 @@ static os_log_t peer_list_log;
         [self addSubview:_syncProgressBar];
         
         _statusLabel = [NSTextField labelWithString:@""];
-        _statusLabel.font = [NSFont systemFontOfSize:9];
+        _statusLabel.font = [NSFont systemFontOfSize:11];
         _statusLabel.textColor = [NSColor tertiaryLabelColor];
         _statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [self addSubview:_statusLabel];
         
         [NSLayoutConstraint activateConstraints:@[
-            [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:12],
+            [_avatarView.leadingAnchor constraintEqualToAnchor:self.leadingAnchor constant:16],
             [_avatarView.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-            [_avatarView.widthAnchor constraintEqualToConstant:28],
-            [_avatarView.heightAnchor constraintEqualToConstant:28],
+            [_avatarView.widthAnchor constraintEqualToConstant:40],
+            [_avatarView.heightAnchor constraintEqualToConstant:40],
+
+            [_connectionStatusDot.trailingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:2],
+            [_connectionStatusDot.bottomAnchor constraintEqualToAnchor:_avatarView.bottomAnchor constant:2],
+            [_connectionStatusDot.widthAnchor constraintEqualToConstant:10],
+            [_connectionStatusDot.heightAnchor constraintEqualToConstant:10],
             
-            [_idLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:10],
+            [_idLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:12],
             [_idLabel.trailingAnchor constraintEqualToAnchor:_followStatusDot.leadingAnchor constant:-8],
-            [_idLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:6],
+            [_idLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:10],
             
             [_statusLabel.leadingAnchor constraintEqualToAnchor:_idLabel.leadingAnchor],
-            [_statusLabel.topAnchor constraintEqualToAnchor:_idLabel.bottomAnchor constant:0],
+            [_statusLabel.topAnchor constraintEqualToAnchor:_idLabel.bottomAnchor constant:2],
             
-            [_syncProgressBar.leadingAnchor constraintEqualToAnchor:_statusLabel.trailingAnchor constant:6],
+            [_syncProgressBar.leadingAnchor constraintEqualToAnchor:_statusLabel.trailingAnchor constant:8],
             [_syncProgressBar.centerYAnchor constraintEqualToAnchor:_statusLabel.centerYAnchor],
             [_syncProgressBar.widthAnchor constraintEqualToConstant:60],
             [_syncProgressBar.heightAnchor constraintEqualToConstant:4],
             
-            [_followStatusDot.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-12],
+            [_followStatusDot.trailingAnchor constraintEqualToAnchor:self.trailingAnchor constant:-16],
             [_followStatusDot.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
             [_followStatusDot.widthAnchor constraintEqualToConstant:6],
             [_followStatusDot.heightAnchor constraintEqualToConstant:6]
@@ -138,7 +152,7 @@ static os_log_t peer_list_log;
     self.tableView = [[NSTableView alloc] initWithFrame:NSZeroRect];
     self.tableView.headerView = nil;
     self.tableView.backgroundColor = [NSColor clearColor];
-    self.tableView.rowHeight = 44;
+    self.tableView.rowHeight = 52; // Increased for larger avatars
     self.tableView.selectionHighlightStyle = NSTableViewSelectionHighlightStyleRegular;
     
     self.tableView.style = NSTableViewStyleSourceList;
@@ -337,12 +351,18 @@ static os_log_t peer_list_log;
             
             if ([status isEqualToString:@"Ready"]) {
                 cell.statusLabel.textColor = [NSColor systemGreenColor];
+                cell.connectionStatusDot.layer.backgroundColor = [NSColor systemGreenColor].CGColor;
+            } else if (isSyncing) {
+                cell.statusLabel.textColor = [NSColor systemBlueColor];
+                cell.connectionStatusDot.layer.backgroundColor = [NSColor systemBlueColor].CGColor;
             } else {
                 cell.statusLabel.textColor = [NSColor tertiaryLabelColor];
+                cell.connectionStatusDot.layer.backgroundColor = [NSColor systemGrayColor].CGColor;
             }
         } else {
             cell.statusLabel.hidden = YES;
             cell.syncProgressBar.hidden = YES;
+            cell.connectionStatusDot.layer.backgroundColor = [NSColor systemGrayColor].CGColor;
         }
     }
     

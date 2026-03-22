@@ -26,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong) NSImageView *blobImageView;
 @property (nonatomic, weak) id<SRFeedItemOwner> owner;
 @property (nonatomic, weak, nullable) SSBRoomClient *client;
+@property (nonatomic, assign) BOOL isReply;
 
 + (nullable NSString *)extractBlobIDFromMessage:(SSBMessage *)msg;
 
