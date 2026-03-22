@@ -1,4 +1,6 @@
 #import "SRSettingsStorageViewController.h"
+#import "SRStyle.h"
+#import "../Logic/SRRoomManager.h"
 
 @implementation SRSettingsStorageViewController
 
@@ -7,25 +9,21 @@
 
     NSTextField *titleLabel = [NSTextField labelWithString:@"Storage Usage"];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    titleLabel.font = [NSFont boldSystemFontOfSize:13.0];
+    titleLabel.font = [SRStyle headlineLargeFont];
     [view addSubview:titleLabel];
 
-    // Placeholder visualization view
+    // Placeholder visualization — will be filled with SRStorageUsageView in a future pass
     NSView *vizView = [[NSView alloc] init];
     vizView.translatesAutoresizingMaskIntoConstraints = NO;
     vizView.wantsLayer = YES;
     vizView.layer.backgroundColor = NSColor.controlBackgroundColor.CGColor;
-    vizView.layer.cornerRadius = 8.0;
+    vizView.layer.cornerRadius = [SRStyle cornerRadiusMedium];
     [view addSubview:vizView];
 
-    NSButton *wipeButton = [NSButton buttonWithTitle:@"Wipe Database" target:nil action:nil];
+    NSButton *wipeButton = [NSButton buttonWithTitle:@"Wipe Database" target:self action:@selector(wipeDatabase:)];
     wipeButton.translatesAutoresizingMaskIntoConstraints = NO;
     wipeButton.bezelStyle = NSBezelStyleRounded;
-    if (@available(macOS 14.0, *)) {
-        wipeButton.bezelColor = NSColor.systemRedColor;
-    } else {
-        wipeButton.contentTintColor = NSColor.systemRedColor;
-    }
+    wipeButton.contentTintColor = NSColor.systemRedColor;
     [view addSubview:wipeButton];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -42,6 +40,21 @@
     ]];
 
     self.view = view;
+}
+
+- (void)wipeDatabase:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Wipe Database?";
+    alert.informativeText = @"This will delete all locally stored messages and reset sync state. Your identity is preserved. This cannot be undone.";
+    [alert addButtonWithTitle:@"Wipe"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleCritical;
+
+    [alert beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        if (response == NSAlertFirstButtonReturn) {
+            [[SRRoomManager sharedManager] resetAccount];
+        }
+    }];
 }
 
 @end

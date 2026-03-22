@@ -1,4 +1,10 @@
 #import "SRSettingsIdentityViewController.h"
+#import "SRSeedBackupViewController.h"
+#import "SRSeedRecoveryViewController.h"
+#import "SRDevicePairingViewController.h"
+#import "SRStyle.h"
+#import "../Logic/SRRoomManager.h"
+#import <SSBNetwork/SSBSecretStore.h>
 
 @implementation SRSettingsIdentityViewController
 
@@ -7,20 +13,21 @@
 
     NSTextField *titleLabel = [NSTextField labelWithString:@"Identity"];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    titleLabel.font = [NSFont boldSystemFontOfSize:16.0];
+    titleLabel.font = [SRStyle headlineLargeFont];
     [view addSubview:titleLabel];
 
-    NSArray<NSString *> *buttonTitles = @[
-        @"Back Up Identity Seed",
-        @"Recover from Backup",
-        @"Rotate Feed Key",
-        @"Manage Devices",
-    ];
+    struct { NSString *title; SEL action; } buttons[] = {
+        { @"Back Up Identity Seed",  @selector(backupSeed:) },
+        { @"Recover from Backup",    @selector(recoverFromBackup:) },
+        { @"Rotate Feed Key",        @selector(rotateFeedKey:) },
+        { @"Manage Devices",         @selector(manageDevices:) },
+    };
+    NSUInteger count = sizeof(buttons) / sizeof(buttons[0]);
 
     NSView *previousAnchor = titleLabel;
     BOOL isFirst = YES;
-    for (NSString *title in buttonTitles) {
-        NSButton *button = [NSButton buttonWithTitle:title target:nil action:nil];
+    for (NSUInteger i = 0; i < count; i++) {
+        NSButton *button = [NSButton buttonWithTitle:buttons[i].title target:self action:buttons[i].action];
         button.translatesAutoresizingMaskIntoConstraints = NO;
         button.bezelStyle = NSBezelStyleRounded;
         [view addSubview:button];
@@ -41,6 +48,45 @@
     ]];
 
     self.view = view;
+}
+
+- (void)backupSeed:(id)sender {
+    SRSeedBackupViewController *vc = [[SRSeedBackupViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
+}
+
+- (void)recoverFromBackup:(id)sender {
+    SRSeedRecoveryViewController *vc = [[SRSeedRecoveryViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
+}
+
+- (void)rotateFeedKey:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"Rotate Feed Key?";
+    alert.informativeText = @"This will derive a new sub-feed key and tombstone the old one. Your identity remains the same. Continue?";
+    [alert addButtonWithTitle:@"Rotate Key"];
+    [alert addButtonWithTitle:@"Cancel"];
+    alert.alertStyle = NSAlertStyleWarning;
+
+    [alert beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        if (response == NSAlertFirstButtonReturn) {
+            NSData *secret = SSBLoadIdentitySecret();
+            NSString *currentFeedID = secret ? SSBPublicIDFromSecret(secret) : @"";
+            [[SRRoomManager sharedManager] replaceSubfeed:currentFeedID completion:^(NSString *newFeedID, NSError *error) {
+                if (error) {
+                    NSAlert *errAlert = [[NSAlert alloc] init];
+                    errAlert.messageText = @"Rotation Failed";
+                    errAlert.informativeText = error.localizedDescription;
+                    [errAlert runModal];
+                }
+            }];
+        }
+    }];
+}
+
+- (void)manageDevices:(id)sender {
+    SRDevicePairingViewController *vc = [[SRDevicePairingViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
 }
 
 @end

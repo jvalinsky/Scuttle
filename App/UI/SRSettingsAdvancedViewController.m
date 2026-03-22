@@ -1,4 +1,6 @@
 #import "SRSettingsAdvancedViewController.h"
+#import "SRDevPanelViewController.h"
+#import "SRStyle.h"
 
 @implementation SRSettingsAdvancedViewController
 
@@ -7,15 +9,20 @@
 
     NSTextField *titleLabel = [NSTextField labelWithString:@"Advanced"];
     titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    titleLabel.font = [NSFont boldSystemFontOfSize:13.0];
+    titleLabel.font = [SRStyle headlineLargeFont];
     [view addSubview:titleLabel];
 
-    NSButton *devPanelButton = [NSButton buttonWithTitle:@"Show Developer Panel" target:nil action:nil];
+    NSButton *devPanelButton = [NSButton buttonWithTitle:@"Show Developer Panel"
+                                                  target:self
+                                                  action:@selector(showDevPanel:)];
     devPanelButton.translatesAutoresizingMaskIntoConstraints = NO;
     devPanelButton.bezelStyle = NSBezelStyleRounded;
     [view addSubview:devPanelButton];
 
-    NSButton *resetButton = [NSButton buttonWithTitle:@"Reset Identity" target:nil action:nil];
+    // Reset Identity routes through the responder chain to AppDelegate.resetIdentity:
+    NSButton *resetButton = [NSButton buttonWithTitle:@"Reset Identity"
+                                               target:nil
+                                               action:@selector(resetIdentity:)];
     resetButton.translatesAutoresizingMaskIntoConstraints = NO;
     resetButton.bezelStyle = NSBezelStyleRounded;
     resetButton.contentTintColor = NSColor.systemRedColor;
@@ -33,6 +40,11 @@
     ]];
 
     self.view = view;
+}
+
+- (void)showDevPanel:(id)sender {
+    SRDevPanelViewController *vc = [[SRDevPanelViewController alloc] init];
+    [self presentViewControllerAsSheet:vc];
 }
 
 @end

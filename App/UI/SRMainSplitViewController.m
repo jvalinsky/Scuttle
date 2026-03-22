@@ -12,7 +12,7 @@
 #import "SRContentContainerViewController.h"
 #import "SRHomeViewController.h"
 #import "SRChannelBrowserViewController.h"
-#import "SRPreferencesWindowController.h"
+#import "SRSettingsWindowController.h"
 #import "SRFeedViewController.h"
 #import "SRThreadViewController.h"
 #import "SRProfileViewController.h"
@@ -178,7 +178,7 @@ static os_log_t split_log;
 
 /// Shows the Preferences window.
 - (void)showPreferences {
-    [[SRPreferencesWindowController sharedPreferencesWindowController] showWindow:nil];
+    [[SRSettingsWindowController sharedSettingsWindowController] showSettings];
 }
 
 #pragma mark - Helpers
