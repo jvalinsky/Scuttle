@@ -84,6 +84,106 @@ typedef void (^SSBRoomClientTraceSink)(NSDictionary<NSString *, id> *event);
     dispatch_sync(self.clientQueue, block);
 }
 
+#pragma mark - Thread-Safe Property Accessors
+
+- (NSMutableDictionary<NSString *, SSBTunnelConnection *> *)activeTunnelsSafe {
+    __block NSMutableDictionary *result = nil;
+    [self performClientQueueSync:^{
+        result = [self.activeTunnels mutableCopy];
+    }];
+    return result;
+}
+
+- (void)setActiveTunnel:(SSBTunnelConnection *)tunnel forPeerID:(NSString *)peerID {
+    [self performClientQueueSync:^{
+        self.activeTunnels[peerID] = tunnel;
+    }];
+}
+
+- (void)removeActiveTunnelForPeerID:(NSString *)peerID {
+    [self performClientQueueSync:^{
+        [self.activeTunnels removeObjectForKey:peerID];
+    }];
+}
+
+- (NSMutableArray<NSDictionary *> *)pendingPublishQueueSafe {
+    __block NSMutableArray *result = nil;
+    [self performClientQueueSync:^{
+        result = [self.pendingPublishQueue mutableCopy];
+    }];
+    return result;
+}
+
+- (void)addToPendingPublishQueue:(NSDictionary *)item {
+    [self performClientQueueSync:^{
+        [self.pendingPublishQueue addObject:item];
+    }];
+}
+
+- (void)clearPendingPublishQueue {
+    [self performClientQueueSync:^{
+        [self.pendingPublishQueue removeAllObjects];
+    }];
+}
+
+- (void)addFailedItemsToPublishQueue:(NSArray *)items {
+    [self performClientQueueSync:^{
+        [self.pendingPublishQueue addObjectsFromArray:items];
+    }];
+}
+
+- (NSMutableDictionary<NSString *, NSNumber *> *)internalPeerSyncStatesSafe {
+    __block NSMutableDictionary *result = nil;
+    [self performClientQueueSync:^{
+        result = [self.internalPeerSyncStates mutableCopy];
+    }];
+    return result;
+}
+
+- (NSString *)internalPeerSyncStateForPeer:(NSString *)peerID {
+    __block NSString *result = nil;
+    [self performClientQueueSync:^{
+        result = self.internalPeerSyncStates[peerID];
+    }];
+    return result;
+}
+
+- (NSMutableDictionary<NSString *, NSMutableDictionary *> *)peerEBTStateSafe {
+    __block NSMutableDictionary *result = nil;
+    [self performClientQueueSync:^{
+        result = [self.peerEBTState mutableCopy];
+    }];
+    return result;
+}
+
+- (void)setPeerEBTState:(NSMutableDictionary *)state forPeer:(NSString *)peerID {
+    [self performClientQueueSync:^{
+        self.peerEBTState[peerID] = state;
+    }];
+}
+
+- (NSMutableDictionary<NSString *, NSNumber *> *)remoteClockSafe {
+    __block NSMutableDictionary *result = nil;
+    [self performClientQueueSync:^{
+        result = [self.remoteClock mutableCopy];
+    }];
+    return result;
+}
+
+- (void)setRemoteClockEntry:(NSNumber *)sequence forAuthor:(NSString *)author {
+    [self performClientQueueSync:^{
+        self.remoteClock[author] = sequence;
+    }];
+}
+
+- (NSArray<NSString *> *)attendantsListSafe {
+    __block NSArray *result = nil;
+    [self performClientQueueSync:^{
+        result = [self.attendantsList copy];
+    }];
+    return result;
+}
+
 + (void)initialize {
     if (self == [SSBRoomClient class]) {
         ssb_room_log = os_log_create("com.scuttlebutt.room", "Client");
@@ -416,14 +516,23 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 }
 
 - (BOOL)isAttendantsEventDictionary:(NSDictionary *)dict {
-    return (dict[@"type"] != nil ||
-            dict[@"event"] != nil ||
-            dict[@"ids"] != nil ||
-            dict[@"peers"] != nil ||
-            dict[@"attendants"] != nil ||
-            dict[@"id"] != nil ||
-            dict[@"key"] != nil ||
-            dict[@"feed"] != nil);
+    NSString *type = dict[@"type"];
+    NSString *event = dict[@"event"];
+    NSString *ids = dict[@"ids"];
+    NSString *peers = dict[@"peers"];
+    NSString *attendants = dict[@"attendants"];
+    NSString *id = dict[@"id"];
+    NSString *key = dict[@"key"];
+    NSString *feed = dict[@"feed"];
+    
+    return (type.length > 0 ||
+            event.length > 0 ||
+            ids.length > 0 ||
+            peers.length > 0 ||
+            attendants.length > 0 ||
+            id.length > 0 ||
+            key.length > 0 ||
+            feed.length > 0);
 }
 
 - (nullable id)jsonObjectFromDataIfPossible:(NSData *)data {
@@ -506,9 +615,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
             normalizedItems = (NSArray *)items;
         } else if ([items isKindOfClass:[NSDictionary class]]) {
             NSDictionary *itemsDict = (NSDictionary *)items;
-            NSMutableArray *flattened = [NSMutableArray arrayWithArray:itemsDict.allKeys];
-            [flattened addObjectsFromArray:itemsDict.allValues];
-            normalizedItems = [flattened copy];
+            normalizedItems = [itemsDict.allKeys copy];
         } else if (items && items != [NSNull null]) {
             normalizedItems = @[items];
         }
@@ -903,6 +1010,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 }
 
 - (void)sendRPCMessage:(SSBMuxRPCMessage *)msg {
+    __weak typeof(self) weakSelf = self;
     if (!self.isConnected) {
         os_log_debug(ssb_room_log, "sendRPCMessage DROPPING msg: isConnected=NO");
         [self emitProtocolTraceWithDirection:@"outbound"
@@ -926,14 +1034,16 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
                                                                   rpcMetadata)];
     [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ sendRPCMessage req=%d len=%lu", self.host, msg.requestNumber, (unsigned long)serialized.length]];
     [self.connection sendData:serialized isComplete:YES completion:^(NSError * _Nullable error) {
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
         if (error) {
             os_log_error(ssb_room_log, "RPC send failed");
-            [self emitProtocolTraceWithDirection:@"outbound"
+            [strongSelf emitProtocolTraceWithDirection:@"outbound"
                                        requestID:@(msg.requestNumber)
                                      framerState:@"muxrpc.send.failed"
                                          message:@"Room RPC send failed"
                                           extras:@{ @"error": error.localizedDescription ?: @"unknown" }];
-            [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ RPC send FAILED: %@", self.host, error.localizedDescription]];
+            [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"host=%@ RPC send FAILED: %@", strongSelf.host, error.localizedDescription]];
         }
     }];
 }
@@ -955,10 +1065,13 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         [weakSelf log:[NSString stringWithFormat:@"Identity: %@", response]];
     }];
     
-    __block _Atomic BOOL metadataFinished = NO;
+    __block BOOL metadataFinished = NO;
     [self sendRPCRequest:@[@"room", @"metadata"] args:@[] type:@"async" completion:^(id _Nullable response, NSError * _Nullable error) {
-        if (metadataFinished) return;
-        metadataFinished = YES;
+        [weakSelf performClientQueueSync:^{
+            if (metadataFinished) return;
+            metadataFinished = YES;
+        }];
+        if (!weakSelf) return;
         if ([response isKindOfClass:[NSDictionary class]]) {
             weakSelf.roomFeatures = response[@"features"];
             weakSelf.isInternalUser = [response[@"membership"] boolValue];
@@ -978,14 +1091,17 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     
     // Timeout fallback after 5 seconds
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (!metadataFinished) {
-            [weakSelf log:@"room.metadata TIMEOUT, falling back to legacy flow"];
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf performClientQueueSync:^{
+            if (metadataFinished) return;
             metadataFinished = YES;
-            [weakSelf announceWithCompletion:^{
-                [weakSelf subscribeToEndpoints];
-                [weakSelf syncLocalFeed];
-            }];
-        }
+        }];
+        [strongSelf log:@"room.metadata TIMEOUT, falling back to legacy flow"];
+        [strongSelf announceWithCompletion:^{
+            [strongSelf subscribeToEndpoints];
+            [strongSelf syncLocalFeed];
+        }];
     });
     
     if ([self shouldRedeemInviteAfterSetup]) {
@@ -1149,10 +1265,10 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     BOOL connected = self.isConnected;
     
     if (!isRoom && !isSelf) {
-        SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+        SSBTunnelConnection *tunnel = [self activeTunnelsSafe][peerID];
         if (!tunnel) {
             [self connectToPeer:peerID];
-            tunnel = self.activeTunnels[peerID];
+            tunnel = [self activeTunnelsSafe][peerID];
         }
         
         if (tunnel) {
@@ -1242,10 +1358,10 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     BOOL connected = self.isConnected;
     
     if (!isRoom && !isSelf) {
-        SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+        SSBTunnelConnection *tunnel = [self activeTunnelsSafe][peerID];
         if (!tunnel) {
             [self connectToPeer:peerID];
-            tunnel = self.activeTunnels[peerID];
+            tunnel = [self activeTunnelsSafe][peerID];
         }
         
         if (tunnel) {
@@ -1339,13 +1455,13 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
             @"content": content,
             @"timestamp": @([[[SSBEnvironment shared] now] timeIntervalSince1970])
         };
-        [self.pendingPublishQueue addObject:queuedItem];
-        SSBLogWarning(SSBLogCategorySync, @"⏳ Message QUEUED (feed not synced): type=%@ queue size=%lu", content[@"type"] ?: @"unknown", (unsigned long)self.pendingPublishQueue.count);
+        [self addToPendingPublishQueue:queuedItem];
+        SSBLogWarning(SSBLogCategorySync, @"⏳ Message QUEUED (feed not synced): type=%@ queue size=%lu", content[@"type"] ?: @"unknown", (unsigned long)[self pendingPublishQueueSafe].count);
         
         // Notify delegate
         if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateSyncStatus:progress:author:)]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Queued (%lu)", (unsigned long)self.pendingPublishQueue.count] progress:0 author:nil];
+                [self.delegate roomClient:self didUpdateSyncStatus:[NSString stringWithFormat:@"Queued (%lu)", (unsigned long)[self pendingPublishQueueSafe].count] progress:0 author:nil];
             });
         }
         return nil;
@@ -1387,7 +1503,8 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 }
 
 - (void)processPublishQueue {
-    if (self.pendingPublishQueue.count == 0) {
+    NSArray *queueCopy = [self pendingPublishQueueSafe];
+    if (queueCopy.count == 0) {
         return;
     }
     
@@ -1396,12 +1513,12 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         return;
     }
     
-    SSBLogInfo(SSBLogCategorySync, @"📤 Processing publish queue: %lu messages", (unsigned long)self.pendingPublishQueue.count);
+    SSBLogInfo(SSBLogCategorySync, @"📤 Processing publish queue: %lu messages", (unsigned long)queueCopy.count);
     
     NSMutableArray *failedItems = [NSMutableArray array];
     NSInteger successCount = 0;
     
-    for (NSDictionary *queuedItem in [self.pendingPublishQueue copy]) {
+    for (NSDictionary *queuedItem in queueCopy) {
         NSDictionary *content = queuedItem[@"content"];
         SSBLogDebug(SSBLogCategorySync, @"   Publishing queued message: %@", content[@"type"]);
         NSError *error = nil;
@@ -1417,15 +1534,16 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     }
     
     // Keep failed items in queue for retry
-    [self.pendingPublishQueue removeAllObjects];
-    [self.pendingPublishQueue addObjectsFromArray:failedItems];
+    [self clearPendingPublishQueue];
+    [self addFailedItemsToPublishQueue:failedItems];
     
-    SSBLogInfo(SSBLogCategorySync, @"✅ Publish queue processed: %ld success, %lu remaining", (long)successCount, (unsigned long)self.pendingPublishQueue.count);
+    NSUInteger remainingCount = [self pendingPublishQueueSafe].count;
+    SSBLogInfo(SSBLogCategorySync, @"✅ Publish queue processed: %ld success, %lu remaining", (long)successCount, (unsigned long)remainingCount);
     
     // Notify delegate
     if ([self.delegate respondsToSelector:@selector(roomClientDidProcessPublishQueue:success:queuedCount:)]) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate roomClientDidProcessPublishQueue:self success:(failedItems.count == 0) queuedCount:self.pendingPublishQueue.count];
+            [self.delegate roomClientDidProcessPublishQueue:self success:(failedItems.count == 0) queuedCount:remainingCount];
         });
     }
 }
@@ -1443,7 +1561,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         return;
     }
     
-    SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+    SSBTunnelConnection *tunnel = [self activeTunnelsSafe][peerID];
     if (tunnel) {
         os_log_debug(ssb_room_log, "Found existing tunnel for %{public}@, isConnected=%d", peerID, tunnel.isConnected);
     }
@@ -1458,14 +1576,14 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     } else {
         // Tunnel exists but NOT connected yet — only show "Handshaking..." if we don't already
         // have a terminal error status (e.g. "Stranger", "Unavailable") that should be preserved.
-        NSString *currentStatus = self.internalPeerSyncStates[peerID];
+        NSString *currentStatus = [self internalPeerSyncStateForPeer:peerID];
         BOOL isTerminalError = ([currentStatus isEqualToString:@"Stranger"] ||
                                 [currentStatus isEqualToString:@"Unavailable"] ||
                                 [currentStatus isEqualToString:@"This Device"]);
         if (isTerminalError) {
             os_log_debug(ssb_room_log, "Tunnel exists but preserving terminal status '%{public}@' for %{public}@", currentStatus, peerID);
             // Clean up the stale tunnel object since it will never connect
-            [self.activeTunnels removeObjectForKey:peerID];
+            [self removeActiveTunnelForPeerID:peerID];
         } else {
             os_log_debug(ssb_room_log, "Tunnel exists but NOT connected yet for %{public}@", peerID);
             [self reportSyncStatus:@"Handshaking..." progress:0.1 author:peerID];
@@ -1483,8 +1601,9 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     
     // Explicitly request the remote peer's feed by adding them to the clock with sequence 0 if unbound
     NSString *peerID = nil;
-    for (NSString *pid in self.activeTunnels) {
-        if (self.activeTunnels[pid].rpcSession == session) {
+    NSDictionary<NSString *, SSBTunnelConnection *> *tunnels = [self activeTunnelsSafe];
+    for (NSString *pid in tunnels) {
+        if (tunnels[pid].rpcSession == session) {
             peerID = pid;
             break;
         }
@@ -1535,102 +1654,111 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     [self startEBTReplicationWithSession:self.rpcSession];
 }
 
-        - (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags session:(SSBMuxRPCSession *)session {
-            if (reqID != 0) {
-                os_log_debug(ssb_room_log, "handleEBTMessage: REMOTE REQUEST req=%d flags=%u", reqID, flags);
-            } else {
-                os_log_debug(ssb_room_log, "handleEBTMessage: RESPONSE");
-            }
+- (void)handleEBTMessage:(id)message requestID:(int32_t)reqID flags:(uint8_t)flags session:(SSBMuxRPCSession *)session {
+    if (reqID != 0) {
+        os_log_debug(ssb_room_log, "handleEBTMessage: REMOTE REQUEST req=%d flags=%u", reqID, flags);
+    } else {
+        os_log_debug(ssb_room_log, "handleEBTMessage: RESPONSE");
+    }
 
-            // Identify which peer this message is from
-            NSString *peerID = nil;
-            for (NSString *pid in self.activeTunnels) {
-                if (self.activeTunnels[pid].rpcSession == session) {
-                    peerID = pid;
-                    break;
-                }
-            }
-            if (!peerID) peerID = self.host;
-
-            if ([message isKindOfClass:[NSDictionary class]]) {
-                NSDictionary *dict = (NSDictionary *)message;
-
-                // Check if this is an RPC request rather than an EBT payload
-                if (dict[@"name"] && dict[@"args"]) {
-                    NSArray *name = dict[@"name"];
-                    if ([name isKindOfClass:[NSArray class]] && name.count >= 2 && 
-                        [name[0] isEqualToString:@"ebt"] && [name[1] isEqualToString:@"replicate"]) {
-                        [self handleBilateralEBT:dict requestID:reqID session:session];
-                    } else {
-                        os_log_debug(ssb_room_log, "Ignoring non-EBT RPC request: %{public}@", name);
-                    }
-                    return;
-                }
-
-                if (dict[@"key"] && dict[@"value"]) {
-                    [self processIncomingMessage:dict fromPeer:peerID];
-                } else {
-                    [self handleRemoteClockUpdate:dict fromPeer:peerID];
-                }
-            } else if ([message isKindOfClass:[NSData class]]) {
-                NSData *data = (NSData *)message;
-                os_log_debug(ssb_room_log, "Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
-                // Try to parse as JSON first in case it's a clock update in binary form
-                NSError *jsonError = nil;
-                id parsed = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&jsonError];
-                if (!jsonError && [parsed isKindOfClass:[NSDictionary class]]) {
-                     os_log_debug(ssb_room_log, "Successfully parsed binary EBT data as JSON dictionary");
-                     [self handleEBTMessage:parsed requestID:reqID flags:flags session:session];
-                } else {
-                     [self processIncomingMessage:data fromPeer:peerID];
-                }
-            }
-        }
-        - (void)handleBilateralEBT:(NSDictionary *)req requestID:(int32_t)reqID session:(SSBMuxRPCSession *)session {
-        os_log_info(ssb_room_log, "Handling bilateral EBT request (ID=%d)", reqID);
-
-        // We need to know who this peer is. If this is a tunnel, we know the peerID.
-        NSString *peerID = nil;
-        for (NSString *pid in self.activeTunnels) {
-        if (self.activeTunnels[pid].rpcSession == session) {
+    // Identify which peer this message is from
+    NSString *peerID = nil;
+    NSDictionary<NSString *, SSBTunnelConnection *> *tunnels = [self activeTunnelsSafe];
+    for (NSString *pid in tunnels) {
+        if (tunnels[pid].rpcSession == session) {
             peerID = pid;
             break;
         }
+    }
+    if (!peerID) peerID = self.host;
+
+    if ([message isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *dict = (NSDictionary *)message;
+
+        // Check if this is an RPC request rather than an EBT payload
+        if (dict[@"name"] && dict[@"args"]) {
+            NSArray *name = dict[@"name"];
+            if ([name isKindOfClass:[NSArray class]] && name.count >= 2 && 
+                [name[0] isEqualToString:@"ebt"] && [name[1] isEqualToString:@"replicate"]) {
+                [self handleBilateralEBT:dict requestID:reqID session:session];
+            } else {
+                os_log_debug(ssb_room_log, "Ignoring non-EBT RPC request: %{public}@", name);
+            }
+            return;
         }
 
-        if (!peerID) {
+        if (dict[@"key"] && dict[@"value"]) {
+            [self processIncomingMessage:dict fromPeer:peerID];
+        } else {
+            [self handleRemoteClockUpdate:dict fromPeer:peerID];
+        }
+    } else if ([message isKindOfClass:[NSData class]]) {
+        NSData *data = (NSData *)message;
+        os_log_debug(ssb_room_log, "Received binary EBT payload (%lu bytes)", (unsigned long)data.length);
+        // Try to parse as JSON first in case it's a clock update in binary form
+        NSError *jsonError = nil;
+        id parsed = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:&jsonError];
+        if (!jsonError && [parsed isKindOfClass:[NSDictionary class]]) {
+            os_log_debug(ssb_room_log, "Successfully parsed binary EBT data as JSON dictionary");
+            [self handleEBTMessage:parsed requestID:reqID flags:flags session:session];
+        } else {
+            [self processIncomingMessage:data fromPeer:peerID];
+        }
+    }
+}
+
+- (void)handleBilateralEBT:(NSDictionary *)req requestID:(int32_t)reqID session:(SSBMuxRPCSession *)session {
+    os_log_info(ssb_room_log, "Handling bilateral EBT request (ID=%d)", reqID);
+
+    // We need to know who this peer is. If this is a tunnel, we know the peerID.
+    NSString *peerID = nil;
+    NSDictionary<NSString *, SSBTunnelConnection *> *tunnels = [self activeTunnelsSafe];
+    for (NSString *pid in tunnels) {
+        if (tunnels[pid].rpcSession == session) {
+            peerID = pid;
+            break;
+        }
+    }
+
+    if (!peerID) {
         // If not a tunnel, it's the room itself (acting as a peer)
         peerID = self.host; 
-        }
+    }
 
-        // Store state for this bilateral session
-        self.peerEBTState[peerID] = [@{
+    // Store state for this bilateral session
+    [self setPeerEBTState:[@{
         @"requestID": @(reqID),
         @"clock": [NSMutableDictionary dictionary]
-        } mutableCopy];
+    } mutableCopy] forPeer:peerID];
 
-        // Send our clock as the response (duplex stream)
-        NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
-        [session sendData:clock forRequest:reqID isEnd:NO];
-        os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (%lu feeds)", peerID, (unsigned long)clock.count);
-        }
+    // Send our clock as the response (duplex stream)
+    NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
+    [session sendData:clock forRequest:reqID isEnd:NO];
+    os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (%lu feeds)", peerID, (unsigned long)clock.count);
+}
 
 - (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID {
     os_log_debug(ssb_room_log, "Received clock update from %{public}@ with %lu entries", peerID, (unsigned long)update.count);
     
-    NSMutableDictionary *targetClock;
-    if (peerID && self.peerEBTState[peerID]) {
-        targetClock = self.peerEBTState[peerID][@"clock"];
-    } else {
+    __block NSMutableDictionary *targetClock = nil;
+    [self performClientQueueSync:^{
+        if (peerID && self.peerEBTState[peerID]) {
+            targetClock = self.peerEBTState[peerID][@"clock"];
+        } else {
+            targetClock = self.remoteClock;
+        }
+    }];
+    
+    if (!targetClock) {
         targetClock = self.remoteClock;
     }
-
+    
     [update enumerateKeysAndObjectsUsingBlock:^(id key, id val, BOOL *stop) {
         if ([key isKindOfClass:[NSString class]] && [val isKindOfClass:[NSNumber class]]) {
             NSString *author = (NSString *)key;
             NSInteger seq = [val integerValue];
             os_log_debug(ssb_room_log, "Valid clock for %{public}@ is %ld", author, (long)seq);
-            targetClock[author] = @(ABS(seq));
+            [self setRemoteClockEntry:@(ABS(seq)) forAuthor:author];
             [self updateSyncProgressForAuthor:author fromPeer:peerID];
         }
     }];
@@ -1800,7 +1928,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 
     SSBMuxRPCSession *session = self.rpcSession;
     BOOL connected = self.isConnected;
-    SSBTunnelConnection *tunnel = self.activeTunnels[peerID];
+    SSBTunnelConnection *tunnel = [self activeTunnelsSafe][peerID];
     if (tunnel && tunnel.isConnected) {
         session = tunnel.rpcSession;
         connected = YES;
@@ -1963,15 +2091,15 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
                                              normalizedResponse]];
     }
 
-    os_log_info(ssb_room_log, "Parsed attendants for %{public}@: %lu peers", self.host, (unsigned long)self.attendantsList.count);
+    os_log_info(ssb_room_log, "Parsed attendants for %{public}@: %lu peers", self.host, (unsigned long)[self attendantsListSafe].count);
     [self appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"parsed attendants peers=%lu list=%@",
-                                         (unsigned long)self.attendantsList.count,
-                                         self.attendantsList]];
+                                         (unsigned long)[self attendantsListSafe].count,
+                                         [self attendantsListSafe]]];
     
     if ([self.delegate respondsToSelector:@selector(roomClient:didUpdateEndpoints:)]) {
-        os_log_debug(ssb_room_log, "Notifying delegate of %lu endpoints for %{public}@", (unsigned long)self.attendantsList.count, self.host);
+        os_log_debug(ssb_room_log, "Notifying delegate of %lu endpoints for %{public}@", (unsigned long)[self attendantsListSafe].count, self.host);
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.delegate roomClient:self didUpdateEndpoints:[self.attendantsList copy]];
+            [self.delegate roomClient:self didUpdateEndpoints:[self attendantsListSafe]];
         });
     }
 }
@@ -2049,7 +2177,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
                                                               localIdentity:self.localIdentitySecret
                                                                 roomSession:self.rpcSession
                                                                 tunnelReqID:reqID
-                                                                   isServer:NO];
+                                                                    isServer:NO];
     
     __weak typeof(self) weakSelfOuter = self;
     tunnel.onConnectionStateReady = ^{
@@ -2064,7 +2192,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     
     [tunnel start];
     
-    self.activeTunnels[targetPeerId] = tunnel;
+    [self setActiveTunnel:tunnel forPeerID:targetPeerId];
 }
 
 - (void)disconnect {
@@ -2222,7 +2350,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     };
     
     [tunnel start];
-    self.activeTunnels[originPeerId] = tunnel;
+    [self setActiveTunnel:tunnel forPeerID:originPeerId];
 }
 
 - (NSData *)publicKeyFromPeerID:(NSString *)peerID {
