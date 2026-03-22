@@ -24,5 +24,7 @@
 	<string>AppIcon</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is needed to scan QR codes for room invites and pairing.</string>
 </dict>
 </plist>

@@ -72,6 +72,8 @@ go.sum
 # Cadmus build data
 .cadmus/
 
+# Agent specific
+.claude/
 
 sips/
 .gemini/
