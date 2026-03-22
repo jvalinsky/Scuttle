@@ -36,6 +36,12 @@
         case SRMsgTypeSelectRoom:
             newModel = [model copyWithSelectedRoom:msg.selectedRoom];
             break;
+        case SRMsgTypeLoadGitRepos:
+            [cmds addObject:[SRCmd cmdWithType:@"FetchGitRepos"]];
+            break;
+        case SRMsgTypeGitReposLoaded:
+            newModel = [model copyWithGitRepos:msg.gitRepos];
+            break;
     }
 
     return [[SRUpdateResult alloc] initWithModel:newModel commands:cmds];

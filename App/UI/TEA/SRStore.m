@@ -1,4 +1,5 @@
 #import "SRStore.h"
+#import "../../../Sources/SSBFeedStore.h"
 
 @interface SRStore ()
 @property (nonatomic, strong) SRModel *state;
@@ -48,8 +49,12 @@
 }
 
 - (void)_executeCommand:(SRCmd *)cmd {
-    // To be implemented as side effects grow.
-    // E.g., network fetches, DB queries.
+    if ([cmd.type isEqualToString:@"FetchGitRepos"]) {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSArray *repos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
+            [self dispatch:[SRMsg gitReposLoaded:repos]];
+        });
+    }
 }
 
 @end

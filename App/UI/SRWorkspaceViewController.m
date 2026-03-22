@@ -49,17 +49,20 @@
     }];
     
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
+
+    // Initial Data Load
+    [self.store dispatch:[SRMsg loadGitRepos]];
 }
 
 - (void)render:(SRModel *)model {
     self.selectedRoom = model.selectedRoom;
     self.inspectorView.hidden = (model.workspaceContext == SRWorkspaceContextSettings);
+    self.stripVC.selectedContext = model.workspaceContext; // Render strip bar setup
     
-    // Propagate context filter down to sidebar
-    if (self.sidebarVC.activeContext != model.workspaceContext) {
-        self.sidebarVC.activeContext = model.workspaceContext;
-        [self.sidebarVC reloadContents];
-    }
+    // Pass state to sidebar
+    self.sidebarVC.gitRepos = model.gitRepos;
+    self.sidebarVC.activeContext = model.workspaceContext;
+    [self.sidebarVC reloadContents];
 
     // Reactive Content Swap
     if (self.currentDestination != model.activeDestination) {
@@ -112,22 +115,35 @@
 
 - (void)setupLayout {
     // 1. Left Nexus Strip Toolbar
+    NSVisualEffectView *stripEffect = [[NSVisualEffectView alloc] init];
+    stripEffect.material = NSVisualEffectMaterialDark;
+    stripEffect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    stripEffect.state = NSVisualEffectStateActive;
+    stripEffect.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:stripEffect];
+    self.nexusStripView = stripEffect;
+
     self.stripVC = [[SRStripViewController alloc] init];
     self.stripVC.delegate = self;
     [self addChildViewController:self.stripVC];
-    
-    self.nexusStripView = self.stripVC.view;
-    self.nexusStripView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.nexusStripView.wantsLayer = YES;
-    self.nexusStripView.layer.backgroundColor = [NSColor colorWithCalibratedWhite:0.10 alpha:0.95].CGColor;
-    [self.view addSubview:self.nexusStripView];
+    self.stripVC.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.nexusStripView addSubview:self.stripVC.view];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [self.stripVC.view.topAnchor constraintEqualToAnchor:self.nexusStripView.topAnchor],
+        [self.stripVC.view.bottomAnchor constraintEqualToAnchor:self.nexusStripView.bottomAnchor],
+        [self.stripVC.view.leadingAnchor constraintEqualToAnchor:self.nexusStripView.leadingAnchor],
+        [self.stripVC.view.trailingAnchor constraintEqualToAnchor:self.nexusStripView.trailingAnchor]
+    ]];
 
     // 2. Collapsible Inspector / Sub-sidebar
-    self.inspectorView = [[NSView alloc] init];
-    self.inspectorView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.inspectorView.wantsLayer = YES;
-    self.inspectorView.layer.backgroundColor = [NSColor colorWithCalibratedWhite:0.14 alpha:0.90].CGColor;
-    [self.view addSubview:self.inspectorView];
+    NSVisualEffectView *inspectorEffect = [[NSVisualEffectView alloc] init];
+    inspectorEffect.material = NSVisualEffectMaterialDark;
+    inspectorEffect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    inspectorEffect.state = NSVisualEffectStateActive;
+    inspectorEffect.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:inspectorEffect];
+    self.inspectorView = inspectorEffect;
 
     // Embed Sidebar underneath Inspector
     self.sidebarVC = [[SRSidebarViewController alloc] init];

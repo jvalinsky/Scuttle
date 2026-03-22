@@ -15,7 +15,6 @@ static os_log_t sidebar_log;
 @property (nonatomic, strong) NSVisualEffectView *effectView;
 @property (nonatomic, strong) SRProfileHeaderView *profileHeader;
 @property (nonatomic, strong) NSOutlineView *outlineView;
-@property (nonatomic, strong) NSArray<SSBMessage *> *gitRepos;
 @property (nonatomic, strong) NSScrollView *scrollView;
 @property (nonatomic, strong) NSButton *joinButton;
 @property (nonatomic, strong) NSButton *scanButton;
@@ -54,7 +53,6 @@ static os_log_t sidebar_log;
     [super viewDidLoad];
     self.sections = [NSMutableArray array];
     [self setupUI];
-    [self loadGitRepos];
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(roomsDidUpdate:)
@@ -80,31 +78,9 @@ static os_log_t sidebar_log;
                                              selector:@selector(roomSelected:)
                                                  name:SRRoomManagerRoomSelectedNotification
                                                object:nil];
-
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(gitReposDidUpdate:)
-                                                 name:SRGitRepoCreatedNotification
-                                               object:nil];
-
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(gitReposDidUpdate:)
-                                                 name:SRNewMessageNotification
-                                               object:nil];
 }
 
-- (void)gitReposDidUpdate:(NSNotification *)notification {
-    [self loadGitRepos];
-}
 
-- (void)loadGitRepos {
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray *repos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.gitRepos = repos;
-            [self _rebuildSections];
-        });
-    });
-}
 
 - (void)endpointsDidUpdate:(NSNotification *)notification {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -393,18 +369,18 @@ static os_log_t sidebar_log;
             cell.textField = textField;
 
             [NSLayoutConstraint activateConstraints:@[
-                [iconView.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:4],
+                [iconView.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:12],
                 [iconView.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
                 [iconView.widthAnchor constraintEqualToConstant:16],
                 [iconView.heightAnchor constraintEqualToConstant:16],
 
-                [dotView.leadingAnchor constraintEqualToAnchor:iconView.trailingAnchor constant:4],
+                [dotView.leadingAnchor constraintEqualToAnchor:iconView.trailingAnchor constant:6],
                 [dotView.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
                 [dotView.widthAnchor constraintEqualToConstant:8],
                 [dotView.heightAnchor constraintEqualToConstant:8],
 
-                [textField.leadingAnchor constraintEqualToAnchor:dotView.trailingAnchor constant:6],
-                [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-4],
+                [textField.leadingAnchor constraintEqualToAnchor:dotView.trailingAnchor constant:8],
+                [textField.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-12],
                 [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor]
             ]];
         }
@@ -521,7 +497,7 @@ static os_log_t sidebar_log;
 
 - (CGFloat)outlineView:(NSOutlineView *)outlineView heightOfRowByItem:(id)item {
     SRSidebarItem *sidebarItem = (SRSidebarItem *)item;
-    return sidebarItem.type == SRSidebarItemTypeSection ? 22.0 : 36.0;
+    return sidebarItem.type == SRSidebarItemTypeSection ? 24.0 : 42.0;
 }
 
 - (void)outlineViewSelectionDidChange:(NSNotification *)notification {

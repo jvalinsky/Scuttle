@@ -59,8 +59,7 @@
 - (void)addButtonWithSymbol:(NSString *)symbolName context:(SRWorkspaceContext)context tooltip:(NSString *)tooltip {
     NSImage *image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:tooltip];
     if (image) {
-        // Double size for rich look
-        [image setSize:NSMakeSize(22, 22)];
+        [image setSize:NSMakeSize(20, 20)];
     }
 
     NSButton *btn = [NSButton buttonWithImage:image target:self action:@selector(buttonAction:)];
@@ -69,9 +68,15 @@
     btn.toolTip = tooltip;
     btn.translatesAutoresizingMaskIntoConstraints = NO;
     btn.contentTintColor = NSColor.secondaryLabelColor;
+    btn.wantsLayer = YES;
 
     [self.stackView addArrangedSubview:btn];
     [self.itemButtons addObject:btn];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [btn.widthAnchor constraintEqualToConstant:36],
+        [btn.heightAnchor constraintEqualToConstant:36]
+    ]];
 }
 
 - (void)buttonAction:(NSButton *)sender {
@@ -86,9 +91,12 @@
 - (void)updateSelectionStates {
     for (NSButton *btn in self.itemButtons) {
         if (btn.tag == self.selectedContext) {
-            btn.contentTintColor = NSColor.controlAccentColor;
+            btn.contentTintColor = NSColor.whiteColor;
+            btn.layer.backgroundColor = [NSColor controlAccentColor].CGColor;
+            btn.layer.cornerRadius = 10;
         } else {
             btn.contentTintColor = NSColor.secondaryLabelColor;
+            btn.layer.backgroundColor = [NSColor clearColor].CGColor;
         }
     }
 }

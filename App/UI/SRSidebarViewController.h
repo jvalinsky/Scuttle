@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) SRWorkspaceContext activeContext;
 @property (nonatomic, assign) BOOL hideProfileHeader;
 
+@property (nonatomic, strong) NSArray *gitRepos;
+
 /// Programmatically select a sidebar destination.
 - (void)selectDestination:(NSString *)identifier;
 
