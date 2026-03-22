@@ -382,7 +382,9 @@ static void SSBRoomGenerateKeypair(NSData **outPublic, NSData **outSecret) {
     } mutableCopy];
     [self.client setValue:[@{ peerID: peerState } mutableCopy] forKey:@"peerEBTState"];
 
-    [self.client handleRemoteClockUpdate:@{ author: @5 } fromPeer:peerID];
+    // EBT notes are bit-shifted: note = (seq << 1) | receive_flag
+    // To represent seq=5, want-to-receive: note = (5 << 1) | 0 = 10
+    [self.client handleRemoteClockUpdate:@{ author: @((5 << 1) | 0) } fromPeer:peerID];
     [self flushClientQueue:self.client];
 
     XCTAssertEqualObjects(self.client.peerSyncStates[author], @"Receiving: 0/5");

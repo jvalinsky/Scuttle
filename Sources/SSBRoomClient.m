@@ -940,6 +940,9 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
             [strongSelf appendPeerDiscoveryDiagnostic:[NSString stringWithFormat:@"connection state changed=%lu", (unsigned long)state]];
             strongSelf.isConnected = NO;
             strongSelf.endpointDiscoveryMethodInUse = nil;
+            
+            [strongSelf tearDownActiveTunnels];
+            
             if (strongSelf.autoReconnect && state == SSBTransportConnectionStateFailed) {
                 [strongSelf scheduleReconnect];
             }
@@ -1084,10 +1087,19 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
+        
+        __block BOOL alreadyFinished = NO;
         [strongSelf performClientQueueSync:^{
-            if (metadataFinished) return;
-            metadataFinished = YES;
+            alreadyFinished = metadataFinished;
+            if (!metadataFinished) {
+                metadataFinished = YES;
+            }
         }];
+        
+        if (alreadyFinished) {
+            return; // Abort fallback if request already completed
+        }
+        
         [strongSelf log:@"room.metadata TIMEOUT, falling back to legacy flow"];
         [strongSelf announceWithCompletion:^{
             [strongSelf subscribeToEndpoints];
@@ -1588,8 +1600,17 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     if (!session) return;
     if ([self.ebtRequestIDsBySession objectForKey:session] != nil) return;
 
-    NSMutableDictionary<NSString *, NSNumber *> *clock = [[self.feedStore localClock] mutableCopy];
-    
+    NSDictionary<NSString *, NSNumber *> *rawClock = [self.feedStore localClock];
+    NSMutableDictionary<NSString *, NSNumber *> *clock = [NSMutableDictionary dictionaryWithCapacity:rawClock.count + 1];
+
+    // Encode EBT notes with bit-shifting: note = (seq << 1) | receive_flag
+    // receive_flag: 0 = want to receive, 1 = do NOT want to receive
+    for (NSString *author in rawClock) {
+        NSInteger seq = [rawClock[author] integerValue];
+        NSInteger note = (seq << 1) | 0; // 0 = we want to receive updates
+        clock[author] = @(note);
+    }
+
     // Explicitly request the remote peer's feed by adding them to the clock with sequence 0 if unbound
     NSString *peerID = nil;
     NSDictionary<NSString *, SSBTunnelConnection *> *tunnels = [self activeTunnelsSafe];
@@ -1600,7 +1621,7 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         }
     }
     if (peerID && !clock[peerID]) {
-        clock[peerID] = @(0);
+        clock[peerID] = @((0 << 1) | 0); // seq=0, want to receive
     }
     
     NSDictionary *args = @{@"version": @3, @"format": @"classic"};
@@ -1635,6 +1656,17 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         if (!strongSelf || !strongSession) return;
         [strongSelf handleEBTMessage:payload requestID:requestID flags:flags session:strongSession];
     };
+
+    // Replay any requests the peer sent before we installed the handler
+    {
+        NSDictionary<NSString *, SSBTunnelConnection *> *replayTunnels = [self activeTunnelsSafe];
+        for (NSString *pid in replayTunnels) {
+            if (replayTunnels[pid].rpcSession == session) {
+                [replayTunnels[pid] replayPendingIncomingRequests];
+                break;
+            }
+        }
+    }
 
     // Send initial clock
     [session sendData:clock forRequest:requestID isEnd:NO];
@@ -1678,9 +1710,14 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
             return;
         }
 
-        if (dict[@"key"] && dict[@"value"]) {
+        if (dict[@"author"] && dict[@"sequence"]) {
+            // Raw signed value dict (standard EBT format)
+            [self processIncomingMessage:dict fromPeer:peerID];
+        } else if (dict[@"key"] && dict[@"value"]) {
+            // Legacy {key, value} wrapper format
             [self processIncomingMessage:dict fromPeer:peerID];
         } else {
+            // Clock update (dictionary of author -> note values)
             [self handleRemoteClockUpdate:dict fromPeer:peerID];
         }
     } else if ([message isKindOfClass:[NSData class]]) {
@@ -1716,21 +1753,29 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         peerID = self.host; 
     }
 
-    // Store state for this bilateral session
+    // Store state for this bilateral session.
+    // MuxRPC responses use the NEGATIVE of the incoming request number.
+    int32_t responseReqID = -reqID;
     [self setPeerEBTState:[@{
-        @"requestID": @(reqID),
+        @"requestID": @(responseReqID),
         @"clock": [NSMutableDictionary dictionary]
     } mutableCopy] forPeer:peerID];
 
-    // Send our clock as the response (duplex stream)
-    NSDictionary<NSString *, NSNumber *> *clock = [self.feedStore localClock];
-    [session sendData:clock forRequest:reqID isEnd:NO];
-    os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (%lu feeds)", peerID, (unsigned long)clock.count);
+    // Send our clock as the response (duplex stream) with negated request ID
+    // Encode EBT notes with bit-shifting: note = (seq << 1) | receive_flag
+    NSDictionary<NSString *, NSNumber *> *rawClock = [self.feedStore localClock];
+    NSMutableDictionary<NSString *, NSNumber *> *clock = [NSMutableDictionary dictionaryWithCapacity:rawClock.count];
+    for (NSString *author in rawClock) {
+        NSInteger seq = [rawClock[author] integerValue];
+        clock[author] = @((seq << 1) | 0); // 0 = want to receive
+    }
+    [session sendData:clock forRequest:responseReqID isEnd:NO];
+    os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (reqID=%d->%d, %lu feeds)", peerID, reqID, responseReqID, (unsigned long)clock.count);
 }
 
 - (void)handleRemoteClockUpdate:(NSDictionary *)update fromPeer:(NSString *)peerID {
-    os_log_debug(ssb_room_log, "Received clock update from %{public}@ with %lu entries", peerID, (unsigned long)update.count);
-    
+    os_log_info(ssb_room_log, "EBT clock update from %{public}@ with %lu entries", peerID, (unsigned long)update.count);
+
     __block NSMutableDictionary *targetClock = nil;
     [self performClientQueueSync:^{
         if (peerID && self.peerEBTState[peerID]) {
@@ -1747,19 +1792,140 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     [update enumerateKeysAndObjectsUsingBlock:^(id key, id val, BOOL *stop) {
         if ([key isKindOfClass:[NSString class]] && [val isKindOfClass:[NSNumber class]]) {
             NSString *author = (NSString *)key;
-            NSInteger seq = [val integerValue];
-            os_log_debug(ssb_room_log, "Valid clock for %{public}@ is %ld", author, (long)seq);
-            [self setRemoteClockEntry:@(ABS(seq)) forAuthor:author];
-            [self updateSyncProgressForAuthor:author fromPeer:peerID];
+            NSInteger note = [val integerValue];
+
+            // EBT notes are bit-shifted: note = (seq << 1) | receive_flag
+            // Special value -1 means "don't replicate this feed at all"
+            // receive_flag: 0 = peer wants to receive, 1 = peer does NOT want to receive
+            if (note == -1) {
+                os_log_debug(ssb_room_log, "EBT clock entry: %{public}@ note=%ld (do not replicate)", author, (long)note);
+                [self setRemoteClockEntry:@(-1) forAuthor:author];
+                return;
+            }
+
+            NSInteger seq = note >> 1;
+            BOOL peerWantsToReceive = (note & 1) == 0;
+            os_log_debug(ssb_room_log, "EBT clock entry: %{public}@ note=%ld -> seq=%ld receive=%s",
+                         author, (long)note, (long)seq, peerWantsToReceive ? "YES" : "NO");
+
+            // Store the decoded sequence (not the raw note) for clock comparisons
+            [self setRemoteClockEntry:@(seq) forAuthor:author];
+            if (seq >= 0) {
+                [self updateSyncProgressForAuthor:author fromPeer:peerID];
+            }
         }
     }];
+
+    // After storing the remote clock, send any messages the peer needs
+    SSBMuxRPCSession *ebtSession = [self ebtSessionForPeer:peerID];
+    if (ebtSession) {
+        [self sendPendingMessagesForClock:update toPeer:peerID session:ebtSession];
+    }
 }
 
 - (void)handleRemoteClockUpdate:(NSDictionary *)update {
     [self handleRemoteClockUpdate:update fromPeer:nil];
 }
 
+#pragma mark - EBT Outbound Message Sending
+
+- (nullable SSBMuxRPCSession *)ebtSessionForPeer:(nullable NSString *)peerID {
+    if (peerID.length > 0) {
+        SSBTunnelConnection *tunnel = [self activeTunnelsSafe][peerID];
+        if (tunnel && tunnel.rpcSession) {
+            return tunnel.rpcSession;
+        }
+    }
+    // Fall back to room session
+    return self.rpcSession;
+}
+
+- (int32_t)outboundEBTRequestIDForPeer:(nullable NSString *)peerID session:(SSBMuxRPCSession *)session {
+    // Check if we initiated the EBT stream (our positive request ID)
+    NSNumber *ourReqID = [self.ebtRequestIDsBySession objectForKey:session];
+    if (ourReqID) {
+        return [ourReqID intValue];
+    }
+    // Check if peer initiated bilateral (stored negated request ID)
+    if (peerID.length > 0) {
+        __block NSNumber *bilateralReqID = nil;
+        [self performClientQueueSync:^{
+            bilateralReqID = self.peerEBTState[peerID][@"requestID"];
+        }];
+        if (bilateralReqID) {
+            return [bilateralReqID intValue];
+        }
+    }
+    return 0;
+}
+
+- (void)sendPendingMessagesForClock:(NSDictionary *)remoteClock
+                             toPeer:(nullable NSString *)peerID
+                            session:(SSBMuxRPCSession *)session {
+    int32_t sendReqID = [self outboundEBTRequestIDForPeer:peerID session:session];
+    if (sendReqID == 0) {
+        os_log_debug(ssb_room_log, "No EBT request ID for peer %{public}@, cannot send messages", peerID);
+        return;
+    }
+
+    NSDictionary<NSString *, NSNumber *> *localClock = [self.feedStore localClock];
+    NSInteger totalSent = 0;
+
+    for (NSString *author in remoteClock) {
+        NSInteger note = [remoteClock[author] integerValue];
+
+        // EBT notes are bit-shifted: note = (seq << 1) | receive_flag
+        // -1 means "don't replicate at all"
+        if (note == -1) continue;
+
+        // Decode the note: sequence = note >> 1, receive_flag = note & 1
+        // receive_flag 0 = peer wants to receive, 1 = does NOT want to receive
+        NSInteger remoteSeq = note >> 1;
+        BOOL peerWantsToReceive = (note & 1) == 0;
+
+        // Only send if the peer wants to receive this feed
+        if (!peerWantsToReceive) continue;
+
+        NSInteger localSeq = [localClock[author] integerValue];
+        if (localSeq <= remoteSeq) continue; // We have nothing new for this feed
+
+        NSArray<SSBMessage *> *msgs = [self.feedStore messagesForAuthor:author
+                                                          fromSequence:remoteSeq + 1
+                                                                 limit:localSeq - remoteSeq];
+        for (SSBMessage *msg in msgs) {
+            NSDictionary *envelope = [self ebtEnvelopeForMessage:msg];
+            if (envelope) {
+                [session sendData:envelope forRequest:sendReqID isEnd:NO];
+                totalSent++;
+            }
+        }
+    }
+
+    if (totalSent > 0) {
+        os_log_info(ssb_room_log, "EBT: sent %ld messages to %{public}@", (long)totalSent, peerID ?: @"room");
+    }
+}
+
+- (nullable NSDictionary *)ebtEnvelopeForMessage:(SSBMessage *)msg {
+    // EBT messages are sent as the raw signed value dict (with author, sequence,
+    // previous, timestamp, hash, content, signature at top level).
+    // Peers (go-ssb, tildefriends) look for "author" at the top level to
+    // distinguish messages from clock updates. Do NOT wrap in {key, value}.
+    if (!msg.valueJSON) return nil;
+
+    NSError *err = nil;
+    id valueDict = [NSJSONSerialization JSONObjectWithData:msg.valueJSON options:0 error:&err];
+    if (err || ![valueDict isKindOfClass:[NSDictionary class]]) {
+        os_log_error(ssb_room_log, "Failed to deserialize message valueJSON for key=%{public}@: %{public}@", msg.key, err);
+        return nil;
+    }
+
+    return valueDict;
+}
+
 - (void)processIncomingMessage:(id)response fromPeer:(NSString *)peerID {
+    os_log_info(ssb_room_log, "EBT incoming message from %{public}@", peerID ?: @"unknown");
+
     NSDictionary *dict = nil;
     if ([response isKindOfClass:[NSData class]]) {
         dict = [NSJSONSerialization JSONObjectWithData:(NSData *)response options:0 error:nil];
@@ -1768,10 +1934,25 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     }
     
     if (!dict) return;
-    
-    NSDictionary *val = dict[@"value"] ?: dict;
-    NSString *key = dict[@"key"]; // Might be nil if it's just the value
-    
+
+    // EBT messages arrive as raw signed value dicts (with author, sequence, etc.
+    // at top level). Some implementations may also send {key, value} wrappers.
+    // Handle both formats gracefully.
+    NSDictionary *val;
+    NSString *key;
+    if (dict[@"author"] && dict[@"sequence"]) {
+        // Raw value dict (standard EBT format from go-ssb, tildefriends)
+        val = dict;
+        key = [SSBMessageCodec computeMessageKey:val];
+    } else if (dict[@"value"]) {
+        // Legacy {key, value} wrapper format
+        val = dict[@"value"];
+        key = dict[@"key"];
+    } else {
+        os_log_debug(ssb_room_log, "EBT message has no author/sequence or value field, ignoring");
+        return;
+    }
+
     if ([SSBMessageCodec verifyMessage:val]) {
         SSBMessage *msg = [[SSBMessage alloc] init];
         msg.key = key;
@@ -2096,94 +2277,117 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
 }
 
 - (void)connectToPeer:(NSString *)targetPeerId {
-    os_log_debug(ssb_room_log, "connectToPeer: %{public}@", targetPeerId);
-    NSString *base64Key = nil;
-    if ([targetPeerId hasPrefix:@"@"] && [targetPeerId hasSuffix:@".ed25519"]) {
-        base64Key = [targetPeerId substringWithRange:NSMakeRange(1, targetPeerId.length - 9)];
-    }
-    
-    if (!base64Key) {
-        [self log:[NSString stringWithFormat:@"Invalid target peer ID: %@", targetPeerId]];
-        [self reportSyncStatus:@"Unavailable" progress:1.0 author:targetPeerId];
-        return;
-    }
-    
-    long paddingLength = (4 - (base64Key.length % 4)) % 4;
-    NSString *paddedKey = [base64Key stringByPaddingToLength:base64Key.length + paddingLength withString:@"=" startingAtIndex:0];
-    
-    NSData *remotePubKey = [[NSData alloc] initWithBase64EncodedString:paddedKey options:0];
-    if (!remotePubKey) {
-        [self log:[NSString stringWithFormat:@"Invalid base64 in peer ID: %@", targetPeerId]];
-        [self reportSyncStatus:@"Unavailable" progress:1.0 author:targetPeerId];
-        return;
-    }
-
-    NSString *localPeerID = [self localPublicID];
-    if (localPeerID.length > 0 && [targetPeerId isEqualToString:localPeerID]) {
-        [self reportSyncStatus:@"This Device" progress:1.0 author:targetPeerId];
-        return;
-    }
-    
-    NSString *portalId = [NSString stringWithFormat:@"@%@.ed25519", [self.serverPubKey base64EncodedStringWithOptions:0]];
-    NSString *originPeerId = [self localPublicID];
-    NSMutableDictionary *args = [@{
-        @"portal": portalId,
-        @"target": targetPeerId
-    } mutableCopy];
-    if (originPeerId.length > 0) {
-        args[@"origin"] = originPeerId;
-    }
+    os_log_debug(ssb_room_log, "connectToPeer: %{public}@ (delaying 2s to avoid race)", targetPeerId);
     
     __weak typeof(self) weakSelf = self;
-    __block int32_t reqID = 0;
-    reqID = [self sendRPCRequest:@[@"tunnel", @"connect"] args:@[[args copy]] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (!strongSelf) return;
         
-        SSBTunnelConnection *tunnel = strongSelf.activeTunnels[targetPeerId];
-        if (error || !tunnel) {
-            os_log_error(ssb_room_log, "Tunnel connection failed to %@", targetPeerId);
-            [strongSelf.activeTunnels removeObjectForKey:targetPeerId];
-            NSString *status = error ? [strongSelf syncStatusForTunnelError:error] : @"Unavailable";
-            NSTimeInterval retryDelay = [strongSelf tunnelRetryDelayForStatus:status];
-            [strongSelf setNextTunnelRetryDate:[NSDate dateWithTimeIntervalSinceNow:retryDelay] forPeer:targetPeerId];
-            [strongSelf reportSyncStatus:status progress:1.0 author:targetPeerId];
+        // Re-check if tunnel already exists (to avoid duplicate creation over the 2s window)
+        if ([strongSelf activeTunnelsSafe][targetPeerId]) {
+             os_log_debug(ssb_room_log, "Tunnel already exists for %{public}@, skipping delayed connect", targetPeerId);
+             return;
+        }
+        
+        NSString *base64Key = nil;
+        if ([targetPeerId hasPrefix:@"@"] && [targetPeerId hasSuffix:@".ed25519"]) {
+            base64Key = [targetPeerId substringWithRange:NSMakeRange(1, targetPeerId.length - 9)];
+        }
+        
+        if (!base64Key) {
+            [strongSelf log:[NSString stringWithFormat:@"Invalid target peer ID: %@", targetPeerId]];
+            [strongSelf reportSyncStatus:@"Unavailable" progress:1.0 author:targetPeerId];
             return;
         }
         
-        if ([response isKindOfClass:[NSData class]]) {
-            [tunnel receiveTunnelData:(NSData *)response];
-        } else if ([response isKindOfClass:[NSString class]]) {
-            [tunnel receiveTunnelData:[(NSString *)response dataUsingEncoding:NSUTF8StringEncoding]];
+        long paddingLength = (4 - (base64Key.length % 4)) % 4;
+        NSString *paddedKey = [base64Key stringByPaddingToLength:base64Key.length + paddingLength withString:@"=" startingAtIndex:0];
+        
+        NSData *remotePubKey = [[NSData alloc] initWithBase64EncodedString:paddedKey options:0];
+        if (!remotePubKey) {
+            [strongSelf log:[NSString stringWithFormat:@"Invalid base64 in peer ID: %@", targetPeerId]];
+            [strongSelf reportSyncStatus:@"Unavailable" progress:1.0 author:targetPeerId];
+            return;
         }
-    }];
 
-    if (reqID < 0) {
-        [self reportSyncStatus:@"Disconnected" progress:1.0 author:targetPeerId];
-        return;
-    }
-    
-    SSBTunnelConnection *tunnel = [[SSBTunnelConnection alloc] initWithPeerId:targetPeerId
-                                                              peerPublicKey:remotePubKey
-                                                              localIdentity:self.localIdentitySecret
-                                                                roomSession:self.rpcSession
-                                                                tunnelReqID:reqID
-                                                                    isServer:NO];
-    
-    __weak typeof(self) weakSelfOuter = self;
-    tunnel.onConnectionStateReady = ^{
-        __strong typeof(weakSelfOuter) strongSelfOuter = weakSelfOuter;
-        if (strongSelfOuter) {
-            os_log_info(ssb_room_log, "Tunnel to %@ is ready for RPC!", targetPeerId);
-            [strongSelfOuter setNextTunnelRetryDate:nil forPeer:targetPeerId];
-            [strongSelfOuter reportTunnelReadyForPeer:targetPeerId];
-            [strongSelfOuter replicateFromPeer:targetPeerId viaRoom:strongSelfOuter.host];
+        NSString *localPeerID = [strongSelf localPublicID];
+        if (localPeerID.length > 0 && [targetPeerId isEqualToString:localPeerID]) {
+            [strongSelf reportSyncStatus:@"This Device" progress:1.0 author:targetPeerId];
+            return;
         }
-    };
-    
-    [tunnel start];
-    
-    [self setActiveTunnel:tunnel forPeerID:targetPeerId];
+        
+        NSString *portalId = [NSString stringWithFormat:@"@%@.ed25519", [strongSelf.serverPubKey base64EncodedStringWithOptions:0]];
+        NSString *originPeerId = [strongSelf localPublicID];
+        NSMutableDictionary *args = [@{
+            @"portal": portalId,
+            @"target": targetPeerId
+        } mutableCopy];
+        if (originPeerId.length > 0) {
+            args[@"origin"] = originPeerId;
+        }
+        
+        __weak typeof(strongSelf) weakSelfInner = strongSelf;
+        __block int32_t reqID = 0;
+        reqID = [strongSelf sendRPCRequest:@[@"tunnel", @"connect"] args:@[[args copy]] type:@"duplex" completion:^(id _Nullable response, NSError * _Nullable error) {
+            __strong typeof(weakSelfInner) strongSelfInner = weakSelfInner;
+            if (!strongSelfInner) return;
+            
+            SSBTunnelConnection *tunnel = [strongSelfInner activeTunnelsSafe][targetPeerId];
+            if (error || !tunnel) {
+                os_log_error(ssb_room_log, "Tunnel connection failed to %@", targetPeerId);
+                [strongSelfInner removeActiveTunnelForPeerID:targetPeerId];
+                NSString *status = error ? [strongSelfInner syncStatusForTunnelError:error] : @"Unavailable";
+                NSTimeInterval retryDelay = [strongSelfInner tunnelRetryDelayForStatus:status];
+                [strongSelfInner setNextTunnelRetryDate:[NSDate dateWithTimeIntervalSinceNow:retryDelay] forPeer:targetPeerId];
+                [strongSelfInner reportSyncStatus:status progress:1.0 author:targetPeerId];
+                return;
+            }
+            
+            if ([response isKindOfClass:[NSData class]]) {
+                [tunnel receiveTunnelData:(NSData *)response];
+            } else if ([response isKindOfClass:[NSString class]]) {
+                [tunnel receiveTunnelData:[(NSString *)response dataUsingEncoding:NSUTF8StringEncoding]];
+            }
+        }];
+
+        if (reqID < 0) {
+            [strongSelf reportSyncStatus:@"Disconnected" progress:1.0 author:targetPeerId];
+            return;
+        }
+        
+        SSBTunnelConnection *tunnel = [[SSBTunnelConnection alloc] initWithPeerId:targetPeerId
+                                                                  peerPublicKey:remotePubKey
+                                                                  localIdentity:strongSelf.localIdentitySecret
+                                                                    roomSession:strongSelf.rpcSession
+                                                                    tunnelReqID:reqID
+                                                                       isServer:NO];
+        
+        __weak typeof(strongSelf) weakSelfOuter = strongSelf;
+        tunnel.onConnectionStateReady = ^{
+            __strong typeof(weakSelfOuter) strongSelfOuter = weakSelfOuter;
+            if (strongSelfOuter) {
+                os_log_info(ssb_room_log, "Tunnel to %@ is ready for RPC!", targetPeerId);
+                [strongSelfOuter setNextTunnelRetryDate:nil forPeer:targetPeerId];
+                [strongSelfOuter reportTunnelReadyForPeer:targetPeerId];
+                [strongSelfOuter replicateFromPeer:targetPeerId viaRoom:strongSelfOuter.host];
+            }
+        };
+        
+        [tunnel start];
+        
+        [strongSelf setActiveTunnel:tunnel forPeerID:targetPeerId];
+    });
+}
+
+- (void)tearDownActiveTunnels {
+    NSDictionary<NSString *, SSBTunnelConnection *> *tunnels = [self activeTunnelsSafe];
+    for (SSBTunnelConnection *tunnel in tunnels.allValues) {
+        [tunnel stop];
+    }
+    @synchronized(self) {
+        [self.activeTunnels removeAllObjects];
+    }
 }
 
 - (void)disconnect {
@@ -2193,6 +2397,9 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     self.endpointDiscoveryMethodInUse = nil;
     self.endpointDiscoverySubscriptionGeneration += 1;
     self.endpointDiscoveryReceivedEvent = NO;
+    
+    [self tearDownActiveTunnels];
+    
     [self emitProtocolTraceWithDirection:@"local"
                                requestID:nil
                              framerState:@"transport.disconnect"
