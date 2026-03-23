@@ -14,6 +14,7 @@
 | `/work` | Start a work transaction - creates goal node before implementation |
 | `/document` | Generate comprehensive documentation for a file or directory |
 | `/build-test` | Build the project and run the test suite |
+| `/rebuild-app` | Rebuild and open ScuttleRoomApp GUI (`./rebuild_and_open.sh`) |
 | `/serve-ui` | Start the decision graph web viewer |
 | `/sync-graph` | Export decision graph to GitHub Pages |
 | `/decision-graph` | Build a decision graph from commit history |
@@ -26,6 +27,12 @@
 | `/pulse` | Map current design as decisions (Now mode) |
 | `/narratives` | Understand how the system evolved (History mode) |
 | `/archaeology` | Transform narratives into queryable graph |
+| `/rebuild-app` | Rebuild and open ScuttleRoomApp GUI (`./rebuild_and_open.sh`) |
+
+### Application Build & Run
+
+- **Rebuild and Open GUI:** Run `./rebuild_and_open.sh` to regenerate the Xcode project, build the app, and launch it.
+- **Framework Tests:** Run `xcodebuild test -scheme SSBNetwork` to run the protocol and logic tests.
 
 ### The Node Flow Rule - CRITICAL
 
