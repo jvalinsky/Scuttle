@@ -400,28 +400,12 @@ static NSString *EBTTestPeerIDFromPublicKey(NSData *publicKey) {
     SSBRoomClient *clientA = [self createClientWithIdentity:secA feedStore:storeA];
     SSBRoomClient *clientB = [self createClientWithIdentity:secB feedStore:storeB];
 
-    // Wire two MuxRPC sessions together (simulating tunneled connection)
-    SSBMuxRPCSession *sessionA = [[SSBMuxRPCSession alloc] init];
-    SSBMuxRPCSession *sessionB = [[SSBMuxRPCSession alloc] init];
-
-    sessionA.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
-        // Deliver to B
-        [sessionB handleIncomingMessage:message];
-    };
-    sessionB.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
-        // Deliver to A
-        [sessionA handleIncomingMessage:message];
-    };
-
-    // Register these sessions with respective clients' EBT tracking
-    clientA.rpcSession = sessionA;
-    clientB.rpcSession = sessionB;
-
-    // Create mock tunnels so client can resolve peerID from session
+    // Create tunnels — EBT runs on each tunnel's own rpcSession (the peer-to-peer channel)
+    SSBMuxRPCSession *dummyRoomSession = [[SSBMuxRPCSession alloc] init];
     SSBTunnelConnection *tunnelA = [[SSBTunnelConnection alloc] initWithPeerId:authorB
                                                                  peerPublicKey:pubB
                                                                  localIdentity:secA
-                                                                   roomSession:sessionA
+                                                                   roomSession:dummyRoomSession
                                                                    tunnelReqID:99
                                                                       isServer:NO];
     [clientA.activeTunnels setObject:tunnelA forKey:authorB];
@@ -429,14 +413,22 @@ static NSString *EBTTestPeerIDFromPublicKey(NSData *publicKey) {
     SSBTunnelConnection *tunnelB = [[SSBTunnelConnection alloc] initWithPeerId:authorA
                                                                  peerPublicKey:pubA
                                                                  localIdentity:secB
-                                                                   roomSession:sessionB
+                                                                   roomSession:dummyRoomSession
                                                                    tunnelReqID:99
                                                                       isServer:YES];
     [clientB.activeTunnels setObject:tunnelB forKey:authorA];
 
-    // Start EBT replication on both sides (mirroring real-world behavior over tunnels)
-    [clientA startEBTReplicationWithSession:sessionA];
-    [clientB startEBTReplicationWithSession:sessionB];
+    // Wire tunnel sessions directly together (simulating peer-to-peer through the room relay)
+    tunnelA.rpcSession.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
+        [tunnelB.rpcSession handleIncomingMessage:message];
+    };
+    tunnelB.rpcSession.sendMessageBlock = ^(SSBMuxRPCMessage *message) {
+        [tunnelA.rpcSession handleIncomingMessage:message];
+    };
+
+    // Start EBT replication on the tunnel sessions (matching real-world usage)
+    [clientA startEBTReplicationWithSession:tunnelA.rpcSession];
+    [clientB startEBTReplicationWithSession:tunnelB.rpcSession];
     [self flushClientQueue:clientA];
     [self flushClientQueue:clientB];
 

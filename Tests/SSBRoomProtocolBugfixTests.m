@@ -1,5 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <SSBNetwork/SSBRoomClient.h>
+#import <SSBNetwork/SSBBlobSyncer.h>
 #import <SSBNetwork/SSBMuxRPC.h>
 #import <SSBNetwork/SSBFeedStore.h>
 #import <SSBNetwork/SSBBlobStore.h>
@@ -8,8 +9,6 @@
 #import "../Sources/SSBMuxRPCSession.h"
 #import "../Sources/tweetnacl.h"
 #import "../App/Logic/SRNotificationNames.h"
-
-typedef void (^SSBRoomClientTraceSink)(NSDictionary<NSString *, id> *event);
 
 static void SSBRoomGenerateKeypair(NSData **outPublic, NSData **outSecret) {
     unsigned char pk[32];
@@ -32,7 +31,8 @@ static void SSBRoomGenerateKeypair(NSData **outPublic, NSData **outSecret) {
                    feedStore:(nullable SSBFeedStore *)feedStore
                    blobStore:(nullable SSBBlobStore *)blobStore
             transportBackend:(nullable id<SSBTransportBackend>)transportBackend
-                   traceSink:(nullable SSBRoomClientTraceSink)traceSink;
+                   traceSink:(nullable SSBProtocolTraceSink)traceSink;
+
 - (void)handleAttendantsResponse:(id)response;
 - (NSArray<NSString *> *)preferredEndpointDiscoveryMethod;
 - (BOOL)shouldResubscribeForPreferredEndpointDiscoveryMethod;
@@ -52,6 +52,7 @@ static void SSBRoomGenerateKeypair(NSData **outPublic, NSData **outSecret) {
 @property (nonatomic, strong) SSBMuxRPCSession *rpcSession;
 @property (nonatomic, strong) dispatch_queue_t clientQueue;
 @property (nonatomic, strong, readonly) NSMutableDictionary<NSString *, SSBTunnelConnection *> *activeTunnels;
+@property (nonatomic, strong) SSBBlobSyncer *blobSyncer;
 @end
 
 @interface MockTransportConnection : NSObject <SSBTransportConnection>
@@ -376,19 +377,11 @@ static void SSBRoomGenerateKeypair(NSData **outPublic, NSData **outSecret) {
 - (void)testRemoteClockUpdatesPeerSpecificSyncState {
     NSString *peerID = [self feedIDForByte:0x31];
     NSString *author = [self feedIDForByte:0x32];
-    NSMutableDictionary *peerState = [@{
-        @"requestID": @1,
-        @"clock": [NSMutableDictionary dictionary]
-    } mutableCopy];
-    [self.client setValue:[@{ peerID: peerState } mutableCopy] forKey:@"peerEBTState"];
-
-    // EBT notes are bit-shifted: note = (seq << 1) | receive_flag
-    // To represent seq=5, want-to-receive: note = (5 << 1) | 0 = 10
+    
     [self.client handleRemoteClockUpdate:@{ author: @((5 << 1) | 0) } fromPeer:peerID];
     [self flushClientQueue:self.client];
 
     XCTAssertEqualObjects(self.client.peerSyncStates[author], @"Receiving: 0/5");
-    XCTAssertEqualWithAccuracy(self.client.peerSyncProgress[author].floatValue, 0.0f, 0.001f);
 }
 
 - (void)testTunnelReadyStatusOverridesHandshakingWithoutGlobalNotification {

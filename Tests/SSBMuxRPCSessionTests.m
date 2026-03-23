@@ -462,9 +462,14 @@
     XCTAssertTrue(cleaned, @"Pending request must be removed after async non-stream response");
 }
 
-- (void)testStreamEndTrueClearsPendingRequestWithoutEmittingExtraPayload {
+- (void)testStreamEndFiresEndOfStreamCallbackAndClearsPendingRequest {
+    // A clean stream end (@YES sentinel) must:
+    // 1. Fire the data callback once with the real payload
+    // 2. Fire the callback again with (nil, nil) to signal end-of-stream to consumers
+    // 3. Clear the pending request so no further callbacks fire
     SSBMuxRPCSession *session = [[SSBMuxRPCSession alloc] init];
     XCTestExpectation *dataExpectation = [self expectationWithDescription:@"stream data callback"];
+    XCTestExpectation *endExpectation = [self expectationWithDescription:@"end-of-stream callback"];
 
     __block NSInteger callbackCount = 0;
     __block id capturedResponse = nil;
@@ -472,8 +477,13 @@
     int32_t reqID = [session sendRequest:@[@"room", @"attendants"] args:@[] type:@"source" completion:^(id _Nullable response, NSError * _Nullable error) {
         XCTAssertNil(error);
         callbackCount += 1;
-        capturedResponse = response;
-        [dataExpectation fulfill];
+        if (callbackCount == 1) {
+            capturedResponse = response;
+            [dataExpectation fulfill];
+        } else {
+            XCTAssertNil(response, @"End-of-stream callback must deliver nil response");
+            [endExpectation fulfill];
+        }
     }];
 
     SSBMuxRPCMessage *dataMessage = [self jsonMessageWithFlags:(SSBMuxRPCFlagTypeJSON | SSBMuxRPCFlagStream)
@@ -486,15 +496,15 @@
                                                          string:@"true"];
     [session handleIncomingMessage:endMessage];
 
-    [self waitForExpectations:@[dataExpectation] timeout:2.0];
-    XCTAssertEqual(callbackCount, 1);
+    [self waitForExpectations:@[dataExpectation, endExpectation] timeout:2.0];
+    XCTAssertEqual(callbackCount, 2);
     XCTAssertEqualObjects(capturedResponse[@"id"], @"@peer.ed25519");
 
     __block BOOL removed = NO;
     dispatch_sync(session.accessQueue, ^{
         removed = (session.pendingRequests[@(reqID)] == nil);
     });
-    XCTAssertTrue(removed, @"Stream end markers must clear the pending request");
+    XCTAssertTrue(removed, @"Stream end must clear the pending request");
 }
 
 @end
