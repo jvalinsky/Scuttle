@@ -6,7 +6,7 @@ services:
       context: ./tmp-room
       dockerfile: Dockerfile.dev
     ports:
-      - "8008:8008" # MuxRPC / SHS
+      - "8008:8008" # MuxRPC / SHS (Secret Handshake)
       - "3000:3000" # HTTP Dashboard
     volumes:
       - ./ssb-room-data:/data
@@ -14,3 +14,31 @@ services:
     command: [ "-repo", "/data", "-lishttp", ":3000", "-lismux", ":8008", "-mode", "open" ]
     environment:
       - GO_SSB_ROOM_DOMAIN=localhost
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # GNUstep build environment — compile scuttle-cli against the room
+  scuttle-build:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gnustep
+    volumes:
+      - .:/workspace
+      - scuttle-data:/root/.local/share/scuttle
+    working_dir: /workspace
+    depends_on:
+      ssb-room:
+        condition: service_healthy
+    environment:
+      - SSB_ROOM_HOST=ssb-room
+      - SSB_ROOM_PORT=8008
+      - DEBUG_PROTOCOL=1
+    profiles:
+      - debug
+
+volumes:
+  scuttle-data:

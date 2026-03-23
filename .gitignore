@@ -56,7 +56,9 @@ xcuserdata/
 *.lock
 
 # Project specific
-tmp-room/
+tmp-room/ssb-room-data/
+# Dockerfile and build context files in tmp-room are tracked:
+# tmp-room/Dockerfile, tmp-room/Dockerfile.dev
 tmp-secretstream/
 tmp-repo-room/
 ssb-room-data/
@@ -83,10 +85,10 @@ build_errors*.txt
 build_output.txt
 test_output.txt
 
-# Deciduous local state
-.deciduous/*
-!.deciduous/.version
-!.deciduous/config.toml
+# Deciduous local state (DB and documents are local-only)
+.deciduous/deciduous.db
+.deciduous/documents/
+.deciduous/events/
 
 # GNUstep build artifacts
 obj/

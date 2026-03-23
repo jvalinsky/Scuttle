@@ -1,0 +1,37 @@
+# Development build for ssbc/go-ssb-room (includes debug features)
+# Stage 1: Build with debug info
+FROM golang:1.22-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /build
+
+ARG GO_SSB_ROOM_TAG=main
+RUN git clone --depth 1 https://github.com/ssbc/go-ssb-room.git .
+
+RUN go mod download
+# Keep debug symbols, enable race detector
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -o /go-ssb-room-dev ./cmd/server
+
+# Stage 2: Runtime with debugging tools
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata curl jq
+
+RUN addgroup -S ssb && adduser -S -G ssb ssb
+RUN mkdir -p /data && chown ssb:ssb /data
+
+COPY --from=builder /go-ssb-room-dev /usr/local/bin/go-ssb-room
+
+# Healthcheck via HTTP dashboard
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD curl -sf http://localhost:3000/ || exit 1
+
+USER ssb
+WORKDIR /data
+
+EXPOSE 8008 3000
+
+ENTRYPOINT ["/usr/local/bin/go-ssb-room"]
+CMD ["-repo", "/data", "-lishttp", ":3000", "-lismux", ":8008", "-mode", "open"]

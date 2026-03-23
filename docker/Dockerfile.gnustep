@@ -1,0 +1,42 @@
+# GNUstep build environment for Scuttle CLI (Linux port)
+# Provides a complete GNUstep + OpenSSL + SQLite3 environment
+# for building and running scuttle-cli against a live ssb-room.
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Core build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    clang \
+    libobjc-14-dev \
+    gnustep-make \
+    gnustep-base-runtime \
+    gnustep-base-common \
+    libgnustep-base-dev \
+    libdispatch-dev \
+    libssl-dev \
+    libsqlite3-dev \
+    zlib1g-dev \
+    curl \
+    netcat-openbsd \
+    tcpdump \
+    strace \
+    jq \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# GNUstep environment
+RUN . /usr/share/GNUstep/Makefiles/GNUstep.sh || true
+
+ENV GNUSTEP_MAKEFILES=/usr/share/GNUstep/Makefiles
+ENV CC=clang
+ENV CXX=clang++
+
+# Wait-for-it style helper
+RUN printf '#!/bin/sh\nuntil nc -z "$1" "$2" 2>/dev/null; do sleep 1; done\n' \
+    > /usr/local/bin/wait-for-port && chmod +x /usr/local/bin/wait-for-port
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
