@@ -1,5 +1,13 @@
 [
   {
+    "hash": "9903e81e31f66afad23690d27b7f31f14b136bc2",
+    "short_hash": "9903e81",
+    "author": "Claude",
+    "date": "2026-03-23T16:37:29+00:00",
+    "message": "Add go-ssb-room Docker setup, debug harness, and GNUstep porting plan\n\n- tmp-room/Dockerfile: Multi-stage production build of ssbc/go-ssb-room from source\n- tmp-room/Dockerfile.dev: Dev build with healthcheck and debug tools\n- docker-compose.yml: Add GNUstep build container (scuttle-build, debug profile)\n- docker/Dockerfile.gnustep: Ubuntu 22.04 + GNUstep + OpenSSL + SQLite3 build env\n- skills/ssb-room-debug/SKILL.md: Debug skill with test workflows and known failure modes\n- skills/ssb-room-debug/references/ROOM_PROTOCOL.md: go-ssb-room protocol reference\n- tools/debug/ssb-room-harness.sh: Integration test harness (identity, connect, peers, EBT)\n- tools/debug/trace-handshake.sh: SHS handshake capture and decode tool\n- plans/topics/gnustep-porting-hypotheses.md: 9 hypotheses for Linux port with test paths\n- .gitignore: Fix tmp-room and deciduous ignore rules\n\nhttps://claude.ai/code/session_01Syh7weDAkeew3aUDmej1kt",
+    "files_changed": 13
+  },
+  {
     "hash": "a3e50bc48fdd4611db533de53f448784ec950db3",
     "short_hash": "a3e50bc",
     "author": "Jack Valinsky",

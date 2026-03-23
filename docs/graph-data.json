@@ -175,6 +175,17 @@
       "created_at": "2026-03-23T16:36:34.611141023+00:00",
       "updated_at": "2026-03-23T16:36:34.611141023+00:00",
       "metadata_json": "{\"branch\":\"claude/ssb-room-docker-debug-0AFz4\",\"confidence\":90}"
+    },
+    {
+      "id": 17,
+      "change_id": "483202c6-d857-409c-a829-d5c732904232",
+      "node_type": "outcome",
+      "title": "All Docker/debug infrastructure committed: 13 files, tmp-room Dockerfiles, GNUstep build env, debug harness, SHS trace tool, porting hypotheses scratchpad",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-03-23T16:37:34.440665302+00:00",
+      "updated_at": "2026-03-23T16:37:34.440665302+00:00",
+      "metadata_json": "{\"branch\":\"claude/ssb-room-docker-debug-0AFz4\",\"commit\":\"9903e81\",\"confidence\":95}"
     }
   ],
   "edges": [
@@ -353,6 +364,39 @@
       "weight": 1.0,
       "rationale": "Scratchpad creation completed",
       "created_at": "2026-03-23T16:36:34.618414484+00:00"
+    },
+    {
+      "id": 17,
+      "from_node_id": 6,
+      "to_node_id": 17,
+      "from_change_id": "474a065c-b0c3-47ef-944e-68b3ac88edda",
+      "to_change_id": "483202c6-d857-409c-a829-d5c732904232",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "Docker Dockerfiles committed",
+      "created_at": "2026-03-23T16:37:34.448536759+00:00"
+    },
+    {
+      "id": 18,
+      "from_node_id": 8,
+      "to_node_id": 17,
+      "from_change_id": "47f76a9a-9f88-4eb5-8830-1e091f5bd003",
+      "to_change_id": "483202c6-d857-409c-a829-d5c732904232",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "Debug harness committed",
+      "created_at": "2026-03-23T16:37:34.455833874+00:00"
+    },
+    {
+      "id": 19,
+      "from_node_id": 9,
+      "to_node_id": 17,
+      "from_change_id": "21cce9b7-43bb-4b0f-96a0-04f8358e33e9",
+      "to_change_id": "483202c6-d857-409c-a829-d5c732904232",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "Porting hypotheses committed",
+      "created_at": "2026-03-23T16:37:34.463264337+00:00"
     }
   ]
 }
