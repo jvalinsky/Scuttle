@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import <SSBNetwork/SSBLogCompat.h>
+#import "SSBLogCompat.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -22,6 +22,8 @@ typedef NS_ENUM(NSInteger, SSBLogCategory) {
     SSBLogCategoryAuth = 8
 };
 
+typedef void (^SSBProtocolTraceSink)(NSDictionary<NSString *, id> *event);
+
 static inline NSString *SSBLogCategoryName(SSBLogCategory cat) {
     switch (cat) {
         case SSBLogCategoryGeneral: return @"General";
@@ -39,6 +41,7 @@ static inline NSString *SSBLogCategoryName(SSBLogCategory cat) {
 
 @interface SSBLogger : NSObject
 
+
 @property (class, nonatomic, readonly) SSBLogger *shared;
 @property (nonatomic, assign) SSBLogLevel minimumLevel;
 
@@ -53,6 +56,9 @@ static inline NSString *SSBLogCategoryName(SSBLogCategory cat) {
 
 - (NSString *)stateToString:(NSString *)stateName value:(NSInteger)value;
 - (void)logStateTransition:(NSString *)stateName from:(NSInteger)from to:(NSInteger)to category:(SSBLogCategory)category;
+
++ (void)ssb_emitProtocolTraceEvent:(nullable NSDictionary<NSString *, id> *)event;
++ (void)ssb_setProtocolTraceSink:(nullable SSBProtocolTraceSink)sink;
 
 @end
 

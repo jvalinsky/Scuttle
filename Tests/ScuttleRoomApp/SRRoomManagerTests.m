@@ -224,7 +224,7 @@
     client.mockHost = @"test-host";
     
     // Explicitly call delegate method
-    [(id<SSBRoomClientDelegate>)self.manager roomClient:client didUpdateSyncStatus:@"Syncing" progress:0.5f author:@"@test-author"];
+    [(id<SSBRoomClientDelegate>)self.manager roomClient:client didUpdateSyncStatus:@"Syncing" progress:0.5f author:@"@test-author" peerID:nil];
     
     [self waitForExpectationsWithTimeout:1.0 handler:nil];
     
@@ -385,8 +385,6 @@
     NSTableCellView *cell9 = (NSTableCellView *)view9;
     XCTAssertEqualObjects(cell9.textField.stringValue, @"test-repo");
 }
-
-@end
 
 @end
 

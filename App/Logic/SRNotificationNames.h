@@ -22,6 +22,7 @@ extern NSString * const SRRoomSyncStatusHostKey;
 extern NSString * const SRRoomSyncStatusKey;
 extern NSString * const SRRoomSyncStatusProgressKey;
 extern NSString * const SRRoomSyncStatusAuthorKey;
+extern NSString * const SRRoomSyncStatusPeerKey;
 
 /// Posted after a lipmaa integrity check completes for a GabbyGrove/Bamboo feed.
 /// userInfo: @"author" (NSString feed ID), @"verified" (NSNumber BOOL)

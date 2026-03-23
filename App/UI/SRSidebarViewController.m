@@ -359,6 +359,16 @@ static os_log_t sidebar_log;
 
         cell.textField.stringValue = sidebarItem.title;
 
+        // Accessibility identifier for test automation
+        if ([sidebarItem.representedObject isEqual:@"peers"]) {
+            [cell setAccessibilityIdentifier:@"sidebar-item-peers"];
+        } else if ([sidebarItem.representedObject isKindOfClass:[RoomConfig class]]) {
+            RoomConfig *room = (RoomConfig *)sidebarItem.representedObject;
+            [cell setAccessibilityIdentifier:[NSString stringWithFormat:@"sidebar-item-room-%@", room.host]];
+        } else {
+            [cell setAccessibilityIdentifier:nil];
+        }
+
         // Update icon and connection status dot color
         for (NSView *subview in cell.subviews) {
             if ([subview.identifier isEqualToString:@"IconView"]) {

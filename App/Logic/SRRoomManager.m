@@ -31,6 +31,10 @@ NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
 @property (nonatomic, strong) dispatch_queue_t managerQueue;
 /// Set during bootstrap when a metafeed/announce message still needs to be published.
 @property (nonatomic, assign) BOOL needsMetafeedAnnounce;
+/// File handle for experiment JSONL log (set via -SSBExperimentLogPath launch arg).
+@property (nonatomic, strong, nullable) NSFileHandle *experimentLogHandle;
+/// Observer tokens for experiment log notifications.
+@property (nonatomic, strong, nullable) NSMutableArray *experimentObservers;
 @end
 
 @implementation SRRoomManager
@@ -61,10 +65,23 @@ NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
         _internalSyncStatusByHost = [NSMutableDictionary dictionary];
         _internalSyncProgressByHost = [NSMutableDictionary dictionary];
         _managerQueue = dispatch_queue_create("com.scuttlebutt.roommanager", DISPATCH_QUEUE_SERIAL);
-        
-        // Auto-connect to saved rooms
-        for (RoomConfig *config in _internalRooms) {
-            [self connectToRoom:config];
+
+        // Skip auto-connect when running UI tests to avoid interfering with test state
+        BOOL isUITestMode = [[[NSProcessInfo processInfo] arguments] containsObject:@"-SSBUITestMode"];
+        if (!isUITestMode) {
+            for (RoomConfig *config in _internalRooms) {
+                [self connectToRoom:config];
+            }
+        }
+
+        // Experiment JSONL log sink (enabled by -SSBExperimentLogPath <path>)
+        NSArray<NSString *> *launchArgs = [[NSProcessInfo processInfo] arguments];
+        NSUInteger logPathIdx = [launchArgs indexOfObject:@"-SSBExperimentLogPath"];
+        if (logPathIdx != NSNotFound && logPathIdx + 1 < launchArgs.count) {
+            NSString *logPath = launchArgs[logPathIdx + 1];
+            [[NSFileManager defaultManager] createFileAtPath:logPath contents:nil attributes:nil];
+            _experimentLogHandle = [NSFileHandle fileHandleForWritingAtPath:logPath];
+            [self _setupExperimentLogObservers];
         }
 
         // Bootstrap metafeed for existing accounts that predate metafeed support.
@@ -208,7 +225,7 @@ NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
     });
 }
 
-- (void)roomClient:(SSBRoomClient *)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author {
+- (void)roomClient:(SSBRoomClient *)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author peerID:(nullable NSString *)peerID {
     NSString *host = client.host ?: @"";
     if (host.length == 0 || status.length == 0) {
         return;
@@ -236,6 +253,9 @@ NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
         if (author.length > 0) {
             userInfo[SRRoomSyncStatusAuthorKey] = author;
         }
+        if (peerID.length > 0) {
+            userInfo[SRRoomSyncStatusPeerKey] = peerID;
+        }
 
         dispatch_async(dispatch_get_main_queue(), ^{
             [[NSNotificationCenter defaultCenter] postNotificationName:SRRoomSyncStatusChangedNotification
@@ -246,6 +266,9 @@ NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
 }
 
 - (void)roomClient:(SSBRoomClient *)client didReplicateMessagesFromPeer:(NSString *)peerId count:(NSInteger)count {
+    // Log to experiment sink if active
+    [self _logExperimentReplicatedFromPeer:peerId count:count host:client.host];
+
     // After each replication batch, check for metafeed/seed backup messages addressed to us.
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [self checkForIncomingSeedBackups];
@@ -652,6 +675,91 @@ NSString * const SRRoomManagerErrorDomain = @"com.scuttlebutt.SRRoomManager";
     __block SSBRoomClient *client;
     dispatch_sync(self.managerQueue, ^{ client = self.internalClients[host]; });
     return client;
+}
+
+// ---------------------------------------------------------------------------
+#pragma mark - Experiment Log
+
+- (void)_writeExperimentLogEvent:(NSDictionary *)event {
+    if (!self.experimentLogHandle) return;
+    NSMutableDictionary *eventWithTime = [event mutableCopy];
+    eventWithTime[@"t"] = @([[NSDate date] timeIntervalSince1970]);
+    NSData *json = [NSJSONSerialization dataWithJSONObject:eventWithTime options:0 error:nil];
+    if (!json) return;
+    NSMutableData *line = [json mutableCopy];
+    [line appendData:[@"\n" dataUsingEncoding:NSUTF8StringEncoding]];
+    @try {
+        [self.experimentLogHandle seekToEndOfFile];
+        [self.experimentLogHandle writeData:line];
+    } @catch (NSException *e) {
+        os_log_error(ssb_room_log, "Experiment log write failed: %{public}@", e.reason);
+    }
+}
+
+- (void)_teardownExperimentLog {
+    if (!self.experimentLogHandle) return;
+    for (id token in self.experimentObservers) {
+        [[NSNotificationCenter defaultCenter] removeObserver:token];
+    }
+    [self.experimentObservers removeAllObjects];
+    [self.experimentLogHandle closeFile];
+    self.experimentLogHandle = nil;
+}
+
+- (void)_setupExperimentLogObservers {
+    self.experimentObservers = [NSMutableArray array];
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+
+    id connToken = [nc addObserverForName:SRRoomManagerConnectionStatusChangedNotification
+                                   object:nil queue:[NSOperationQueue mainQueue]
+                               usingBlock:^(NSNotification *note) {
+        NSString *host = note.userInfo[@"host"] ?: @"";
+        BOOL connected = [note.userInfo[@"connected"] boolValue];
+        NSMutableDictionary *ev = [@{@"event": @"connection",
+                                     @"host": host,
+                                     @"connected": @(connected)} mutableCopy];
+        NSString *error = note.userInfo[@"error"];
+        if (error) ev[@"error"] = error;
+        [self _writeExperimentLogEvent:ev];
+    }];
+    [self.experimentObservers addObject:connToken];
+
+    id epToken = [nc addObserverForName:SRRoomManagerDidUpdateEndpointsNotification
+                                  object:nil queue:[NSOperationQueue mainQueue]
+                              usingBlock:^(NSNotification *note) {
+        NSString *host = note.userInfo[SRRoomManagerEndpointsHostKey] ?: @"";
+        NSArray *peers = note.userInfo[SRRoomManagerEndpointsListKey] ?: @[];
+        [self _writeExperimentLogEvent:@{@"event": @"endpoints",
+                                         @"host": host,
+                                         @"peers": peers,
+                                         @"count": @(peers.count)}];
+    }];
+    [self.experimentObservers addObject:epToken];
+
+    id syncToken = [nc addObserverForName:SRRoomSyncStatusChangedNotification
+                                    object:nil queue:[NSOperationQueue mainQueue]
+                                usingBlock:^(NSNotification *note) {
+        NSString *host = note.userInfo[SRRoomSyncStatusHostKey] ?: @"";
+        NSString *status = note.userInfo[SRRoomSyncStatusKey] ?: @"";
+        float progress = [note.userInfo[SRRoomSyncStatusProgressKey] floatValue];
+        NSMutableDictionary *ev = [@{@"event": @"sync_status",
+                                     @"host": host,
+                                     @"status": status,
+                                     @"progress": @(progress)} mutableCopy];
+        NSString *author = note.userInfo[SRRoomSyncStatusAuthorKey];
+        if (author) ev[@"author"] = author;
+        [self _writeExperimentLogEvent:ev];
+    }];
+    [self.experimentObservers addObject:syncToken];
+}
+
+// Called by SSBRoomClientDelegate to log replication events into experiment log
+- (void)_logExperimentReplicatedFromPeer:(NSString *)peerID count:(NSInteger)count host:(NSString *)host {
+    if (!self.experimentLogHandle) return;
+    [self _writeExperimentLogEvent:@{@"event": @"replicated",
+                                     @"host": host ?: @"",
+                                     @"peer": peerID ?: @"",
+                                     @"count": @(count)}];
 }
 
 - (nullable SSBRoomClient *)anyConnectedClient {

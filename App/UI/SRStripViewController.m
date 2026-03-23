@@ -69,6 +69,7 @@
     btn.translatesAutoresizingMaskIntoConstraints = NO;
     btn.contentTintColor = NSColor.secondaryLabelColor;
     btn.wantsLayer = YES;
+    [btn setAccessibilityIdentifier:[NSString stringWithFormat:@"strip-btn-%@", tooltip.lowercaseString]];
 
     [self.stackView addArrangedSubview:btn];
     [self.itemButtons addObject:btn];

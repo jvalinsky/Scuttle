@@ -107,6 +107,11 @@ static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueue
     } else if ([data isKindOfClass:[NSString class]]) {
         flags |= SSBMuxRPCFlagTypeString;
         bodyData = [(NSString *)data dataUsingEncoding:NSUTF8StringEncoding];
+    } else if ([data isKindOfClass:[NSNumber class]]) {
+        // NSJSONSerialization rejects top-level scalars; encode manually.
+        flags |= SSBMuxRPCFlagTypeJSON;
+        NSString *fragment = [(NSNumber *)data boolValue] ? @"true" : @"false";
+        bodyData = [fragment dataUsingEncoding:NSUTF8StringEncoding];
     } else if (data) {
         flags |= SSBMuxRPCFlagTypeJSON;
         bodyData = [NSJSONSerialization dataWithJSONObject:data options:0 error:nil];
@@ -125,8 +130,8 @@ static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueue
                                                     options:NSJSONReadingAllowFragments
                                                       error:&err];
         if (err) {
-            os_log_error(rpc_log, "JSON parse failed: %{public}@", err);
-            return nil;
+            NSLog(@"[DEBUG_MuxRPC] JSON parse failed fallback to NSData for reqNum %d: %@", message.requestNumber, err.localizedDescription);
+            return message.body;
         }
         return parsed;
     }
@@ -225,6 +230,13 @@ static const void *SSBMuxRPCSessionAccessQueueKey = &SSBMuxRPCSessionAccessQueue
                 os_log_debug(rpc_log, "Executing callback for ID %d (stream final value with EndErr)", reqID);
                 callback(parsedBody, nil);
                 os_log_debug(rpc_log, "Completed callback for ID %d (stream final value with EndErr)", reqID);
+            } else {
+                // Clean stream end: @YES sentinel or empty body. Signal end-of-stream to
+                // the consumer with (nil, nil) so source-stream handlers (e.g. blobs.get)
+                // know when all chunks have arrived.
+                os_log_debug(rpc_log, "Executing callback for ID %d (clean stream end)", reqID);
+                callback(nil, nil);
+                os_log_debug(rpc_log, "Completed callback for ID %d (clean stream end)", reqID);
             }
 
             [self performAccessQueueSync:^{

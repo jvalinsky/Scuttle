@@ -11,6 +11,6 @@ services:
     volumes:
       - ./ssb-room-data:/data
     restart: unless-stopped
-    command: [ "-repo", "/data", "-lishttp", ":3000", "-lismux", ":8008", "-mode", "open" ]
+    command: [ "/app/cmd/server/server", "-repo", "/data", "-lishttp", ":3000", "-lismux", ":8008", "-mode", "open", "-https-domain", "localhost", "localhost:3000", "localhost:800" ]
     environment:
       - GO_SSB_ROOM_DOMAIN=localhost

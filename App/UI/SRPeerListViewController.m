@@ -24,6 +24,7 @@ static os_log_t peer_list_log;
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
+        self.wantsLayer = YES;
         _avatarView = [[NSView alloc] init];
         _avatarView.wantsLayer = YES;
         _avatarView.layer.cornerRadius = 20; // Half of 40
@@ -79,7 +80,7 @@ static os_log_t peer_list_log;
             [_connectionStatusDot.heightAnchor constraintEqualToConstant:10],
             
             [_idLabel.leadingAnchor constraintEqualToAnchor:_avatarView.trailingAnchor constant:12],
-            [_idLabel.trailingAnchor constraintEqualToAnchor:_followStatusDot.leadingAnchor constant:-8],
+            [_idLabel.trailingAnchor constraintLessThanOrEqualToAnchor:self.trailingAnchor constant:-32],
             [_idLabel.topAnchor constraintEqualToAnchor:self.topAnchor constant:10],
             
             [_statusLabel.leadingAnchor constraintEqualToAnchor:_idLabel.leadingAnchor],
@@ -163,6 +164,7 @@ static os_log_t peer_list_log;
     self.tableView.headerView = nil;
     self.tableView.backgroundColor = [NSColor clearColor];
     self.tableView.rowHeight = 52; // Increased for larger avatars
+    [self.tableView setAccessibilityIdentifier:@"peer-list-table"];
     self.tableView.selectionHighlightStyle = NSTableViewSelectionHighlightStyleRegular;
     
     self.tableView.style = NSTableViewStyleSourceList;
@@ -187,6 +189,7 @@ static os_log_t peer_list_log;
     self.emptyLabel.textColor = [NSColor tertiaryLabelColor];
     self.emptyLabel.translatesAutoresizingMaskIntoConstraints = NO;
     self.emptyLabel.hidden = YES;
+    [self.emptyLabel setAccessibilityIdentifier:@"peer-list-empty"];
     [self.view addSubview:self.emptyLabel];
     
     self.progressIndicator = [[NSProgressIndicator alloc] init];
@@ -217,13 +220,10 @@ static os_log_t peer_list_log;
     }];
     [self.observerTokens addObject:syncToken];
 
-    id endpointToken = [[NSNotificationCenter defaultCenter] addObserverForName:SRRoomManagerDidUpdateEndpointsNotification
-                                                                         object:nil
-                                                                          queue:[NSOperationQueue mainQueue]
-                                                                     usingBlock:^(NSNotification * _Nonnull note) {
-        [weakSelf endpointsDidUpdate:note];
-    }];
-    [self.observerTokens addObject:endpointToken];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(endpointsDidUpdate:)
+                                                 name:SRRoomManagerDidUpdateEndpointsNotification
+                                               object:nil];
 
     if (self.roomHost.length == 0) {
         [self loadPeers];
@@ -247,12 +247,18 @@ static os_log_t peer_list_log;
     NSDictionary *userInfo = notification.userInfo;
     NSString *host = userInfo[SRRoomManagerEndpointsHostKey];
     NSArray *list = userInfo[SRRoomManagerEndpointsListKey];
+    
     if (self.roomHost.length > 0 && [host isEqualToString:self.roomHost]) {
-        [self loadPeers];
+        NSMutableSet *allPeers = [NSMutableSet setWithArray:[[SSBFeedStore sharedStore] allKnownAuthors]];
+        if (list) {
+            [allPeers addObjectsFromArray:list];
+        }
+        [self updatePeers:[allPeers allObjects]];
     }
 }
 
 - (void)dealloc {
+    os_log_info(peer_list_log, "dealloc called for %{public}@", self.roomHost);
     for (id token in self.observerTokens) {
         [[NSNotificationCenter defaultCenter] removeObserver:token];
     }
@@ -286,6 +292,7 @@ static os_log_t peer_list_log;
     NSDictionary *userInfo = notification.userInfo;
     NSString *host = userInfo[SRRoomSyncStatusHostKey];
     NSString *author = userInfo[SRRoomSyncStatusAuthorKey];
+    NSString *peerID = userInfo[SRRoomSyncStatusPeerKey];
     NSString *status = userInfo[SRRoomSyncStatusKey];
     float progress = [userInfo[SRRoomSyncStatusProgressKey] floatValue];
 
@@ -293,13 +300,14 @@ static os_log_t peer_list_log;
         return;
     }
     
-    if (author) {
-        os_log_debug(peer_list_log, "Sync status updated for %{public}@: %{public}@ (%f)", author, status, progress);
-        self.peerSyncProgress[author] = @(progress);
-        self.peerSyncStatus[author] = status;
+    NSString *key = peerID ?: author;
+    if (key) {
+        os_log_debug(peer_list_log, "Sync status updated for %{public}@: %{public}@ (%f)", key, status, progress);
+        self.peerSyncProgress[key] = @(progress);
+        self.peerSyncStatus[key] = status;
         
         dispatch_async(dispatch_get_main_queue(), ^{
-            NSInteger row = [self.peers indexOfObject:author];
+            NSInteger row = [self.peers indexOfObject:key];
             if (row != NSNotFound) {
                 [self.tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:row] columnIndexes:[NSIndexSet indexSetWithIndex:0]];
             }
@@ -376,6 +384,11 @@ static os_log_t peer_list_log;
         NSString *peerID = self.peers[row];
         os_log_debug(peer_list_log, "Rendering row %ld: %{public}@", (long)row, peerID);
         cell.idLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:peerID];
+
+        // Per-row accessibility identifiers for test automation
+        [cell.statusLabel setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-status-%ld", (long)row]];
+        [cell.connectionStatusDot setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-dot-%ld", (long)row]];
+        [cell.syncProgressBar setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-progress-%ld", (long)row]];
         
         NSUInteger hash = [peerID hash];
         cell.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.65 alpha:1.0].CGColor;

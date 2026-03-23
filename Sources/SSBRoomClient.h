@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Called when new messages are replicated from a peer.
 - (void)roomClient:(id)client didReplicateMessagesFromPeer:(NSString *)peerId count:(NSInteger)count;
 /// Called when sync status or progress changes.
-- (void)roomClient:(id)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author;
+- (void)roomClient:(id)client didUpdateSyncStatus:(NSString *)status progress:(float)progress author:(nullable NSString *)author peerID:(nullable NSString *)peerID;
 /// Called when the local feed is fully synced and ready to publish.
 - (void)roomClientDidSyncLocalFeed:(id)client;
 /// Called when messages in the publish queue have been processed.

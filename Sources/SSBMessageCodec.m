@@ -55,23 +55,6 @@ static os_log_t codecLog(void) {
     return SSBBFEMessageFormatClassic;
 }
 
-- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
-    NSError *jsonError = nil;
-    NSDictionary *value = [NSJSONSerialization JSONObjectWithData:messageData
-                                                         options:0
-                                                           error:&jsonError];
-    if (!value) {
-        if (error) *error = jsonError;
-        return NO;
-    }
-    BOOL valid = [SSBMessageCodec verifyMessage:value];
-    if (!valid && error) {
-        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
-                                userInfo:@{NSLocalizedDescriptionKey: @"Classic message signature invalid"}];
-    }
-    return valid;
-}
-
 - (nullable NSData *)computeMessageKeyFromData:(NSData *)messageData error:(NSError **)error {
     if (!messageData.length) {
         if (error) {
@@ -365,6 +348,110 @@ static os_log_t codecLog(void) {
 }
 
 #pragma mark - Verification
+
++ (nullable NSData *)extractUnsignedBytesFromJSON:(NSData *)jsonData signature:(NSString **)outSignature {
+    // SSB classic messages end with:
+    //   ...
+    //   "signature": "..."
+    // }
+    // We need to strip the comma, the signature key, and the signature value.
+    
+    NSString *jsonStr = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+    if (!jsonStr) return nil;
+    
+    // Find the last occurrence of "signature"
+    NSRange sigKeyRange = [jsonStr rangeOfString:@"\"signature\":" options:NSBackwardsSearch];
+    if (sigKeyRange.location == NSNotFound) return nil;
+    
+    // Find the comma before it
+    NSRange commaRange = [jsonStr rangeOfString:@"," options:NSBackwardsSearch range:NSMakeRange(0, sigKeyRange.location)];
+    if (commaRange.location == NSNotFound) return nil;
+    
+    // The unsigned part is from the start up to the comma
+    NSString *unsignedStr = [jsonStr substringToIndex:commaRange.location];
+    // Add the closing brace
+    unsignedStr = [unsignedStr stringByAppendingString:@"\n}"];
+    
+    // Extract signature value
+    NSRange startQuote = [jsonStr rangeOfString:@"\"" options:0 range:NSMakeRange(NSMaxRange(sigKeyRange), jsonStr.length - NSMaxRange(sigKeyRange))];
+    if (startQuote.location == NSNotFound) return nil;
+    NSRange endQuote = [jsonStr rangeOfString:@"\"" options:0 range:NSMakeRange(NSMaxRange(startQuote), jsonStr.length - NSMaxRange(startQuote))];
+    if (endQuote.location == NSNotFound) return nil;
+    
+    if (outSignature) {
+        *outSignature = [jsonStr substringWithRange:NSMakeRange(NSMaxRange(startQuote), endQuote.location - NSMaxRange(startQuote))];
+    }
+    
+    return [unsignedStr dataUsingEncoding:NSUTF8StringEncoding];
+}
+
+- (BOOL)verifyMessageData:(NSData *)messageData error:(NSError **)error {
+    NSError *jsonError = nil;
+    NSDictionary *value = [NSJSONSerialization JSONObjectWithData:messageData
+                                                          options:0
+                                                            error:&jsonError];
+    if (!value) {
+        if (error) *error = jsonError;
+        return NO;
+    }
+    
+    // Try to verify using original bytes first (preserves key order)
+    NSString *extractedSig = nil;
+    NSData *unsignedBytes = [SSBMessageCodec extractUnsignedBytesFromJSON:messageData signature:&extractedSig];
+    if (unsignedBytes && extractedSig) {
+        // We need to verify extractedSig against unsignedBytes
+        // But we need the author's public key
+        NSString *author = value[@"author"];
+        if (author) {
+            if ([SSBMessageCodec verifySignature:extractedSig onBytes:unsignedBytes forAuthor:author]) {
+                return YES;
+            }
+        }
+    }
+    
+    // Fallback to standard re-encoding (current behavior)
+    BOOL valid = [SSBMessageCodec verifyMessage:value];
+    if (!valid && error) {
+        *error = [NSError errorWithDomain:@"SSBFeedCodec" code:1
+                                 userInfo:@{NSLocalizedDescriptionKey: @"Classic message signature invalid"}];
+    }
+    return valid;
+}
+
++ (BOOL)verifySignature:(NSString *)sigStr onBytes:(NSData *)unsignedBytes forAuthor:(NSString *)author {
+    if (!author || author.length < 2) return NO;
+
+    // Strip @ prefix and .ed25519 suffix
+    NSString *b64Key = [author substringFromIndex:1];
+    NSRange suffixRange = [b64Key rangeOfString:@".ed25519"];
+    if (suffixRange.location == NSNotFound) return NO;
+    b64Key = [b64Key substringToIndex:suffixRange.location];
+
+    NSData *pubKey = [[NSData alloc] initWithBase64EncodedString:b64Key options:0];
+    if (pubKey.length != crypto_sign_ed25519_PUBLICKEYBYTES) return NO;
+
+    // Extract signature
+    NSString *sigB64 = [sigStr stringByReplacingOccurrencesOfString:@".sig.ed25519" withString:@""];
+    NSData *sig = [[NSData alloc] initWithBase64EncodedString:sigB64 options:0];
+    if (sig.length != crypto_sign_ed25519_BYTES) return NO;
+
+    // Construct signed message: sig(64) + message
+    NSUInteger smLen = crypto_sign_ed25519_BYTES + unsignedBytes.length;
+    unsigned char *sm = malloc(smLen);
+    if (!sm) return NO;
+    memcpy(sm, sig.bytes, crypto_sign_ed25519_BYTES);
+    memcpy(sm + crypto_sign_ed25519_BYTES, unsignedBytes.bytes, unsignedBytes.length);
+
+    unsigned char *m = malloc(smLen);
+    if (!m) { free(sm); return NO; }
+    unsigned long long mlen = 0;
+
+    int ret = crypto_sign_ed25519_open(m, &mlen, sm, smLen, pubKey.bytes);
+    free(sm);
+    free(m);
+
+    return ret == 0;
+}
 
 + (BOOL)verifyMessage:(NSDictionary *)signedValue {
     NSString *author = signedValue[@"author"];

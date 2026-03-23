@@ -33,6 +33,8 @@ scuttle-cli_OBJC_FILES = \
     Sources/SSBMetafeed.m \
     Sources/SSBButtwoo.m \
     Sources/SSBBendyButt.m \
+    Sources/SSBEBTHandler.m \
+    Sources/SSBBlobSyncer.m \
     Sources/SSBBFE.m \
     Sources/SSBMessage.m \
     Sources/SSBBamboo.m \

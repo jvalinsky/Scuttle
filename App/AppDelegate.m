@@ -54,7 +54,17 @@ static os_log_t ssb_app_log;
     // Initialize Room Manager
     os_log_info(ssb_app_log, "Initializing RoomManager");
     [SRRoomManager sharedManager];
-    
+
+    // Handle auto-join invite from launch argument (used by UI tests)
+    NSArray<NSString *> *args = [[NSProcessInfo processInfo] arguments];
+    NSUInteger autoJoinIdx = [args indexOfObject:@"-SSBAutoJoinRoom"];
+    if (autoJoinIdx != NSNotFound && autoJoinIdx + 1 < args.count) {
+        NSString *invite = args[autoJoinIdx + 1];
+        [[SRRoomManager sharedManager] joinRoomWithInvite:invite completion:^(BOOL success, NSError * _Nullable error) {
+            os_log_info(ssb_app_log, "Auto-join room: success=%d error=%{public}@", success, error.localizedDescription);
+        }];
+    }
+
     // Start Git Helper Server
     [[SRGitRemoteHelperServer sharedServer] start];
 }

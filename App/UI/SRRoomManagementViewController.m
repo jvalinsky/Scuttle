@@ -41,10 +41,12 @@
     self.inviteField = [[NSTextField alloc] initWithFrame:NSZeroRect];
     self.inviteField.placeholderString = @"Enter Room Invite Code...";
     self.inviteField.translatesAutoresizingMaskIntoConstraints = NO;
-    
+    [self.inviteField setAccessibilityIdentifier:@"room-invite-field"];
+
     self.joinButton = [NSButton buttonWithTitle:@"Join Room" target:self action:@selector(joinAction:)];
     self.joinButton.translatesAutoresizingMaskIntoConstraints = NO;
     self.joinButton.bezelStyle = NSBezelStyleRegularSquare;
+    [self.joinButton setAccessibilityIdentifier:@"room-join-button"];
     
     [topBar addArrangedSubview:self.inviteField];
     [topBar addArrangedSubview:self.joinButton];
@@ -60,6 +62,7 @@
     self.tableView.delegate = self;
     self.tableView.dataSource = self;
     self.tableView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.tableView setAccessibilityIdentifier:@"rooms-table"];
     
     // Add columns
     NSTableColumn *nameCol = [[NSTableColumn alloc] initWithIdentifier:@"Name"];
@@ -158,6 +161,7 @@
         } else {
             tf.stringValue = room.host ?: @"Unknown";
         }
+        [tf setAccessibilityIdentifier:[NSString stringWithFormat:@"room-name-%ld", (long)row]];
         return tf;
     } else if ([tableColumn.identifier isEqualToString:@"Status"]) {
         NSTextField *tf = [tableView makeViewWithIdentifier:@"StatusField" owner:self];
@@ -167,6 +171,7 @@
         }
         SSBRoomClient *client = [[SRRoomManager sharedManager] clientForHost:room.host];
         tf.stringValue = client.isConnected ? @"🟢 Connected" : @"🔴 Disconnected";
+        [tf setAccessibilityIdentifier:[NSString stringWithFormat:@"room-status-%ld", (long)row]];
         return tf;
     } else if ([tableColumn.identifier isEqualToString:@"Action"]) {
         NSButton *btn = [tableView makeViewWithIdentifier:@"ActionCell" owner:self];
@@ -175,6 +180,7 @@
             btn.identifier = @"ActionCell";
             btn.bezelStyle = NSBezelStyleSmallSquare;
         }
+        [btn setAccessibilityIdentifier:[NSString stringWithFormat:@"room-leave-%ld", (long)row]];
         return btn;
     }
     
