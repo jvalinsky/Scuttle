@@ -6,6 +6,7 @@
 #import "SRGitRepoListViewController.h"
 #import "SRPeerListViewController.h"
 #import "SRComposeViewController.h"
+#import "SRErrorBannerView.h"
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
 #import "../../Sources/RoomInviteHandler.h"
@@ -22,6 +23,7 @@
 @property (nonatomic, strong) SRFeedViewController *feedVC;
 @property (nonatomic, strong) SRPeerListViewController *peerListVC;
 @property (nonatomic, strong) SRComposeViewController *composeVC;
+@property (nonatomic, strong) SRErrorBannerView *errorBanner;
 @property (nonatomic, strong) RoomConfig *selectedRoom;
 
 @property (nonatomic, strong) NSView *nexusStripView;
@@ -46,6 +48,7 @@
     self.currentDestination = -1; // Force first render swap
     
     [self setupLayout];
+    [self setupErrorBanner];
     
     // Subscribe to State Updates
     __weak typeof(self) weakSelf = self;
@@ -81,6 +84,14 @@
         NSString *syncStatus = model.roomSyncStatuses[model.selectedRoom.host];
         NSNumber *syncProgress = model.roomSyncProgress[model.selectedRoom.host];
         [self.sidebarVC updateSyncStatus:syncStatus progress:syncProgress ? syncProgress.floatValue : 1.0f];
+    }
+
+    // Handle errors
+    if (model.error) {
+        [self.errorBanner showMessage:model.error.localizedDescription type:SRNotificationTypeError];
+        self.errorBanner.hidden = NO;
+    } else if (model.loadingState != SRLoadingStateLoading) {
+        [self.errorBanner hide];
     }
 
     // Pass feed data to FeedViewController if showing
@@ -357,6 +368,20 @@
         [self.composeVC.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
         [self.composeVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-20],
         [self.composeVC.view.heightAnchor constraintEqualToConstant:120]
+    ]];
+}
+
+- (void)setupErrorBanner {
+    self.errorBanner = [[SRErrorBannerView alloc] init];
+    self.errorBanner.translatesAutoresizingMaskIntoConstraints = NO;
+    self.errorBanner.hidden = YES;
+    [self.view addSubview:self.errorBanner];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.errorBanner.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:8],
+        [self.errorBanner.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.errorBanner.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.errorBanner.heightAnchor constraintEqualToConstant:44]
     ]];
 }
 
