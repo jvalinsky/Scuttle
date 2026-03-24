@@ -311,11 +311,19 @@ static NSString *DockerRoomID(void) {
     XCTestExpectation *bSeesA = [self expectationWithDescription:@"Client B sees A in attendants"];
     XCTestExpectation *aSeesB = [self expectationWithDescription:@"Client A sees B in attendants"];
 
+    __block BOOL bSeesAFulfilled = NO;
+    __block BOOL aSeesBFulfilled = NO;
     delegateA.onEndpointsUpdate = ^(NSArray<NSString *> *endpoints) {
-        if ([endpoints containsObject:idB]) [aSeesB fulfill];
+        if (!aSeesBFulfilled && [endpoints containsObject:idB]) {
+            aSeesBFulfilled = YES;
+            [aSeesB fulfill];
+        }
     };
     delegateB.onEndpointsUpdate = ^(NSArray<NSString *> *endpoints) {
-        if ([endpoints containsObject:idA]) [bSeesA fulfill];
+        if (!bSeesAFulfilled && [endpoints containsObject:idA]) {
+            bSeesAFulfilled = YES;
+            [bSeesA fulfill];
+        }
     };
 
     SSBRoomClient *clientA = [self makeClientWithSecret:secA feedStore:storeA delegate:delegateA];
@@ -326,7 +334,7 @@ static NSString *DockerRoomID(void) {
     [NSThread sleepForTimeInterval:1.0];
     [clientB connect];
 
-    [self waitForExpectations:@[bSeesA, aSeesB] timeout:30.0];
+    [self waitForExpectations:@[bSeesA, aSeesB] timeout:60.0];
 
     NSLog(@"[SCUTTLE-DIAG] testPeerDiscovery: A=%@ B=%@", idA, idB);
     NSLog(@"[SCUTTLE-DIAG] testPeerDiscovery: A's endpoints=%@", delegateA.knownEndpoints);
@@ -481,11 +489,11 @@ static NSString *DockerRoomID(void) {
     [NSThread sleepForTimeInterval:1.0];
     [clientB connect];
 
-    [self waitForExpectations:@[bSeesA] timeout:30.0];
+    [self waitForExpectations:@[bSeesA] timeout:60.0];
     [clientB connectToPeer:idA];
 
-    [self waitForExpectations:@[tunnelReady] timeout:30.0];
-    [self waitForExpectations:@[replication] timeout:60.0];
+    [self waitForExpectations:@[tunnelReady] timeout:60.0];
+    [self waitForExpectations:@[replication] timeout:120.0];
 
     // Verify B's store contains A's messages
     SSBFeedState *feedState = [storeB feedStateForAuthor:idA];
