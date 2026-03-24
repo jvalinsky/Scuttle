@@ -9,10 +9,10 @@ static os_log_t peer_list_log;
 @interface SRPeerCell : NSTableCellView
 @property (nonatomic, strong) NSView *avatarView;
 @property (nonatomic, strong) NSView *connectionStatusDot; // Online/Offline Indicator
-@property (nonatomic, strong) NSTextField *idLabel;
+@property (nonatomic, strong) NSTextField *idLabel; // Also serves as peer-name-label
 @property (nonatomic, strong) NSView *followStatusDot;
 @property (nonatomic, strong) NSProgressIndicator *syncProgressBar;
-@property (nonatomic, strong) NSTextField *statusLabel;
+@property (nonatomic, strong) NSTextField *statusLabel; // Also serves as peer-sync-status-label
 @end
 
 @implementation SRPeerCell
@@ -37,12 +37,14 @@ static os_log_t peer_list_log;
         _connectionStatusDot.layer.borderWidth = 1.5;
         _connectionStatusDot.layer.borderColor = [NSColor windowBackgroundColor].CGColor; // updated in viewDidChangeEffectiveAppearance
         _connectionStatusDot.translatesAutoresizingMaskIntoConstraints = NO;
+        _connectionStatusDot.accessibilityIdentifier = @"peer-status-dot";
         [self addSubview:_connectionStatusDot];
         
         _idLabel = [NSTextField labelWithString:@""];
         _idLabel.font = [NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
         _idLabel.translatesAutoresizingMaskIntoConstraints = NO;
         _idLabel.cell.lineBreakMode = NSLineBreakByTruncatingMiddle;
+        _idLabel.accessibilityIdentifier = @"peer-name-label";
         [self addSubview:_idLabel];
         
         _followStatusDot = [[NSView alloc] init];
@@ -66,6 +68,7 @@ static os_log_t peer_list_log;
         _statusLabel.font = [NSFont systemFontOfSize:11];
         _statusLabel.textColor = [NSColor tertiaryLabelColor];
         _statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        _statusLabel.accessibilityIdentifier = @"peer-sync-status-label";
         [self addSubview:_statusLabel];
         
         [NSLayoutConstraint activateConstraints:@[
@@ -385,7 +388,10 @@ static os_log_t peer_list_log;
         os_log_debug(peer_list_log, "Rendering row %ld: %{public}@", (long)row, peerID);
         cell.idLabel.stringValue = [[SSBFeedStore sharedStore] displayNameForAuthor:peerID];
 
-        // Per-row accessibility identifiers for test automation
+        // Cell-level accessibility identifier for XCTest automation
+        cell.accessibilityIdentifier = [NSString stringWithFormat:@"peer-cell-%@", peerID];
+
+        // Per-row accessibility identifiers for test automation (legacy, kept for compatibility)
         [cell.statusLabel setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-status-%ld", (long)row]];
         [cell.connectionStatusDot setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-dot-%ld", (long)row]];
         [cell.syncProgressBar setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-progress-%ld", (long)row]];
