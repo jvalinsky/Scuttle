@@ -38,9 +38,9 @@
     [self.view addSubview:self.stackView];
 
     // Create Buttons
-    [self addButtonWithSymbol:@"house" context:SRWorkspaceContextFeeds tooltip:@"Feeds"];
-    [self addButtonWithSymbol:@"shippingbox" context:SRWorkspaceContextGit tooltip:@"Git SSB"];
-    [self addButtonWithSymbol:@"network" context:SRWorkspaceContextNetwork tooltip:@"Network"];
+    [self addButtonWithSymbol:@"house" context:SRWorkspaceContextFeeds tooltip:@"Feeds" accessibilityID:@"strip-btn-home"];
+    [self addButtonWithSymbol:@"shippingbox" context:SRWorkspaceContextGit tooltip:@"Git SSB" accessibilityID:@"strip-btn-git"];
+    [self addButtonWithSymbol:@"network" context:SRWorkspaceContextNetwork tooltip:@"Network" accessibilityID:@"strip-btn-network"];
 
     [NSLayoutConstraint activateConstraints:@[
         [self.avatarContainer.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
@@ -56,7 +56,7 @@
     [self updateSelectionStates];
 }
 
-- (void)addButtonWithSymbol:(NSString *)symbolName context:(SRWorkspaceContext)context tooltip:(NSString *)tooltip {
+- (void)addButtonWithSymbol:(NSString *)symbolName context:(SRWorkspaceContext)context tooltip:(NSString *)tooltip accessibilityID:(NSString *)accessibilityID {
     NSImage *image = [NSImage imageWithSystemSymbolName:symbolName accessibilityDescription:tooltip];
     if (image) {
         [image setSize:NSMakeSize(20, 20)];
@@ -69,7 +69,7 @@
     btn.translatesAutoresizingMaskIntoConstraints = NO;
     btn.contentTintColor = NSColor.secondaryLabelColor;
     btn.wantsLayer = YES;
-    [btn setAccessibilityIdentifier:[NSString stringWithFormat:@"strip-btn-%@", tooltip.lowercaseString]];
+    [btn setAccessibilityIdentifier:accessibilityID];
 
     [self.stackView addArrangedSubview:btn];
     [self.itemButtons addObject:btn];
