@@ -18,6 +18,7 @@
 @property (nonatomic, strong) SRStripViewController *stripVC;
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
 @property (nonatomic, strong) NSViewController *currentCanvasVC;
+@property (nonatomic, strong) SRFeedViewController *feedVC;
 @property (nonatomic, strong) RoomConfig *selectedRoom;
 
 @property (nonatomic, strong) NSView *nexusStripView;
@@ -72,18 +73,30 @@
     self.sidebarVC.activeContext = model.workspace;
     [self.sidebarVC reloadContents];
 
+    // Pass feed data to FeedViewController if showing
+    if (model.destination == SRDestinationHome && self.feedVC) {
+        [self.feedVC setMessages:model.feed];
+    }
+
     // Reactive Content Swap
     if (self.currentDestination != model.destination) {
         self.currentDestination = model.destination;
 
         [self.currentCanvasVC.view removeFromSuperview];
         [self.currentCanvasVC removeFromParentViewController];
+        self.feedVC = nil;
 
         switch (model.destination) {
             case SRDestinationHome: {
                 SRFeedViewController *feedVC = [[SRFeedViewController alloc] init];
                 feedVC.currentClient = [self currentClient];
+                feedVC.feedType = SRFeedTypeTimeline;
+                self.feedVC = feedVC;
                 self.currentCanvasVC = feedVC;
+                // Set initial feed data if available
+                if (model.feed.count > 0) {
+                    [feedVC setMessages:model.feed];
+                }
                 break;
             }
             case SRDestinationChannels: {

@@ -31,7 +31,7 @@ typedef NS_ENUM(NSInteger, SRFeedType) {
 
 @property (nonatomic, assign) BOOL hidesBackButton;
 
-- (void)refreshFeed;
+- (void)setMessages:(NSArray<SSBMessage *> *)messages;
 - (void)loadFeedForAuthor:(NSString *)author client:(SSBRoomClient *)client;
 - (void)loadFeedForChannel:(NSString *)channel;
 - (void)loadFeedWithSearch:(NSString *)searchText;

@@ -210,6 +210,14 @@
     });
 }
 
+- (void)setMessages:(NSArray<SSBMessage *> *)messages {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self applySnapshotWithMessages:messages];
+        self.emptyLabel.hidden = (messages.count > 0);
+        [self.progressIndicator stopAnimation:nil];
+    });
+}
+
 - (void)applySnapshotWithMessages:(NSArray<SSBMessage *> *)messages {
     [self.messagesByKey removeAllObjects];
     NSDiffableDataSourceSnapshot<NSString *, NSString *> *snapshot = [[NSDiffableDataSourceSnapshot alloc] init];
