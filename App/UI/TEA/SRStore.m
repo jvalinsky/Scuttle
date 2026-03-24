@@ -248,12 +248,25 @@ static os_log_t store_log;
 
 - (void)cmdPublishMessage:(NSDictionary *)payload {
     NSDictionary *content = payload[@"content"];
-    os_log_info(store_log, "Publish message with content type: %@", content[@"type"]);
-    [self dispatch:[SRMsg messagePublished:nil]];
+    os_log_info(store_log, "Publishing message with content type: %@", content[@"type"]);
     
-    if (self.state.currentRoomHost.length > 0) {
-        [self dispatch:[SRMsg loadFeed:self.state.currentRoomHost]];
+    SSBRoomClient *client = [[SRRoomManager sharedManager] anyConnectedClient];
+    if (!client) {
+        NSError *error = [NSError errorWithDomain:@"SRStore" code:1 userInfo:@{NSLocalizedDescriptionKey: @"No connected room"}];
+        [self dispatch:[SRMsg publishFailed:error]];
+        return;
     }
+    
+    [client publishLocalMessageWithContent:content completion:^(NSError * _Nullable error, SSBMessage * _Nullable message) {
+        if (error) {
+            [self dispatch:[SRMsg publishFailed:error]];
+        } else {
+            [self dispatch:[SRMsg messagePublished:message]];
+            if (self.state.currentRoomHost.length > 0) {
+                [self dispatch:[SRMsg loadFeed:self.state.currentRoomHost]];
+            }
+        }
+    }];
 }
 
 - (void)cmdLoadPeers:(NSString *)roomHost {

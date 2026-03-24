@@ -5,6 +5,7 @@
 #import "SRChannelBrowserViewController.h"
 #import "SRGitRepoListViewController.h"
 #import "SRPeerListViewController.h"
+#import "SRComposeViewController.h"
 #import "../Logic/SRRoomManager.h"
 #import "../Logic/SRNotificationNames.h"
 #import "../../Sources/RoomInviteHandler.h"
@@ -20,6 +21,7 @@
 @property (nonatomic, strong) NSViewController *currentCanvasVC;
 @property (nonatomic, strong) SRFeedViewController *feedVC;
 @property (nonatomic, strong) SRPeerListViewController *peerListVC;
+@property (nonatomic, strong) SRComposeViewController *composeVC;
 @property (nonatomic, strong) RoomConfig *selectedRoom;
 
 @property (nonatomic, strong) NSView *nexusStripView;
@@ -110,8 +112,11 @@
 
         [self.currentCanvasVC.view removeFromSuperview];
         [self.currentCanvasVC removeFromParentViewController];
+        [self.composeVC.view removeFromSuperview];
+        [self.composeVC removeFromParentViewController];
         self.feedVC = nil;
         self.peerListVC = nil;
+        self.composeVC = nil;
 
         switch (model.destination) {
             case SRDestinationHome: {
@@ -124,6 +129,8 @@
                 if (model.feed.count > 0) {
                     [feedVC setMessages:model.feed];
                 }
+                // Create compose view
+                [self setupComposeView];
                 break;
             }
             case SRDestinationChannels: {
@@ -326,6 +333,27 @@
 
 - (void)roomsDidUpdate:(NSNotification *)notification {
     [self.store dispatch:[SRMsg loadRooms]];
+}
+
+- (void)setupComposeView {
+    self.composeVC = [[SRComposeViewController alloc] init];
+    self.composeVC.roomHost = self.selectedRoom.host;
+    __weak typeof(self) weakSelf = self;
+    self.composeVC.onPublish = ^(NSString *text, NSString * _Nullable contentWarning, NSString * _Nullable replyToKey, void (^completion)(BOOL success, NSError * _Nullable error)) {
+        NSDictionary *content = @{@"type": @"post", @"text": text};
+        [weakSelf.store dispatch:[SRMsg publishMessage:content replyTo:replyToKey cw:contentWarning]];
+        completion(YES, nil);
+    };
+    [self addChildViewController:self.composeVC];
+    self.composeVC.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:self.composeVC.view];
+    
+    [NSLayoutConstraint activateConstraints:@[
+        [self.composeVC.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
+        [self.composeVC.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
+        [self.composeVC.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-20],
+        [self.composeVC.view.heightAnchor constraintEqualToConstant:120]
+    ]];
 }
 
 @end
