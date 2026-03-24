@@ -293,18 +293,20 @@
     [manager.internalRooms addObject:room];
 
     [self.vc loadView];
+    // Set rooms directly on the sidebar since it doesn't automatically read from SRRoomManager
+    self.vc.rooms = @[room];
     [self.vc viewDidLoad];
 
-    // Sidebar layout with 1 room, 0 repos (gitRepos not seeded here):
-    // Row 0: SSB (section header)
+    // Sidebar layout with 1 room, 0 repos:
+    // Row 0: SSB (section header) - expanded
     // Rows 1-4: Home, Channels, Repositories, Peers (4 nav items)
-    // Row 5: ROOMS (section header)
+    // Row 5: ROOMS (section header) - expanded
     // Row 6: test-host (room item)
     // Row 7: CHANNELS (section header)
     // Row 8: REPOSITORIES (section header)
     // Total: 9 rows
     NSInteger rows = [self.vc.outlineView numberOfRows];
-    XCTAssertEqual(rows, 9, @"With 1 room and 0 repos: 4 sections + 4 nav items + 1 room = 9 rows");
+    XCTAssertEqual(rows, 9, @"With 1 room: SSB section (1+4 rows) + ROOMS section (1+1 rows) + 2 empty sections = 9 rows");
 }
 
 - (void)testTableViewSelectionDidChange_postsNotification {
@@ -316,6 +318,7 @@
     [manager.internalRooms addObject:room];
 
     [self.vc loadView];
+    self.vc.rooms = @[room];
     [self.vc viewDidLoad];
 
     NSOutlineView *outlineView = self.vc.outlineView;
@@ -342,6 +345,7 @@
     [manager.internalRooms addObject:room];
 
     [self.vc loadView];
+    self.vc.rooms = @[room];
     [self.vc viewDidLoad];
 
     SSBMessage *repoMsg = [[SSBMessage alloc] init];

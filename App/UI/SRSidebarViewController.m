@@ -118,38 +118,32 @@ static os_log_t sidebar_log;
 - (void)_rebuildSections {
     [self.sections removeAllObjects];
 
-    if (self.activeContext == SRWorkspaceContextFeeds) {
-        SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
-        [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Home" representedObject:@"home"]];
-        [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Channels" representedObject:@"channels"]];
-        [self.sections addObject:topSection];
+    // SSB navigation section - always present
+    SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
+    [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Home" representedObject:@"home"]];
+    [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Channels" representedObject:@"channels"]];
+    [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Repositories" representedObject:@"repos"]];
+    [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Peers" representedObject:@"peers"]];
+    [self.sections addObject:topSection];
 
-        SRSidebarItem *channelsSection = [SRSidebarItem sectionItemWithTitle:@"CHANNELS"];
-        [self.sections addObject:channelsSection];
+    // Rooms section - always present
+    SRSidebarItem *roomsSection = [SRSidebarItem sectionItemWithTitle:@"ROOMS"];
+    for (RoomConfig *room in self.rooms) {
+        [roomsSection.children addObject:[SRSidebarItem roomItemWithTitle:room.host representedObject:room]];
     }
-    else if (self.activeContext == SRWorkspaceContextGit) {
-        SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
-        [topSection.children addObject:[SRSidebarItem roomItemWithTitle:@"Repositories" representedObject:@"repos"]];
-        [self.sections addObject:topSection];
+    [self.sections addObject:roomsSection];
 
-        SRSidebarItem *reposSection = [SRSidebarItem sectionItemWithTitle:@"REPOSITORIES"];
-        for (SSBMessage *repoMsg in self.gitRepos) {
-            NSString *repoName = repoMsg.content[@"name"] ?: @"Unnamed Repo";
-            [reposSection.children addObject:[SRSidebarItem repoItemWithTitle:repoName representedObject:repoMsg]];
-        }
-        [self.sections addObject:reposSection];
-    }
-    else if (self.activeContext == SRWorkspaceContextNetwork) {
-        SRSidebarItem *topSection = [SRSidebarItem sectionItemWithTitle:@"SSB"];
-        [topSection.children addObject:[SRSidebarItem peerItemWithTitle:@"Peers" representedObject:@"peers"]];
-        [self.sections addObject:topSection];
+    // Channels section - populated by feed store
+    SRSidebarItem *channelsSection = [SRSidebarItem sectionItemWithTitle:@"CHANNELS"];
+    [self.sections addObject:channelsSection];
 
-        SRSidebarItem *roomsSection = [SRSidebarItem sectionItemWithTitle:@"ROOMS"];
-        for (RoomConfig *room in self.rooms) {
-            [roomsSection.children addObject:[SRSidebarItem roomItemWithTitle:room.host representedObject:room]];
-        }
-        [self.sections addObject:roomsSection];
+    // Repositories section
+    SRSidebarItem *reposSection = [SRSidebarItem sectionItemWithTitle:@"REPOSITORIES"];
+    for (SSBMessage *repoMsg in self.gitRepos) {
+        NSString *repoName = repoMsg.content[@"name"] ?: @"Unnamed Repo";
+        [reposSection.children addObject:[SRSidebarItem repoItemWithTitle:repoName representedObject:repoMsg]];
     }
+    [self.sections addObject:reposSection];
 
     [self.outlineView reloadData];
     for (SRSidebarItem *section in self.sections) {
