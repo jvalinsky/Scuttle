@@ -1,5 +1,6 @@
 #import "SRStore.h"
 #import "../../Logic/SRRoomManager.h"
+#import "../../Logic/SRNotificationNames.h"
 #import "../../../Sources/SSBFeedStore.h"
 
 static os_log_t store_log;
@@ -65,6 +66,12 @@ static os_log_t store_log;
                                                      name:SRRoomManagerDidUpdateEndpointsNotification
                                                    object:nil];
         [self.activeSubscriptions addObject:SRRoomManagerDidUpdateEndpointsNotification];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleSyncStatusNotification:)
+                                                     name:SRRoomSyncStatusChangedNotification
+                                                   object:nil];
+        [self.activeSubscriptions addObject:SRRoomSyncStatusChangedNotification];
     });
 }
 
@@ -90,6 +97,18 @@ static os_log_t store_log;
     if (host.length > 0 && endpoints.count > 0) {
         dispatch_async(self.queue, ^{
             [self dispatch:[SRMsg roomAttendantsUpdated:host attendants:endpoints]];
+        });
+    }
+}
+
+- (void)handleSyncStatusNotification:(NSNotification *)n {
+    NSString *peerID = n.userInfo[SRRoomSyncStatusPeerKey];
+    NSNumber *progressNum = n.userInfo[SRRoomSyncStatusProgressKey];
+    float progress = progressNum ? progressNum.floatValue : 0.0f;
+    
+    if (peerID.length > 0) {
+        dispatch_async(self.queue, ^{
+            [self dispatch:[SRMsg peerSyncStatusChanged:peerID progress:progress]];
         });
     }
 }
