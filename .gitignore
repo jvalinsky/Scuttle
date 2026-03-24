@@ -87,6 +87,16 @@ sips/
 build_errors*.txt
 build_output.txt
 test_output.txt
+.test_output*.log
+.test_output_exp*.log
+.exp_output*.log
+
+# Agent/debug sessions
+.kiro/
+session_notes.txt
+
+# VS Code
+.vscode/
 
 # Deciduous local state
 .deciduous/*
