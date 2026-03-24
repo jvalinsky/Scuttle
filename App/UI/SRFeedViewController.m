@@ -135,7 +135,6 @@
 
     [self refreshFeed];
 
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshFeed) name:SRNewMessageNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(feedIntegrityDidUpdate:)
                                                  name:SRFeedIntegrityDidUpdateNotification
