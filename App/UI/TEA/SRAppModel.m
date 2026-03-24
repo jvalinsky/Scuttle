@@ -89,6 +89,58 @@
     return m;
 }
 
+- (instancetype)copyWithRooms:(NSArray<RoomConfig *> *)rooms {
+    SRAppModel *m = [[SRAppModel alloc] init];
+    m.workspace = self.workspace;
+    m.destination = self.destination;
+    m.rooms = rooms;
+    m.selectedRoom = self.selectedRoom;
+    m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
+    m.feed = self.feed;
+    m.currentRoomHost = self.currentRoomHost;
+    m.hasMoreFeed = self.hasMoreFeed;
+    m.lastSeq = self.lastSeq;
+    m.peers = self.peers;
+    m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
+    m.localIdentity = self.localIdentity;
+    m.messageCount = self.messageCount;
+    m.followingCount = self.followingCount;
+    m.followersCount = self.followersCount;
+    m.loadingState = self.loadingState;
+    m.activeLoads = self.activeLoads;
+    m.error = self.error;
+    return m;
+}
+
+- (instancetype)copyWithSelectedRoom:(RoomConfig *)room {
+    SRAppModel *m = [[SRAppModel alloc] init];
+    m.workspace = self.workspace;
+    m.destination = self.destination;
+    m.rooms = self.rooms;
+    m.selectedRoom = room;
+    m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
+    m.feed = self.feed;
+    m.currentRoomHost = room.host;
+    m.hasMoreFeed = self.hasMoreFeed;
+    m.lastSeq = self.lastSeq;
+    m.peers = self.peers;
+    m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
+    m.localIdentity = self.localIdentity;
+    m.messageCount = self.messageCount;
+    m.followingCount = self.followingCount;
+    m.followersCount = self.followersCount;
+    m.loadingState = self.loadingState;
+    m.activeLoads = self.activeLoads;
+    m.error = self.error;
+    return m;
+}
+
 - (instancetype)copyWithAppendedFeed:(NSArray<SSBMessage *> *)messages {
     NSMutableArray *newFeed = [self.feed mutableCopy];
     [newFeed addObjectsFromArray:messages];
@@ -268,6 +320,66 @@
     m.messageCount = messages;
     m.followingCount = following;
     m.followersCount = followers;
+    m.loadingState = self.loadingState;
+    m.activeLoads = self.activeLoads;
+    m.error = self.error;
+    return m;
+}
+
+- (instancetype)copyWithRoomStatus:(NSString *)host status:(NSNumber *)status {
+    NSMutableDictionary *newStatuses = [self.roomStatuses mutableCopy];
+    newStatuses[host] = status;
+    
+    SRAppModel *m = [[SRAppModel alloc] init];
+    m.workspace = self.workspace;
+    m.destination = self.destination;
+    m.rooms = self.rooms;
+    m.selectedRoom = self.selectedRoom;
+    m.roomStatuses = [newStatuses copy];
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
+    m.feed = self.feed;
+    m.currentRoomHost = self.currentRoomHost;
+    m.hasMoreFeed = self.hasMoreFeed;
+    m.lastSeq = self.lastSeq;
+    m.peers = self.peers;
+    m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
+    m.localIdentity = self.localIdentity;
+    m.messageCount = self.messageCount;
+    m.followingCount = self.followingCount;
+    m.followersCount = self.followersCount;
+    m.loadingState = self.loadingState;
+    m.activeLoads = self.activeLoads;
+    m.error = self.error;
+    return m;
+}
+
+- (instancetype)copyWithRoomSyncStatus:(NSString *)host status:(NSString *)status progress:(NSNumber *)progress {
+    NSMutableDictionary *newStatuses = [self.roomSyncStatuses mutableCopy];
+    newStatuses[host] = status;
+    NSMutableDictionary *newProgress = [self.roomSyncProgress mutableCopy];
+    newProgress[host] = progress;
+    
+    SRAppModel *m = [[SRAppModel alloc] init];
+    m.workspace = self.workspace;
+    m.destination = self.destination;
+    m.rooms = self.rooms;
+    m.selectedRoom = self.selectedRoom;
+    m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = [newStatuses copy];
+    m.roomSyncProgress = [newProgress copy];
+    m.feed = self.feed;
+    m.currentRoomHost = self.currentRoomHost;
+    m.hasMoreFeed = self.hasMoreFeed;
+    m.lastSeq = self.lastSeq;
+    m.peers = self.peers;
+    m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
+    m.localIdentity = self.localIdentity;
+    m.messageCount = self.messageCount;
+    m.followingCount = self.followingCount;
+    m.followersCount = self.followersCount;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
