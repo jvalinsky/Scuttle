@@ -258,7 +258,7 @@
         // === Lifecycle ===
         case SRMsgTypeAppDidFinishLaunching:
             return [SRUpdateResult resultWithModel:model
-                                                  cmds:@[[SRCmd loadRooms]]];
+                                                  cmds:@[[SRCmd loadRooms], [SRCmd loadChannels], [SRCmd loadGitRepos]]];
             
         case SRMsgTypeAppWillTerminate:
             // Cleanup handled by command executor
