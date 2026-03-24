@@ -129,6 +129,14 @@
     }
 }
 
+- (void)setRepos:(NSArray<SSBMessage *> *)repos {
+    self.repos = repos;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.tableView reloadData];
+        [self.progressIndicator stopAnimation:nil];
+    });
+}
+
 - (void)refreshRepos {
     [self.progressIndicator startAnimation:nil];
     

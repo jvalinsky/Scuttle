@@ -16,6 +16,7 @@ typedef NS_ENUM(NSInteger, SRGitRepoListType) {
 
 - (instancetype)initWithListType:(SRGitRepoListType)listType;
 
+- (void)setRepos:(NSArray<SSBMessage *> *)repos;
 - (void)refreshRepos;
 
 @end

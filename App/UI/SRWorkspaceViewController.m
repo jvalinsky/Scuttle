@@ -141,6 +141,10 @@
                 SRGitRepoListViewController *reposVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeMyRepos];
                 reposVC.currentClient = [self currentClient];
                 self.currentCanvasVC = reposVC;
+                // Set initial repos data if available
+                if (model.gitRepos.count > 0) {
+                    [reposVC setRepos:model.gitRepos];
+                }
                 break;
             }
             case SRDestinationPeers: {
