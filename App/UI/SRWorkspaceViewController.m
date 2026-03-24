@@ -9,6 +9,7 @@
 #import "../Logic/SRNotificationNames.h"
 #import "../../Sources/RoomInviteHandler.h"
 #import "TEA/SRStore.h"
+#import "TEA/SRAppModel.h"
 
 @interface SRWorkspaceViewController () <SRStripDelegate, SRSidebarDelegate>
 @property (nonatomic, strong) SRStore *store;
@@ -37,14 +38,14 @@
     [super viewDidLoad];
     
     // Initialize TEA Store
-    self.store = [[SRStore alloc] initWithInitialModel:[SRModel initialModel]];
+    self.store = [[SRStore alloc] init];
     self.currentDestination = -1; // Force first render swap
     
     [self setupLayout];
     
     // Subscribe to State Updates
     __weak typeof(self) weakSelf = self;
-    [self.store subscribe:^(SRModel *model) {
+    [self.store subscribe:^(SRAppModel *model) {
         [weakSelf render:model];
     }];
     
@@ -56,25 +57,25 @@
     [self.store dispatch:[SRMsg loadRooms]];
 }
 
-- (void)render:(SRModel *)model {
+- (void)render:(SRAppModel *)model {
     self.selectedRoom = model.selectedRoom;
-    self.inspectorView.hidden = (model.workspaceContext == SRWorkspaceContextSettings);
-    self.stripVC.selectedContext = model.workspaceContext; // Render strip bar setup
+    self.inspectorView.hidden = (model.workspace == SRWorkspaceContextSettings);
+    self.stripVC.selectedContext = model.workspace;
     
     // Pass state to sidebar
     self.sidebarVC.gitRepos = model.gitRepos;
     self.sidebarVC.rooms = model.rooms;
-    self.sidebarVC.activeContext = model.workspaceContext;
+    self.sidebarVC.activeContext = model.workspace;
     [self.sidebarVC reloadContents];
 
     // Reactive Content Swap
-    if (self.currentDestination != model.activeDestination) {
-        self.currentDestination = model.activeDestination;
+    if (self.currentDestination != model.destination) {
+        self.currentDestination = model.destination;
 
         [self.currentCanvasVC.view removeFromSuperview];
         [self.currentCanvasVC removeFromParentViewController];
 
-        switch (model.activeDestination) {
+        switch (model.destination) {
             case SRDestinationHome: {
                 SRFeedViewController *feedVC = [[SRFeedViewController alloc] init];
                 feedVC.currentClient = [self currentClient];
