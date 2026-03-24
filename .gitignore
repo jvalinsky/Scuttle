@@ -65,9 +65,14 @@ test_hello
 scuttlebutt.icns
 AppIcon.icns
 scripts/
+
+# Go source files (except tools/test-peer-bot which is tracked)
+*.go
 go.mod
 go.sum
-*.go
+!tools/test-peer-bot/*.go
+!tools/test-peer-bot/go.*
+!tools/test-peer-bot/test-peer-bot
 
 # Cadmus build data
 .cadmus/

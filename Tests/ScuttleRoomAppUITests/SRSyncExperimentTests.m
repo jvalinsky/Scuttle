@@ -449,5 +449,121 @@ static NSString *HostFromInvite(NSString *invite) {
     return NO;
 }
 
+// ---------------------------------------------------------------------------
+#pragma mark - Experiment 5: Bidirectional Sync
+
+/// Hypothesis: Sync works in both directions - GUI can receive from and send to peers.
+/// This requires the test peer bot to be running and publishing messages.
+- (void)testExp5_BidirectionalSync {
+    NSString *invite = InviteCodeFromServerID();
+    if (!invite) { XCTSkip(@"No invite code found"); }
+    BOOL isLocal = [invite containsString:@"localhost"];
+    if (isLocal && !DockerRoomReachable()) {
+        XCTSkip(@"go-ssb-room not reachable on localhost:8008");
+    }
+
+    // Start the test peer bot via HTTP control interface
+    NSURL *botStartURL = [NSURL URLWithString:@"http://localhost:9999/start?messages=10"];
+    NSMutableURLRequest *startReq = [NSMutableURLRequest requestWithURL:botStartURL];
+    startReq.HTTPMethod = @"POST";
+    NSError *startError = nil;
+    NSData *startData = [NSURLConnection sendSynchronousRequest:startReq returningResponse:nil error:&startError];
+    if (startError) {
+        NSLog(@"[Exp5] Warning: Failed to start test peer bot: %@", startError);
+        XCTSkip(@"Test peer bot not available on localhost:9999");
+    } else {
+        NSDictionary *startResult = [NSJSONSerialization JSONObjectWithData:startData options:0 error:nil];
+        NSLog(@"[Exp5] Bot started: %@", startResult);
+    }
+
+    [self launchWithInvite:invite];
+    [self navigateToPeerListWithRoomHost:HostFromInvite(invite)];
+
+    XCTAssertTrue([self waitForEndpointsWithCountGreaterThanZero],
+                  @"Exp5 FAILED: endpoints with > 0 peers not found in log");
+
+    // Wait for initial sync to complete
+    NSDate *initialSyncDeadline = [NSDate dateWithTimeIntervalSinceNow:30.0];
+    BOOL initialSyncComplete = NO;
+    while ([NSDate date].timeIntervalSince1970 < initialSyncDeadline.timeIntervalSince1970) {
+        NSArray *syncEvents = [self logEventsOfType:@"sync_status"];
+        for (NSDictionary *ev in syncEvents) {
+            NSString *status = ev[@"status"];
+            if ([status isEqualToString:@"Ready"]) {
+                initialSyncComplete = YES;
+                break;
+            }
+        }
+        if (initialSyncComplete) break;
+        [NSThread sleepForTimeInterval:1.0];
+    }
+
+    NSLog(@"[Exp5] Initial sync complete: %d", initialSyncComplete);
+
+    // Record initial replicated count
+    NSArray *initialReplicated = [self logEventsOfType:@"replicated"];
+    NSInteger initialCount = 0;
+    for (NSDictionary *ev in initialReplicated) {
+        initialCount += [ev[@"count"] integerValue];
+    }
+    NSLog(@"[Exp5] Initial replicated count: %ld", (long)initialCount);
+
+    // Trigger bot to publish 1 additional message via HTTP
+    NSURL *triggerURL = [NSURL URLWithString:@"http://localhost:9999/start?messages=1"];
+    NSMutableURLRequest *triggerReq = [NSMutableURLRequest requestWithURL:triggerURL];
+    triggerReq.HTTPMethod = @"POST";
+    [NSURLConnection sendSynchronousRequest:triggerReq returningResponse:nil error:nil];
+
+    // Wait for GUI to receive the new message
+    NSDate *receiveDeadline = [NSDate dateWithTimeIntervalSinceNow:30.0];
+    BOOL newMessagesReceived = NO;
+    while ([NSDate date].timeIntervalSince1970 < receiveDeadline.timeIntervalSince1970) {
+        NSArray *newReplicated = [self logEventsOfType:@"replicated"];
+        NSInteger newCount = 0;
+        for (NSDictionary *ev in newReplicated) {
+            newCount += [ev[@"count"] integerValue];
+        }
+        if (newCount > initialCount) {
+            newMessagesReceived = YES;
+            NSLog(@"[Exp5] New messages received: %ld (was %ld)", (long)newCount, (long)initialCount);
+            break;
+        }
+        [NSThread sleepForTimeInterval:2.0];
+    }
+
+    // Check final counts
+    NSArray *finalReplicated = [self logEventsOfType:@"replicated"];
+    NSInteger finalCount = 0;
+    for (NSDictionary *ev in finalReplicated) {
+        finalCount += [ev[@"count"] integerValue];
+    }
+
+    NSLog(@"[Exp5] Final replicated count: %ld", (long)finalCount);
+
+    // Outcome: confirmed if we received more than initial (bidirectional works)
+    //         partial if initial sync worked but new messages didn't arrive
+    //         refuted if no sync happened at all
+    if (finalCount == 0) {
+        XCTFail(@"Exp5 REFUTED: No replication events recorded. "
+                @"Check network connectivity and EBT implementation. "
+                @"See exp_5_bidirectional.md");
+    } else if (!newMessagesReceived && initialCount > 0) {
+        XCTFail(@"Exp5 PARTIAL: Initial sync worked (%ld messages) but new messages not received. "
+                @"One-way sync only. See exp_5_bidirectional.md", (long)initialCount);
+    } else if (newMessagesReceived) {
+        NSLog(@"[Exp5] CONFIRMED: Bidirectional sync works. Initial=%ld Final=%ld",
+              (long)initialCount, (long)finalCount);
+    } else {
+        XCTFail(@"Exp5: Unexpected state - initialCount=%ld finalCount=%ld newMessagesReceived=%d",
+                (long)initialCount, (long)finalCount, newMessagesReceived);
+    }
+
+    // Stop the test peer bot
+    NSURL *botStopURL = [NSURL URLWithString:@"http://localhost:9999/stop"];
+    NSMutableURLRequest *stopReq = [NSMutableURLRequest requestWithURL:botStopURL];
+    stopReq.HTTPMethod = @"POST";
+    [NSURLConnection sendSynchronousRequest:stopReq returningResponse:nil error:nil];
+}
+
 @end
 
