@@ -1,3 +1,6 @@
 [submodule "third-party/go-ssb-room"]
 	path = third-party/go-ssb-room
 	url = https://github.com/ssbc/go-ssb-room
+[submodule "third-party/go-ssb"]
+	path = third-party/go-ssb
+	url = https://github.com/ssbc/go-ssb
