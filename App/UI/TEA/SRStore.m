@@ -72,6 +72,20 @@ static os_log_t store_log;
                                                      name:SRRoomSyncStatusChangedNotification
                                                    object:nil];
         [self.activeSubscriptions addObject:SRRoomSyncStatusChangedNotification];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleNewMessageNotification:)
+                                                     name:SRNewMessageNotification
+                                                   object:nil];
+        [self.activeSubscriptions addObject:SRNewMessageNotification];
+    });
+}
+
+- (void)handleNewMessageNotification:(NSNotification *)n {
+    dispatch_async(self.queue, ^{
+        if (self.state.currentRoomHost.length > 0) {
+            [self dispatch:[SRMsg loadFeed:self.state.currentRoomHost]];
+        }
     });
 }
 
