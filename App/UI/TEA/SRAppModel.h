@@ -33,6 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 // === Git ===
 @property (nonatomic, readonly) NSArray<SSBMessage *> *gitRepos;
 
+// === Channels ===
+@property (nonatomic, readonly) NSArray<NSString *> *channels;
+
 // === Loading/Error ===
 @property (nonatomic, readonly) SRLoadingState loadingState;
 @property (nonatomic, readonly) NSSet<NSString *> *activeLoads;
@@ -53,6 +56,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)copyWithPeers:(NSArray<SRPeerModel *> *)peers;
 - (instancetype)copyWithPeerUpdate:(SRPeerModel *)peer;
 - (instancetype)copyWithGitRepos:(NSArray<SSBMessage *> *)repos;
+- (instancetype)copyWithChannels:(NSArray<NSString *> *)channels;
 - (instancetype)copyWithLoading:(BOOL)loading key:(NSString *)key;
 - (instancetype)copyWithError:(nullable NSError *)error;
 - (instancetype)copyWithClearError;

@@ -38,6 +38,7 @@
 @property (nonatomic, readwrite, nullable) NSString *peerID;
 @property (nonatomic, readwrite) float syncProgress;
 @property (nonatomic, readwrite) NSArray<SSBMessage *> *gitRepos;
+@property (nonatomic, readwrite) NSArray<NSString *> *channels;
 @property (nonatomic, readwrite) SRLoadingState loadingState;
 @property (nonatomic, readwrite, nullable) NSError *error;
 @property (nonatomic, readwrite) NSString *loadingKey;
@@ -235,6 +236,21 @@
     SRMsg *msg = [[SRMsg alloc] init];
     msg.msgType = SRMsgTypeGitReposLoaded;
     msg.gitRepos = repos;
+    return msg;
+}
+
+#pragma mark - Channel Messages
+
++ (instancetype)loadChannels {
+    SRMsg *msg = [[SRMsg alloc] init];
+    msg.msgType = SRMsgTypeLoadChannels;
+    return msg;
+}
+
++ (instancetype)channelsLoaded:(NSArray<NSString *> *)channels {
+    SRMsg *msg = [[SRMsg alloc] init];
+    msg.msgType = SRMsgTypeChannelsLoaded;
+    msg.channels = channels;
     return msg;
 }
 

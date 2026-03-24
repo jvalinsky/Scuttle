@@ -42,6 +42,10 @@ typedef NS_ENUM(NSInteger, SRMsgType) {
     SRMsgTypeLoadGitRepos,
     SRMsgTypeGitReposLoaded,
     
+    // === Channels ===
+    SRMsgTypeLoadChannels,
+    SRMsgTypeChannelsLoaded,
+    
     // === Loading States ===
     SRMsgTypeSetLoading,
     SRMsgTypeSetError,
@@ -114,6 +118,9 @@ typedef NS_ENUM(NSInteger, SRConnectionStatus) {
 // Git
 @property (nonatomic, readonly) NSArray<SSBMessage *> *gitRepos;
 
+// Channels
+@property (nonatomic, readonly) NSArray<NSString *> *channels;
+
 // Loading/Error
 @property (nonatomic, readonly) SRLoadingState loadingState;
 @property (nonatomic, readonly, nullable) NSError *error;
@@ -151,6 +158,10 @@ typedef NS_ENUM(NSInteger, SRConnectionStatus) {
 #pragma mark - Git Messages
 + (instancetype)loadGitRepos;
 + (instancetype)gitReposLoaded:(NSArray<SSBMessage *> *)repos;
+
+#pragma mark - Channel Messages
++ (instancetype)loadChannels;
++ (instancetype)channelsLoaded:(NSArray<NSString *> *)channels;
 
 #pragma mark - Loading/Error Messages
 + (instancetype)setLoading:(BOOL)loading key:(NSString *)key;

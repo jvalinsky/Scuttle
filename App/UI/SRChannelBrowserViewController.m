@@ -62,6 +62,11 @@
     [self.tableView reloadData];
 }
 
+- (void)setChannels:(NSArray<NSString *> *)channels {
+    self.channels = channels;
+    [self.tableView reloadData];
+}
+
 - (void)backAction:(id)sender {
     if ([self.delegate respondsToSelector:@selector(channelBrowserDidRequestBack:)]) {
         [self.delegate channelBrowserDidRequestBack:self];

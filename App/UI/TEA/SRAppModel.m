@@ -14,6 +14,7 @@
 @property (nonatomic, readwrite) NSInteger lastSeq;
 @property (nonatomic, readwrite) NSArray<SRPeerModel *> *peers;
 @property (nonatomic, readwrite) NSArray<SSBMessage *> *gitRepos;
+@property (nonatomic, readwrite) NSArray<NSString *> *channels;
 @property (nonatomic, readwrite) SRLoadingState loadingState;
 @property (nonatomic, readwrite) NSSet<NSString *> *activeLoads;
 @property (nonatomic, readwrite) NSError *error;
@@ -33,6 +34,7 @@
         _feed = @[];
         _peers = @[];
         _gitRepos = @[];
+        _channels = @[];
         _roomStatuses = @{};
         _roomSyncStatuses = @{};
         _roomSyncProgress = @{};
@@ -65,6 +67,7 @@
     m.lastSeq = self.lastSeq;
     m.peers = self.peers;
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -86,6 +89,7 @@
     m.lastSeq = self.lastSeq;
     m.peers = self.peers;
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -107,6 +111,7 @@
     m.lastSeq = self.lastSeq;
     m.peers = self.peers;
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -126,6 +131,7 @@
     m.lastSeq = 0;
     m.peers = @[];
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -150,6 +156,7 @@
     m.lastSeq = self.lastSeq;
     m.peers = self.peers;
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -176,6 +183,7 @@
     m.lastSeq = self.lastSeq;
     m.peers = self.peers;
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -279,6 +287,7 @@
     m.lastSeq = self.lastSeq;
     m.peers = [newPeers copy];
     m.gitRepos = self.gitRepos;
+    m.channels = self.channels;
     m.loadingState = self.loadingState;
     m.activeLoads = self.activeLoads;
     m.error = self.error;
@@ -300,11 +309,34 @@
     m.lastSeq = self.lastSeq;
     m.peers = self.peers;
     m.gitRepos = repos;
+    m.channels = self.channels;
     m.loadingState = SRLoadingStateLoaded;
     m.activeLoads = [self.activeLoads filteredSetUsingPredicate:
                       [NSPredicate predicateWithBlock:^BOOL(NSString *key, NSDictionary *bindings) {
         return ![key isEqualToString:@"git_repos"];
     }]];
+    m.error = self.error;
+    return m;
+}
+
+- (instancetype)copyWithChannels:(NSArray<NSString *> *)channels {
+    SRAppModel *m = [[SRAppModel alloc] init];
+    m.workspace = self.workspace;
+    m.destination = self.destination;
+    m.rooms = self.rooms;
+    m.selectedRoom = self.selectedRoom;
+    m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
+    m.feed = self.feed;
+    m.currentRoomHost = self.currentRoomHost;
+    m.hasMoreFeed = self.hasMoreFeed;
+    m.lastSeq = self.lastSeq;
+    m.peers = self.peers;
+    m.gitRepos = self.gitRepos;
+    m.channels = channels;
+    m.loadingState = self.loadingState;
+    m.activeLoads = self.activeLoads;
     m.error = self.error;
     return m;
 }

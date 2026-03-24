@@ -145,7 +145,12 @@
                 break;
             }
             case SRDestinationChannels: {
-                self.currentCanvasVC = [[SRChannelBrowserViewController alloc] init];
+                SRChannelBrowserViewController *channelsVC = [[SRChannelBrowserViewController alloc] init];
+                self.currentCanvasVC = channelsVC;
+                // Set initial channels data if available
+                if (model.channels.count > 0) {
+                    [channelsVC setChannels:model.channels];
+                }
                 break;
             }
             case SRDestinationRepos: {

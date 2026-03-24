@@ -214,6 +214,10 @@ static os_log_t store_log;
                 [self cmdLoadGitRepos];
                 break;
                 
+            case SRCmdTypeLoadChannels:
+                [self cmdLoadChannels];
+                break;
+                
             case SRCmdTypeSubscribeRoomStatus:
             case SRCmdTypeSubscribePeers:
             case SRCmdTypeSubscribeFeed:
@@ -305,6 +309,11 @@ static os_log_t store_log;
 - (void)cmdLoadGitRepos {
     NSArray<SSBMessage *> *repos = [[SSBFeedStore sharedStore] messagesOfType:@"git-repo" limit:100];
     [self dispatch:[SRMsg gitReposLoaded:repos]];
+}
+
+- (void)cmdLoadChannels {
+    NSArray<NSString *> *channels = [[SSBFeedStore sharedStore] allChannels];
+    [self dispatch:[SRMsg channelsLoaded:channels]];
 }
 
 @end

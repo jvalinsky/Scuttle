@@ -21,6 +21,8 @@ typedef NS_ENUM(NSInteger, SRCmdType) {
     SRCmdTypeConnectToPeer,
     // Git
     SRCmdTypeLoadGitRepos,
+    // Channels
+    SRCmdTypeLoadChannels,
     // Subscriptions
     SRCmdTypeSubscribeRoomStatus,
     SRCmdTypeSubscribePeers,
@@ -43,6 +45,7 @@ typedef NS_ENUM(NSInteger, SRCmdType) {
 + (instancetype)loadPeers:(NSString *)roomHost;
 + (instancetype)connectToPeer:(NSString *)peerID;
 + (instancetype)loadGitRepos;
++ (instancetype)loadChannels;
 + (instancetype)subscribeRoomStatus:(NSString *)roomHost;
 + (instancetype)subscribePeers:(NSString *)roomHost;
 + (instancetype)subscribeFeed:(NSString *)roomHost;

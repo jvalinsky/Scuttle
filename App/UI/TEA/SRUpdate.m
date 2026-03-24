@@ -76,6 +76,12 @@
     return cmd;
 }
 
++ (instancetype)loadChannels {
+    SRCmd *cmd = [[SRCmd alloc] init];
+    cmd.cmdType = SRCmdTypeLoadChannels;
+    return cmd;
+}
+
 + (instancetype)subscribeRoomStatus:(NSString *)roomHost {
     SRCmd *cmd = [[SRCmd alloc] init];
     cmd.cmdType = SRCmdTypeSubscribeRoomStatus;
@@ -229,6 +235,14 @@
             
         case SRMsgTypeGitReposLoaded:
             return [SRUpdateResult resultWithModel:[model copyWithGitRepos:msg.gitRepos]];
+            
+        // === Channels ===
+        case SRMsgTypeLoadChannels:
+            return [SRUpdateResult resultWithModel:[model copyWithLoading:YES key:@"channels"]
+                                                  cmd:[SRCmd loadChannels]];
+            
+        case SRMsgTypeChannelsLoaded:
+            return [SRUpdateResult resultWithModel:[model copyWithChannels:msg.channels]];
             
         // === Loading/Error ===
         case SRMsgTypeSetLoading:

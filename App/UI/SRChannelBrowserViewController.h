@@ -14,6 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<SRChannelBrowserDelegate> delegate;
 
+- (void)setChannels:(NSArray<NSString *> *)channels;
+
 @end
 
 NS_ASSUME_NONNULL_END
