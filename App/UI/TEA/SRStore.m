@@ -247,11 +247,18 @@ static os_log_t store_log;
 }
 
 - (void)cmdLoadPeers:(NSString *)roomHost {
-    NSArray<NSString *> *endpoints = [[SRRoomManager sharedManager] roomEndpoints][roomHost];
-    NSMutableArray *peers = [NSMutableArray array];
+    NSMutableSet<NSString *> *allPeers = [NSMutableSet setWithArray:[[SSBFeedStore sharedStore] allKnownAuthors]];
     
-    for (NSString *peerID in endpoints) {
-        SRPeerModel *peer = [[[SRPeerModel alloc] initWithPeerID:peerID] copyWithSyncState:SRPeerSyncStateSyncing];
+    if (roomHost.length > 0) {
+        NSArray<NSString *> *endpoints = [[SRRoomManager sharedManager] roomEndpoints][roomHost];
+        if (endpoints) {
+            [allPeers addObjectsFromArray:endpoints];
+        }
+    }
+    
+    NSMutableArray<SRPeerModel *> *peers = [NSMutableArray array];
+    for (NSString *peerID in allPeers) {
+        SRPeerModel *peer = [[[SRPeerModel alloc] initWithPeerID:peerID] copyWithSyncState:SRPeerSyncStateDisconnected];
         [peers addObject:peer];
     }
     
