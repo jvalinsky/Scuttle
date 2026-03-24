@@ -182,6 +182,7 @@ static os_log_t sidebar_log;
     self.outlineView.indentationPerLevel = 12;
     self.outlineView.delegate = self;
     self.outlineView.dataSource = self;
+    self.outlineView.accessibilityIdentifier = @"sidebar-outline";
 
     NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:@"MainColumn"];
     column.resizingMask = NSTableColumnAutoresizingMask;
@@ -364,7 +365,13 @@ static os_log_t sidebar_log;
             [cell setAccessibilityIdentifier:@"sidebar-item-peers"];
         } else if ([sidebarItem.representedObject isKindOfClass:[RoomConfig class]]) {
             RoomConfig *room = (RoomConfig *)sidebarItem.representedObject;
-            [cell setAccessibilityIdentifier:[NSString stringWithFormat:@"sidebar-item-room-%@", room.host]];
+            // Find the index of this room in the rooms array
+            NSInteger roomIndex = [self.rooms indexOfObject:room];
+            if (roomIndex != NSNotFound) {
+                [cell setAccessibilityIdentifier:[NSString stringWithFormat:@"sidebar-room-%ld", (long)roomIndex]];
+            } else {
+                [cell setAccessibilityIdentifier:[NSString stringWithFormat:@"sidebar-item-room-%@", room.host]];
+            }
         } else {
             [cell setAccessibilityIdentifier:nil];
         }
