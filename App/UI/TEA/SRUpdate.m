@@ -157,6 +157,9 @@
             return [SRUpdateResult resultWithModel:[model copyWithSelectedRoom:msg.room]
                                                   cmd:[SRCmd connectRoom:msg.room]];
             
+        case SRMsgTypeDeselectRoom:
+            return [SRUpdateResult resultWithModel:[model copyWithSelectedRoom:nil]];
+            
         case SRMsgTypeConnectRoom:
             return [SRUpdateResult resultWithModel:[model copyWithLoading:YES key:[@"room:" stringByAppendingString:msg.roomHost]]
                                                   cmd:[SRCmd connectRoom:msg.room]];

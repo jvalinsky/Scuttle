@@ -97,6 +97,12 @@
     return msg;
 }
 
++ (instancetype)deselectRoom {
+    SRMsg *msg = [[SRMsg alloc] init];
+    msg.msgType = SRMsgTypeDeselectRoom;
+    return msg;
+}
+
 + (instancetype)connectRoom:(RoomConfig *)room {
     SRMsg *msg = [[SRMsg alloc] init];
     msg.msgType = SRMsgTypeConnectRoom;

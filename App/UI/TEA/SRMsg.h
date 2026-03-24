@@ -18,10 +18,12 @@ typedef NS_ENUM(NSInteger, SRMsgType) {
     SRMsgTypeLoadRooms,
     SRMsgTypeRoomsLoaded,
     SRMsgTypeSelectRoom,
+    SRMsgTypeDeselectRoom,
     SRMsgTypeConnectRoom,
     SRMsgTypeDisconnectRoom,
     SRMsgTypeRoomStatusChanged,
     SRMsgTypeRoomAttendantsUpdated,
+    SRMsgTypeRoomSyncStatusUpdated,
     
     // === Feed ===
     SRMsgTypeLoadFeed,
@@ -134,6 +136,7 @@ typedef NS_ENUM(NSInteger, SRConnectionStatus) {
 + (instancetype)loadRooms;
 + (instancetype)roomsLoaded:(NSArray<RoomConfig *> *)rooms;
 + (instancetype)selectRoom:(nullable RoomConfig *)room;
++ (instancetype)deselectRoom;
 + (instancetype)connectRoom:(RoomConfig *)room;
 + (instancetype)disconnectRoom:(nullable RoomConfig *)room;
 + (instancetype)roomStatusChanged:(NSString *)host status:(SRConnectionStatus)status;
