@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, readonly) NSProgressIndicator *progressIndicator;
 @property (nonatomic, copy, nullable) NSString *roomHost;
 - (void)updatePeers:(NSArray<NSString *> *)peers;
+- (void)updateSyncStatus:(NSDictionary<NSString *, NSString *> *)statuses progress:(NSDictionary<NSString *, NSNumber *> *)progress;
 
 @end
 

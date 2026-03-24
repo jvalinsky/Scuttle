@@ -368,6 +368,15 @@ static os_log_t peer_list_log;
     });
 }
 
+- (void)updateSyncStatus:(NSDictionary<NSString *, NSString *> *)statuses progress:(NSDictionary<NSString *, NSNumber *> *)progress {
+    [self.peerSyncStatus addEntriesFromDictionary:statuses];
+    [self.peerSyncProgress addEntriesFromDictionary:progress];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.tableView reloadData];
+    });
+}
+
 #pragma mark - NSTableViewDataSource
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {

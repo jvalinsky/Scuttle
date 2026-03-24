@@ -19,6 +19,7 @@
 @property (nonatomic, strong) SRSidebarViewController *sidebarVC;
 @property (nonatomic, strong) NSViewController *currentCanvasVC;
 @property (nonatomic, strong) SRFeedViewController *feedVC;
+@property (nonatomic, strong) SRPeerListViewController *peerListVC;
 @property (nonatomic, strong) RoomConfig *selectedRoom;
 
 @property (nonatomic, strong) NSView *nexusStripView;
@@ -76,6 +77,74 @@
     // Pass feed data to FeedViewController if showing
     if (model.destination == SRDestinationHome && self.feedVC) {
         [self.feedVC setMessages:model.feed];
+    }
+
+    // Pass peer data to PeerListViewController if showing
+    if (model.destination == SRDestinationPeers && self.peerListVC) {
+        NSMutableArray *peerIDs = [NSMutableArray array];
+        NSMutableDictionary *syncStatus = [NSMutableDictionary dictionary];
+        NSMutableDictionary *syncProgress = [NSMutableDictionary dictionary];
+        
+        for (SRPeerModel *peer in model.peers) {
+            [peerIDs addObject:peer.peerID];
+            if (peer.syncState != SRPeerSyncStateDisconnected) {
+                syncStatus[peer.peerID] = peer.syncState == SRPeerSyncStateReady ? @"Synced" : @"Syncing";
+                syncProgress[peer.peerID] = @(peer.syncProgress);
+            }
+        }
+        
+        [self.peerListVC updatePeers:peerIDs];
+        [self.peerListVC updateSyncStatus:syncStatus progress:syncProgress];
+    }
+
+    // Reactive Content Swap
+    if (self.currentDestination != model.destination) {
+        self.currentDestination = model.destination;
+
+        [self.currentCanvasVC.view removeFromSuperview];
+        [self.currentCanvasVC removeFromParentViewController];
+        self.feedVC = nil;
+        self.peerListVC = nil;
+
+        switch (model.destination) {
+            case SRDestinationHome: {
+                SRFeedViewController *feedVC = [[SRFeedViewController alloc] init];
+                feedVC.currentClient = [self currentClient];
+                feedVC.feedType = SRFeedTypeTimeline;
+                self.feedVC = feedVC;
+                self.currentCanvasVC = feedVC;
+                // Set initial feed data if available
+                if (model.feed.count > 0) {
+                    [feedVC setMessages:model.feed];
+                }
+                break;
+            }
+            case SRDestinationChannels: {
+                self.currentCanvasVC = [[SRChannelBrowserViewController alloc] init];
+                break;
+            }
+            case SRDestinationRepos: {
+                SRGitRepoListViewController *reposVC = [[SRGitRepoListViewController alloc] initWithListType:SRGitRepoListTypeMyRepos];
+                reposVC.currentClient = [self currentClient];
+                self.currentCanvasVC = reposVC;
+                break;
+            }
+            case SRDestinationPeers: {
+                SRPeerListViewController *peersVC = [[SRPeerListViewController alloc] init];
+                peersVC.roomHost = self.selectedRoom.host;
+                self.peerListVC = peersVC;
+                self.currentCanvasVC = peersVC;
+                // Set initial peer data if available
+                if (model.peers.count > 0) {
+                    NSMutableArray *peerIDs = [NSMutableArray array];
+                    for (SRPeerModel *peer in model.peers) {
+                        [peerIDs addObject:peer.peerID];
+                    }
+                    [peersVC updatePeers:peerIDs];
+                }
+                break;
+            }
+        }
     }
 
     // Reactive Content Swap
