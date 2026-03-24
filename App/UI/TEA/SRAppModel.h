@@ -36,6 +36,12 @@ NS_ASSUME_NONNULL_BEGIN
 // === Channels ===
 @property (nonatomic, readonly) NSArray<NSString *> *channels;
 
+// === Profile ===
+@property (nonatomic, readonly) NSDictionary<NSString *, id> *localIdentity;
+@property (nonatomic, readonly) NSInteger messageCount;
+@property (nonatomic, readonly) NSInteger followingCount;
+@property (nonatomic, readonly) NSInteger followersCount;
+
 // === Loading/Error ===
 @property (nonatomic, readonly) SRLoadingState loadingState;
 @property (nonatomic, readonly) NSSet<NSString *> *activeLoads;
@@ -57,6 +63,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)copyWithPeerUpdate:(SRPeerModel *)peer;
 - (instancetype)copyWithGitRepos:(NSArray<SSBMessage *> *)repos;
 - (instancetype)copyWithChannels:(NSArray<NSString *> *)channels;
+- (instancetype)copyWithLocalIdentity:(NSDictionary<NSString *, id> *)identity;
+- (instancetype)copyWithStats:(NSInteger)messages following:(NSInteger)following followers:(NSInteger)followers;
 - (instancetype)copyWithLoading:(BOOL)loading key:(NSString *)key;
 - (instancetype)copyWithError:(nullable NSError *)error;
 - (instancetype)copyWithClearError;
