@@ -1713,14 +1713,22 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
         // Check if this is an RPC request rather than an EBT payload
         if (dict[@"name"] && dict[@"args"]) {
             NSArray *name = dict[@"name"];
-            if ([name isKindOfClass:[NSArray class]] && name.count >= 2 &&
-                [name[0] isEqualToString:@"ebt"] && [name[1] isEqualToString:@"replicate"]) {
-                [self handleBilateralEBT:dict requestID:reqID session:session];
-            } else if ([name isKindOfClass:[NSArray class]] && name.count >= 2 &&
-                       [name[0] isEqualToString:@"blobs"] && [name[1] isEqualToString:@"get"]) {
-                [self handleBlobGetRequest:dict requestID:reqID session:session];
+            if ([name isKindOfClass:[NSArray class]] && name.count >= 1) {
+                NSString *method = name[0];
+                if ([method isEqualToString:@"ebt"] && name.count >= 2 && [name[1] isEqualToString:@"replicate"]) {
+                    [self handleBilateralEBT:dict requestID:reqID session:session];
+                } else if ([method isEqualToString:@"blobs"] && name.count >= 2 && [name[1] isEqualToString:@"get"]) {
+                    [self handleBlobGetRequest:dict requestID:reqID session:session];
+                } else if ([method isEqualToString:@"createHistoryStream"]) {
+                    [self handleCreateHistoryStream:dict requestID:reqID session:session];
+                } else {
+                    os_log_debug(ssb_room_log, "Ignoring unrecognized RPC request: %{public}@", name);
+                    int32_t respReqID = -reqID;
+                    [session sendData:@{@"name": @"Error", @"message": @"Method not supported"} forRequest:respReqID isEnd:YES];
+                }
             } else {
-                os_log_debug(ssb_room_log, "Ignoring non-EBT RPC request: %{public}@", name);
+                int32_t respReqID = -reqID;
+                [session sendData:@{@"name": @"Error", @"message": @"Invalid request name"} forRequest:respReqID isEnd:YES];
             }
             return;
         }
@@ -1791,6 +1799,46 @@ static NSDictionary<NSString *, id> *SSBRoomTraceMergeExtras(NSDictionary<NSStri
     }
     [session sendData:clock forRequest:responseReqID isEnd:NO];
     os_log_info(ssb_room_log, "Sent bilateral EBT clock to %{public}@ (reqID=%d->%d, %lu feeds)", peerID, reqID, responseReqID, (unsigned long)clock.count);
+}
+
+- (void)handleCreateHistoryStream:(NSDictionary *)req requestID:(int32_t)reqID session:(SSBMuxRPCSession *)session {
+    os_log_info(ssb_room_log, "Handling createHistoryStream request (ID=%d)", reqID);
+    NSArray *args = req[@"args"];
+    int32_t responseReqID = -reqID;
+
+    if (![args isKindOfClass:[NSArray class]] || args.count == 0) {
+        [session sendData:@{@"name": @"Error", @"message": @"Missing args"} forRequest:responseReqID isEnd:YES];
+        return;
+    }
+
+    NSDictionary *argsDict = [args firstObject];
+    if (![argsDict isKindOfClass:[NSDictionary class]]) {
+        [session sendData:@{@"name": @"Error", @"message": @"invalid args"} forRequest:responseReqID isEnd:YES];
+        return;
+    }
+
+    NSString *author = argsDict[@"id"];
+    NSInteger seq = [argsDict[@"seq"] integerValue] ?: 1;
+    NSInteger limit = [argsDict[@"limit"] integerValue] ?: 100;
+    
+    if (![author isKindOfClass:[NSString class]]) {
+        [session sendData:@{@"name": @"Error", @"message": @"missing id"} forRequest:responseReqID isEnd:YES];
+        return;
+    }
+
+    NSArray<SSBMessage *> *messages = [self.feedStore messagesForAuthor:author fromSequence:seq limit:limit];
+    for (SSBMessage *msg in messages) {
+        if (msg.valueJSON) {
+            NSDictionary *parsedVal = [NSJSONSerialization JSONObjectWithData:msg.valueJSON options:0 error:nil];
+            if (parsedVal) {
+                NSDictionary *wrapped = @{@"key": msg.key, @"value": parsedVal};
+                [session sendData:wrapped forRequest:responseReqID isEnd:NO];
+            }
+        }
+    }
+
+    [session sendData:@YES forRequest:responseReqID isEnd:YES];
+    os_log_info(ssb_room_log, "createHistoryStream: served %lu messages for %@", (unsigned long)messages.count, author);
 }
 
 - (void)handleBlobGetRequest:(NSDictionary *)req requestID:(int32_t)reqID session:(SSBMuxRPCSession *)session {

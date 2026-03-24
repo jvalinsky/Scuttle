@@ -390,11 +390,6 @@ static os_log_t peer_list_log;
 
         // Cell-level accessibility identifier for XCTest automation
         cell.accessibilityIdentifier = [NSString stringWithFormat:@"peer-cell-%@", peerID];
-
-        // Per-row accessibility identifiers for test automation (legacy, kept for compatibility)
-        [cell.statusLabel setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-status-%ld", (long)row]];
-        [cell.connectionStatusDot setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-dot-%ld", (long)row]];
-        [cell.syncProgressBar setAccessibilityIdentifier:[NSString stringWithFormat:@"peer-progress-%ld", (long)row]];
         
         NSUInteger hash = [peerID hash];
         cell.avatarView.layer.backgroundColor = [NSColor colorWithHue:(hash % 255) / 255.0 saturation:0.6 brightness:0.65 alpha:1.0].CGColor;
