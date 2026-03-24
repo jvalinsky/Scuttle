@@ -52,9 +52,13 @@
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomSelected:) name:SRRoomManagerRoomSelectedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(roomsDidUpdate:) name:SRRoomManagerDidUpdateRoomsNotification object:nil];
 
-    // Initial Data Load
-    [self.store dispatch:[SRMsg loadGitRepos]];
-    [self.store dispatch:[SRMsg loadRooms]];
+    // Start the store (subscribes to notifications, loads initial data)
+    [self.store start];
+}
+
+- (void)dealloc {
+    [self.store stop];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)render:(SRAppModel *)model {
@@ -111,10 +115,6 @@
             [self.currentCanvasVC.view.trailingAnchor constraintEqualToAnchor:self.canvasView.trailingAnchor]
         ]];
     }
-}
-
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)setupLayout {
