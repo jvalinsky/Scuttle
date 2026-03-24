@@ -18,7 +18,7 @@
 
 #import <XCTest/XCTest.h>
 #import "../../App/Logic/SRRoomManager.h"
-#import "../../App/Logic/RoomStorage.h"
+#import "../../Sources/RoomStorage.h"
 
 // ---------------------------------------------------------------------------
 // Expose internals needed for white-box verification

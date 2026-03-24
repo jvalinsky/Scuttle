@@ -35,7 +35,7 @@
 
 - (void)testCornerRadiusTokens {
     XCTAssertEqual([SRStyle cornerRadiusSmall], 4.0);
-    XCTAssertEqual([SRStyle cornerRadiusMedium], 8.0);
+    XCTAssertEqual([SRStyle cornerRadiusMedium], 14.0);
     XCTAssertEqual([SRStyle cornerRadiusLarge], 12.0);
     XCTAssertEqual([SRStyle cornerRadiusRound], 16.0);
 }
@@ -60,7 +60,7 @@
     NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
     [SRStyle styleCardView:view];
     XCTAssertTrue(view.wantsLayer);
-    XCTAssertEqual(view.layer.cornerRadius, 8.0);
+    XCTAssertEqual(view.layer.cornerRadius, 14.0);
 }
 
 - (void)testCreateAvatarView {

@@ -92,7 +92,7 @@
 
 @end
 
-#import "TEA/SRModel.h"
+#import "TEA/SRAppModel.h"
 #import "TEA/SRMsg.h"
 #import "TEA/SRUpdate.h"
 #import "RoomInviteHandler.h"
@@ -103,23 +103,23 @@
 @implementation SRStateTransitionTests
 
 - (void)testInitialModel {
-    SRModel *model = [SRModel initialModel];
-    XCTAssertEqual(model.workspaceContext, SRWorkspaceContextFeeds);
+    SRAppModel *model = [SRAppModel initialModel];
+    XCTAssertEqual(model.workspace, SRWorkspaceContextFeeds);
     XCTAssertNil(model.selectedRoom);
 }
 
 - (void)testSetWorkspaceContext {
-    SRModel *model = [SRModel initialModel];
+    SRAppModel *model = [SRAppModel initialModel];
     SRMsg *msg = [SRMsg setWorkspaceContext:SRWorkspaceContextGit];
     
     SRUpdateResult *result = [SRUpdate updateWithModel:model msg:msg];
     
-    XCTAssertEqual(result.model.workspaceContext, SRWorkspaceContextGit);
+    XCTAssertEqual(result.model.workspace, SRWorkspaceContextGit);
     XCTAssertNil(result.model.selectedRoom);
 }
 
 - (void)testSelectRoom {
-    SRModel *model = [SRModel initialModel];
+    SRAppModel *model = [SRAppModel initialModel];
     
     unsigned char dummyBytes[] = {0x01, 0x02, 0x03};
     NSData *pubKeyData = [NSData dataWithBytes:dummyBytes length:sizeof(dummyBytes)];
@@ -128,7 +128,7 @@
     SRMsg *msg = [SRMsg selectRoom:room];
     SRUpdateResult *result = [SRUpdate updateWithModel:model msg:msg];
     
-    XCTAssertEqual(result.model.workspaceContext, SRWorkspaceContextFeeds); 
+    XCTAssertEqual(result.model.workspace, SRWorkspaceContextFeeds); 
     XCTAssertEqual(result.model.selectedRoom, room);
 }
 
