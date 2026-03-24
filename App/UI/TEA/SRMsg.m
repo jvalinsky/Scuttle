@@ -28,6 +28,7 @@
 @property (nonatomic, readwrite, nullable) NSString *roomHost;
 @property (nonatomic, readwrite) SRConnectionStatus connectionStatus;
 @property (nonatomic, readwrite) NSArray<NSString *> *attendants;
+@property (nonatomic, readwrite, nullable) NSString *syncStatus;
 @property (nonatomic, readwrite) NSArray<SSBMessage *> *messages;
 @property (nonatomic, readwrite, nullable) NSDictionary *messageContent;
 @property (nonatomic, readwrite, nullable) NSString *replyToKey;
@@ -124,6 +125,15 @@
     msg.msgType = SRMsgTypeRoomAttendantsUpdated;
     msg.roomHost = host;
     msg.attendants = attendants;
+    return msg;
+}
+
++ (instancetype)roomSyncStatusUpdated:(NSString *)host status:(NSString *)status progress:(float)progress {
+    SRMsg *msg = [[SRMsg alloc] init];
+    msg.msgType = SRMsgTypeRoomStatusChanged;
+    msg.roomHost = host;
+    msg.syncStatus = status;
+    msg.syncProgress = progress;
     return msg;
 }
 

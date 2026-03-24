@@ -102,10 +102,20 @@ static os_log_t store_log;
 }
 
 - (void)handleSyncStatusNotification:(NSNotification *)n {
+    NSString *host = n.userInfo[SRRoomSyncStatusHostKey];
     NSString *peerID = n.userInfo[SRRoomSyncStatusPeerKey];
+    NSString *status = n.userInfo[SRRoomSyncStatusKey];
     NSNumber *progressNum = n.userInfo[SRRoomSyncStatusProgressKey];
     float progress = progressNum ? progressNum.floatValue : 0.0f;
     
+    // Dispatch room sync status update
+    if (host.length > 0) {
+        dispatch_async(self.queue, ^{
+            [self dispatch:[SRMsg roomSyncStatusUpdated:host status:status progress:progress]];
+        });
+    }
+    
+    // Also dispatch peer sync status update if peer ID is present
     if (peerID.length > 0) {
         dispatch_async(self.queue, ^{
             [self dispatch:[SRMsg peerSyncStatusChanged:peerID progress:progress]];

@@ -160,8 +160,13 @@
                                                   cmd:[SRCmd disconnectRoom:msg.room]];
             
         case SRMsgTypeRoomStatusChanged:
+            if (msg.syncStatus) {
+                return [SRUpdateResult resultWithModel:[model copyWithRoomSyncStatus:msg.roomHost
+                                                                              status:msg.syncStatus
+                                                                           progress:@(msg.syncProgress)]];
+            }
             return [SRUpdateResult resultWithModel:[model copyWithRoomStatus:msg.roomHost
-                                                                       status:@(msg.connectionStatus)]];
+                                                                   status:@(msg.connectionStatus)]];
             
         case SRMsgTypeRoomAttendantsUpdated:
             // Attendants update - could trigger peer list reload

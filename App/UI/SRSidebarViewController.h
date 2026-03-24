@@ -27,6 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Rebuild sections based on activeContext
 - (void)reloadContents;
 
+/// Update sync status display for a room
+- (void)updateSyncStatus:(nullable NSString *)status progress:(float)progress;
+
 @end
 
 NS_ASSUME_NONNULL_END

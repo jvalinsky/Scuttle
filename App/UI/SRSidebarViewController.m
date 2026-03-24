@@ -700,6 +700,10 @@ static os_log_t sidebar_log;
     });
 }
 
+- (void)updateSyncStatus:(nullable NSString *)status progress:(float)progress {
+    [self applySyncStatus:status progress:progress];
+}
+
 - (void)selectDestination:(NSString *)identifier {
     for (NSInteger i = 0; i < self.outlineView.numberOfRows; i++) {
         SRSidebarItem *item = [self.outlineView itemAtRow:i];

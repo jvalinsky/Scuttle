@@ -97,6 +97,7 @@ typedef NS_ENUM(NSInteger, SRConnectionStatus) {
 @property (nonatomic, readonly, nullable) NSString *roomHost;
 @property (nonatomic, readonly) SRConnectionStatus connectionStatus;
 @property (nonatomic, readonly) NSArray<NSString *> *attendants;
+@property (nonatomic, readonly, nullable) NSString *syncStatus;
 
 // Feed
 @property (nonatomic, readonly) NSArray<SSBMessage *> *messages;
@@ -130,6 +131,7 @@ typedef NS_ENUM(NSInteger, SRConnectionStatus) {
 + (instancetype)disconnectRoom:(nullable RoomConfig *)room;
 + (instancetype)roomStatusChanged:(NSString *)host status:(SRConnectionStatus)status;
 + (instancetype)roomAttendantsUpdated:(NSString *)host attendants:(NSArray<NSString *> *)attendants;
++ (instancetype)roomSyncStatusUpdated:(NSString *)host status:(nullable NSString *)status progress:(float)progress;
 
 #pragma mark - Feed Messages
 + (instancetype)loadFeed:(NSString *)roomHost;

@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSArray<RoomConfig *> *rooms;
 @property (nonatomic, readonly, nullable) RoomConfig *selectedRoom;
 @property (nonatomic, readonly) NSDictionary<NSString *, NSNumber *> *roomStatuses; // host -> SRConnectionStatus
+@property (nonatomic, readonly) NSDictionary<NSString *, NSString *> *roomSyncStatuses; // host -> sync status string
+@property (nonatomic, readonly) NSDictionary<NSString *, NSNumber *> *roomSyncProgress; // host -> sync progress float
 
 // === Feed ===
 @property (nonatomic, readonly) NSArray<SSBMessage *> *feed;
@@ -45,6 +47,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)copyWithRooms:(NSArray<RoomConfig *> *)rooms;
 - (instancetype)copyWithSelectedRoom:(nullable RoomConfig *)room;
 - (instancetype)copyWithRoomStatus:(NSString *)host status:(NSNumber *)status;
+- (instancetype)copyWithRoomSyncStatus:(NSString *)host status:(NSString *)status progress:(NSNumber *)progress;
 - (instancetype)copyWithFeed:(NSArray<SSBMessage *> *)messages roomHost:(NSString *)host;
 - (instancetype)copyWithAppendedFeed:(NSArray<SSBMessage *> *)messages;
 - (instancetype)copyWithPeers:(NSArray<SRPeerModel *> *)peers;

@@ -73,6 +73,13 @@
     self.sidebarVC.rooms = model.rooms;
     self.sidebarVC.activeContext = model.workspace;
     [self.sidebarVC reloadContents];
+    
+    // Pass room sync status to sidebar
+    if (model.selectedRoom) {
+        NSString *syncStatus = model.roomSyncStatuses[model.selectedRoom.host];
+        NSNumber *syncProgress = model.roomSyncProgress[model.selectedRoom.host];
+        [self.sidebarVC updateSyncStatus:syncStatus progress:syncProgress ? syncProgress.floatValue : 1.0f];
+    }
 
     // Pass feed data to FeedViewController if showing
     if (model.destination == SRDestinationHome && self.feedVC) {

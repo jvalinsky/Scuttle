@@ -6,6 +6,8 @@
 @property (nonatomic, readwrite) NSArray<RoomConfig *> *rooms;
 @property (nonatomic, readwrite) RoomConfig *selectedRoom;
 @property (nonatomic, readwrite) NSDictionary<NSString *, NSNumber *> *roomStatuses;
+@property (nonatomic, readwrite) NSDictionary<NSString *, NSString *> *roomSyncStatuses;
+@property (nonatomic, readwrite) NSDictionary<NSString *, NSNumber *> *roomSyncProgress;
 @property (nonatomic, readwrite) NSArray<SSBMessage *> *feed;
 @property (nonatomic, readwrite) NSString *currentRoomHost;
 @property (nonatomic, readwrite) BOOL hasMoreFeed;
@@ -32,6 +34,8 @@
         _peers = @[];
         _gitRepos = @[];
         _roomStatuses = @{};
+        _roomSyncStatuses = @{};
+        _roomSyncProgress = @{};
         _activeLoads = [NSSet set];
         _loadingState = SRLoadingStateIdle;
         _hasMoreFeed = YES;
@@ -53,6 +57,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -72,6 +78,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -91,6 +99,8 @@
     m.rooms = rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -132,6 +142,34 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = [newStatuses copy];
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
+    m.feed = self.feed;
+    m.currentRoomHost = self.currentRoomHost;
+    m.hasMoreFeed = self.hasMoreFeed;
+    m.lastSeq = self.lastSeq;
+    m.peers = self.peers;
+    m.gitRepos = self.gitRepos;
+    m.loadingState = self.loadingState;
+    m.activeLoads = self.activeLoads;
+    m.error = self.error;
+    return m;
+}
+
+- (instancetype)copyWithRoomSyncStatus:(NSString *)host status:(NSString *)status progress:(NSNumber *)progress {
+    NSMutableDictionary *newStatuses = [self.roomSyncStatuses mutableCopy];
+    newStatuses[host] = status;
+    NSMutableDictionary *newProgress = [self.roomSyncProgress mutableCopy];
+    newProgress[host] = progress;
+    
+    SRAppModel *m = [[SRAppModel alloc] init];
+    m.workspace = self.workspace;
+    m.destination = self.destination;
+    m.rooms = self.rooms;
+    m.selectedRoom = self.selectedRoom;
+    m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = [newStatuses copy];
+    m.roomSyncProgress = [newProgress copy];
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -198,6 +236,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -231,6 +271,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -250,6 +292,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -279,6 +323,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -298,6 +344,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
@@ -317,6 +365,8 @@
     m.rooms = self.rooms;
     m.selectedRoom = self.selectedRoom;
     m.roomStatuses = self.roomStatuses;
+    m.roomSyncStatuses = self.roomSyncStatuses;
+    m.roomSyncProgress = self.roomSyncProgress;
     m.feed = self.feed;
     m.currentRoomHost = self.currentRoomHost;
     m.hasMoreFeed = self.hasMoreFeed;
